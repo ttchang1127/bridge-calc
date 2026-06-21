@@ -12,7 +12,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         lane_live_load, stresses, Pe_min_zero_tension,
                         shear_web, phiVn, flexural_strength, deflection_analysis,
                         il_moment_peak, abs_max_moment, lane_moment_simple,
-                        hl93_per_lane_moment)
+                        hl93_per_lane_moment, moment_envelope_simple)
 
 sec = Section(5.065e6, 3.287e12, 1329, 2100)
 ten = Tendon(8, 21, 1109)
@@ -33,6 +33,8 @@ golden = {
         "truck_absmax_kNm": round(abs_max_moment(40)),
         "lane_M_kNm": round(lane_moment_simple(40)),
         "per_lane_M_LL_IM_kNm": round(hl93_per_lane_moment(40)),
+        "envelope_peak_kNm": round(max(m for _, m in moment_envelope_simple(40))),
+        "envelope_at_L4_kNm": round(dict((round(a), m) for a, m in moment_envelope_simple(40))[10]),
     },
     "loads": {
         "M_LL_IM_2lane_kNm": round(M_LL),

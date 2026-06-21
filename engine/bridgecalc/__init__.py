@@ -15,7 +15,7 @@ from .flexure import flexural_strength, FlexureResult, beta1
 from .deflection import deflection_analysis, DeflectionResult
 from .influence import (il_moment_simple, il_shear_simple, il_moment_peak,
                         max_moment_moving, abs_max_moment, lane_moment_simple,
-                        hl93_per_lane_moment)
+                        hl93_per_lane_moment, moment_envelope_simple)
 from . import allowables
 
 __all__ = [
@@ -27,5 +27,5 @@ __all__ = [
     "deflection_analysis", "DeflectionResult",
     "il_moment_simple", "il_shear_simple", "il_moment_peak",
     "max_moment_moving", "abs_max_moment", "lane_moment_simple",
-    "hl93_per_lane_moment", "allowables",
+    "hl93_per_lane_moment", "moment_envelope_simple", "allowables",
 ]

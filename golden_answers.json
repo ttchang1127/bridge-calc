@@ -5,7 +5,9 @@
     "peak_M_a10_m": 7.5,
     "truck_absmax_kNm": 2865,
     "lane_M_kNm": 1860,
-    "per_lane_M_LL_IM_kNm": 5670
+    "per_lane_M_LL_IM_kNm": 5670,
+    "envelope_peak_kNm": 2863,
+    "envelope_at_L4_kNm": 2169
   },
   "loads": {
     "M_LL_IM_2lane_kNm": 11346,

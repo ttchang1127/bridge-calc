@@ -43,6 +43,7 @@ tbody tr{border-bottom:0.5px solid var(--line)}
     <label>各跨長 (m，逗號)<input id="sp" type="text" value="40"></label>
     <label>效應<select id="ef"><option value="M">彎矩 M</option><option value="V">剪力 V</option></select></label>
     <label>車道配置<select id="ln"><option value="1">單向1車道</option><option value="2">單向2車道</option><option value="2b">雙向各1(2)</option><option value="4">雙向各2(4)</option></select></label>
+    <label>顯示模式<select id="mode"><option value="single">單一斷面影響線</option><option value="env">設計包絡線（掃全跨）</option></select></label>
   </div>
   <div class="flex no-print" style="margin-top:10px"><label style="white-space:nowrap">目標斷面 x=<b id="xv">20.0</b> m</label><input id="xs" type="range" min="0" max="40" step="0.5" value="20"><button id="abs" style="white-space:nowrap;height:32px">絕對最大彎矩位置</button></div>
 </div>
@@ -73,6 +74,10 @@ tbody tr{border-bottom:0.5px solid var(--line)}
  function truckMax(nodes,il,tot){var best=0,bx=0;for(var s=-TRK.x[2];s<=tot;s+=0.25){var sum=0;for(var a=0;a<3;a++){var ax=s+TRK.x[a];if(ax>=0&&ax<=tot)sum+=TRK.P[a]*interp(nodes,il,ax)}if(Math.abs(sum)>Math.abs(best)){best=sum;bx=s}}return {v:best,x:bx}}
  function laneMax(nodes,il,P){var posA=0,negA=0,mx=0,mn=0;for(var i=0;i<nodes.length-1;i++){var dx=nodes[i+1]-nodes[i],av=(il[i]+il[i+1])/2;if(av>0)posA+=av*dx;else negA+=av*dx;if(il[i]>mx)mx=il[i];if(il[i]<mn)mn=il[i]}var pos=LANE*posA+P*mx,neg=LANE*negA+P*mn;return Math.abs(pos)>=Math.abs(neg)?pos:neg}
  var lf={'1':[1,1.0],'2':[2,1.0],'2b':[2,1.0],'4':[4,0.75]};
+ // ── 包絡線：每斷面的最大正/負設計效應 ──
+ function truckEnv(nodes,il,tot){var pos=0,neg=0;for(var s=-TRK.x[2];s<=tot;s+=0.5){var sum=0;for(var a=0;a<3;a++){var ax=s+TRK.x[a];if(ax>=0&&ax<=tot)sum+=TRK.P[a]*interp(nodes,il,ax)}if(sum>pos)pos=sum;if(sum<neg)neg=sum}return {pos:pos,neg:neg}}
+ function laneEnv(nodes,il,P){var posA=0,negA=0,mx=0,mn=0;for(var i=0;i<nodes.length-1;i++){var dx=nodes[i+1]-nodes[i],av=(il[i]+il[i+1])/2;if(av>0)posA+=av*dx;else negA+=av*dx;if(il[i]>mx)mx=il[i];if(il[i]<mn)mn=il[i]}return {pos:LANE*posA+P*mx,neg:LANE*negA+P*mn}}
+ function envelope(m,eff,I,nl,red){var P=eff==='M'?PM:PV,fac=(1+I)*nl*red,posE=[],negE=[];for(var t=0;t<m.nodes.length;t++){var il=solveIL(m,t,eff);var te=truckEnv(m.nodes,il,m.tot),le=laneEnv(m.nodes,il,P);posE.push(Math.max(te.pos,le.pos)*fac);negE.push(Math.min(te.neg,le.neg)*fac)}return {pos:posE,neg:negE}}
  function E(id){return document.getElementById(id)}
  // ── 自我驗證（對 golden_answers.json）──
  function validate(golden){
@@ -81,7 +86,8 @@ tbody tr{border-bottom:0.5px solid var(--line)}
      ['峰值 η_M(x=10)', ilPeak(40,10), g.peak_M_a10_m,'m',0.01],
      ['卡車絕對最大 M', absMaxHL(40), g.truck_absmax_kNm,'kN·m',5],
      ['車道彎矩 M', laneM(40), g.lane_M_kNm,'kN·m',2],
-     ['每車道 M_LL+IM', (1.33)*absMaxHL(40)+laneM(40), g.per_lane_M_LL_IM_kNm,'kN·m',6]
+     ['每車道 M_LL+IM', (1.33)*absMaxHL(40)+laneM(40), g.per_lane_M_LL_IM_kNm,'kN·m',6],
+     ['彎矩包絡峰值', absMaxHL(40), g.envelope_peak_kNm,'kN·m',5]
    ];
    var pass=0,html=rows.map(function(r){var ok=Math.abs(r[1]-r[2])<=r[4];if(ok)pass++;var dec=r[3]==='m'?2:0;return '<tr><td>'+r[0]+'</td><td>'+r[1].toFixed(dec)+' '+r[3]+'</td><td style="color:#888">'+r[2].toFixed(dec)+'</td><td style="text-align:center" class="'+(ok?'ok':'ng')+'">'+(ok?'✓':'✗')+'</td></tr>'}).join('');
    E('vrows').innerHTML=html;
@@ -90,7 +96,7 @@ tbody tr{border-bottom:0.5px solid var(--line)}
  }
  fetch('./golden_answers.json').then(function(r){return r.json()}).then(validate).catch(function(){
    E('vrows').innerHTML='<tr><td colspan="4" style="color:#888">（本機直接開檔無法 fetch；部署到 GitHub Pages 後即顯示。內嵌 fallback：）</td></tr>';
-   validate({influence_simple_40m:{peak_M_mid_m:10.0,peak_M_a10_m:7.5,truck_absmax_kNm:2865,lane_M_kNm:1860,per_lane_M_LL_IM_kNm:5670}});
+   validate({influence_simple_40m:{peak_M_mid_m:10.0,peak_M_a10_m:7.5,truck_absmax_kNm:2865,lane_M_kNm:1860,per_lane_M_LL_IM_kNm:5670,envelope_peak_kNm:2863}});
  });
  // ── 互動計算 ──
  function run(){
@@ -99,10 +105,12 @@ tbody tr{border-bottom:0.5px solid var(--line)}
   var m=model(spans),tot=m.tot;E('xs').max=tot;if(+E('xs').value>tot)E('xs').value=tot;
   var xt=+E('xs').value;E('xv').textContent=xt.toFixed(1);
   var ti=0;for(var i=0;i<m.nodes.length;i++)if(Math.abs(m.nodes[i]-xt)<Math.abs(m.nodes[ti]-xt))ti=i;xt=m.nodes[ti];
-  var eff=E('ef').value,il=solveIL(m,ti,eff);
+  var eff=E('ef').value;
+  var I=Math.min(0.3,15.24/(tot+38.1)),lc=lf[E('ln').value],nl=lc[0],red=lc[1],U=eff==='M'?'kN·m':'kN';
+  if(E('mode').value==='env'){runEnvelope(m,eff,I,nl,red,U);return;}
+  var il=solveIL(m,ti,eff);
   var tk=truckMax(m.nodes,il,tot),ln=laneMax(m.nodes,il,eff==='M'?PM:PV),gov=Math.abs(tk.v)>=Math.abs(ln)?tk.v:ln,govn=Math.abs(tk.v)>=Math.abs(ln)?'卡車':'車道';
-  var I=Math.min(0.3,15.24/(tot+38.1)),lc=lf[E('ln').value],nl=lc[0],red=lc[1];
-  var perLane=gov*(1+I),total=perLane*nl*red,U=eff==='M'?'kN·m':'kN';
+  var perLane=gov*(1+I),total=perLane*nl*red;
   function card(t,v,sub){return '<div class="metric"><div class="l">'+t+'</div><div class="v">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>'}
   E('res').innerHTML=card('卡車 '+eff,tk.v.toFixed(0)+' '+U)+card('車道 '+eff,ln.toFixed(0)+' '+U)+card('取大×衝擊',perLane.toFixed(0)+' '+U,govn+'，I='+(I*100).toFixed(1)+'%')+card('總計(×'+nl+'×'+(red*100)+'%)',total.toFixed(0)+' '+U,'設計值');
   draw(m,il,xt,tk,eff);
@@ -121,7 +129,28 @@ tbody tr{border-bottom:0.5px solid var(--line)}
   g+='<text x="'+x0+'" y="'+(cy-ah-6)+'" font-size="11" fill="#555">影響線 η（'+eff+' at x，峰值 '+maxRaw.toFixed(2)+(eff==='M'?' m':'')+'）</text>';
   E('dg').innerHTML=g;
  }
- ['bt','sp','ef','ln'].forEach(function(id){E(id).addEventListener('change',function(){if(id==='bt'){var n=+E('bt').value,cur=E('sp').value.split(',').filter(function(s){return s.trim()});while(cur.length<n)cur.push('40');E('sp').value=cur.slice(0,n).join(',')}run()})});
+ function runEnvelope(m,eff,I,nl,red,U){
+  var env=envelope(m,eff,I,nl,red);
+  var maxPos=Math.max.apply(null,env.pos),minNeg=Math.min.apply(null,env.neg);
+  function card(t,v,sub){return '<div class="metric"><div class="l">'+t+'</div><div class="v">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>'}
+  E('res').innerHTML=card('最大正 '+eff,maxPos.toFixed(0)+' '+U,'設計值（含IM×車道×折減）')+card('最大負 '+eff,minNeg.toFixed(0)+' '+U,'連續梁支承區')+card('車道','×'+nl+'×'+(red*100)+'%','I='+(I*100).toFixed(1)+'%');
+  drawEnv(m,env,eff,U);
+  E('cite').textContent='設計包絡線：掃全跨各斷面取最大正/負設計效應（卡車 OR 車道 × 衝擊 × 多車道折減）。連續梁支承區顯示負彎矩。簡支峰值經 golden_answers.json 驗證。';
+ }
+ function drawEnv(m,env,eff,U){
+  var x0=50,x1=780,tot=m.tot,sc=(x1-x0)/tot;function X(x){return x0+x*sc}
+  var all=env.pos.concat(env.neg).map(Math.abs),maxA=Math.max.apply(null,all)||1,by=60,ah=110,cy=by+ah;
+  var g='<text x="'+x0+'" y="'+(by-20)+'" font-size="11" fill="#555">設計 '+eff+' 包絡線（'+tot.toFixed(0)+'m，'+U+'；藍=正/紅=負）</text>';
+  m.sx.forEach(function(s){g+='<line x1="'+X(s)+'" y1="'+(cy-ah-5)+'" x2="'+X(s)+'" y2="'+(cy+ah+5)+'" stroke="#eef"/><path d="M'+X(s)+','+(cy+ah+5)+' l-6,11 l12,0 z" fill="#555"/>'});
+  g+='<line x1="'+x0+'" y1="'+cy+'" x2="'+x1+'" y2="'+cy+'" stroke="#555" stroke-width="1.5"/>';
+  function poly(arr,col){var p='M'+x0+','+cy+' ';for(var i=0;i<m.nodes.length;i++)p+='L'+X(m.nodes[i])+','+(cy-arr[i]/maxA*ah)+' ';p+='L'+x1+','+cy+'Z';return '<path d="'+p+'" fill="'+col+'" fill-opacity="0.12" stroke="'+col+'" stroke-width="1.6"/>'}
+  g+=poly(env.pos,'#1d4ed8')+poly(env.neg,'#dc2626');
+  var mp=Math.max.apply(null,env.pos),mn=Math.min.apply(null,env.neg);
+  g+='<text x="'+(x1-4)+'" y="'+(cy-mp/maxA*ah-4)+'" font-size="10" fill="#1d4ed8" text-anchor="end">+'+mp.toFixed(0)+'</text>';
+  if(mn<-1)g+='<text x="'+(x1-4)+'" y="'+(cy-mn/maxA*ah+12)+'" font-size="10" fill="#dc2626" text-anchor="end">'+mn.toFixed(0)+'</text>';
+  E('dg').innerHTML=g;
+ }
+ ['bt','sp','ef','ln','mode'].forEach(function(id){E(id).addEventListener('change',function(){if(id==='bt'){var n=+E('bt').value,cur=E('sp').value.split(',').filter(function(s){return s.trim()});while(cur.length<n)cur.push('40');E('sp').value=cur.slice(0,n).join(',')}run()})});
  E('xs').addEventListener('input',run);
  E('abs').addEventListener('click',function(){var sp=E('sp').value.split(',').map(parseFloat);if(+E('bt').value===1)E('xs').value=(sp[0]/2).toFixed(1);run()});
  run();

@@ -64,6 +64,16 @@ def lane_moment_simple(L: float, w: float = HL93_LANE) -> float:
     return w * L**2 / 8
 
 
+def moment_envelope_simple(L: float, axles=HL93_AXLES, spacing=HL93_SPACING,
+                           n: int = 20):
+    """簡支梁設計卡車彎矩包絡線：每斷面 a 的最大彎矩。
+
+    回傳 [(a, M_max), ...]（n+1 點）。峰值 = 絕對最大彎矩（≈跨中）。
+    """
+    return [(L * i / n, max_moment_moving(L, L * i / n, axles, spacing))
+            for i in range(n + 1)]
+
+
 def hl93_per_lane_moment(L: float) -> float:
     """每設計車道 M_LL+IM = (1+IM)·卡車絕對最大 + 車道（簡支跨中近似）。"""
     return (1 + IM) * abs_max_moment(L) + lane_moment_simple(L)

@@ -13,7 +13,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         lane_live_load, stresses, Pe_min_zero_tension, allowables,
                         shear_web, phiVn, Av_s_min_TW, flexural_strength,
                         deflection_analysis, il_moment_peak, il_shear_simple,
-                        abs_max_moment, lane_moment_simple, hl93_per_lane_moment)
+                        abs_max_moment, lane_moment_simple, hl93_per_lane_moment,
+                        moment_envelope_simple)
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -129,6 +130,17 @@ def test_influence_simple_span():
     _close(abs_max_moment(40), 2867, 5)           # HL-93 卡車絕對最大
     _close(lane_moment_simple(40), 1860, 2)
     _close(hl93_per_lane_moment(40), 5673, 5)     # = loads.lane_live_load 的 per_lane
+
+
+def test_moment_envelope():
+    """彎矩包絡線（簡支 40m）：峰值≈絕對最大、兩端=0、拋物線狀。"""
+    env = moment_envelope_simple(40)
+    peak = max(m for _, m in env)
+    _close(peak, 2863, 5)                        # 峰值 ≈ 絕對最大彎矩
+    _close(env[0][1], 0.0, 1)                     # 端點(a=0) M=0
+    _close(env[-1][1], 0.0, 1)                    # 端點(a=L) M=0
+    mid = [m for a, m in env if abs(a - 20) < 0.1][0]
+    assert mid >= max(m for a, m in env if abs(a - 10) < 0.1)  # 跨中 ≥ 1/4 點
 
 
 def test_deflection_C2C3():

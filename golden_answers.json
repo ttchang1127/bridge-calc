@@ -1,0 +1,47 @@
+{
+  "_about": "40m參考橋黃金答案(2車道/8組×21股)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
+  "influence_simple_40m": {
+    "peak_M_mid_m": 10.0,
+    "peak_M_a10_m": 7.5,
+    "truck_absmax_kNm": 2865,
+    "lane_M_kNm": 1860,
+    "per_lane_M_LL_IM_kNm": 5670
+  },
+  "loads": {
+    "M_LL_IM_2lane_kNm": 11346,
+    "StrengthI_kNm": 56856,
+    "ServiceI_kNm": 40146,
+    "ServiceIII_kNm": 37877
+  },
+  "prestress": {
+    "config": "8組×21股",
+    "Aps_mm2": 23520,
+    "loss_pct": 22.0,
+    "fpe_MPa": 1087,
+    "Pe_kN": 25578,
+    "Pe_min_kN": 25134
+  },
+  "service": {
+    "sigma_bot_MPa": -0.29,
+    "sigma_top_MPa": -7.81
+  },
+  "shear_D1": {
+    "fpc_MPa": 5.05,
+    "Vp_kN": 1298,
+    "sigma1_MPa": 3.53,
+    "Vcw_kN": 2191,
+    "Vs_req_kN": 549
+  },
+  "flexure_M1": {
+    "c_mm": 204.0,
+    "fps_MPa": 1803,
+    "Mn_kNm": 76438,
+    "CR": 1.34
+  },
+  "deflection": {
+    "LBR_pct": 98.5,
+    "delta_LL_mm": 19.4,
+    "net_longterm_mm": 2.2,
+    "camber_mm": 7
+  }
+}

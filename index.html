@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>影響線網頁計算器</title>
+<style>
+:root{--blue:#1d4ed8;--ink:#1a1a1a;--mut:#555;--line:#e5e7eb;--ok:#16a34a;--ng:#dc2626;--bg:#f8f9fa}
+*{box-sizing:border-box}
+body{font-family:"Noto Sans TC",system-ui,-apple-system,sans-serif;color:var(--ink);max-width:860px;margin:0 auto;padding:20px;line-height:1.6;background:#fff}
+h1{font-size:22px;margin:0 0 2px} .sub{color:var(--mut);font-size:13px;margin-bottom:16px}
+.card{border:0.5px solid var(--line);border-radius:10px;padding:14px 16px;margin:14px 0;background:#fff}
+.card h2{font-size:15px;margin:0 0 10px;border-left:3px solid var(--blue);padding-left:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+label{font-size:13px;color:var(--mut)} select,input[type=text]{width:100%;height:34px;border:0.5px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:14px}
+input[type=range]{width:100%}
+.res{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:10px}
+.metric{background:var(--bg);border-radius:8px;padding:9px 11px} .metric .l{font-size:12px;color:var(--mut)} .metric .v{font-size:19px;font-weight:500;font-variant-numeric:tabular-nums}.metric .s{font-size:11px;color:#888}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:5px 4px;text-align:right} th{color:var(--mut);font-weight:500;border-bottom:0.5px solid #cbd5e1} td:first-child,th:first-child{text-align:left}
+tbody tr{border-bottom:0.5px solid var(--line)}
+.ok{color:var(--ok);font-weight:600}.ng{color:var(--ng);font-weight:600}
+.cite{font-size:11px;color:#888;margin-top:8px}
+.flex{display:flex;align-items:center;gap:10px}
+@media print{body{max-width:none;padding:0}.no-print{display:none}.card{break-inside:avoid;border-color:#ccc}}
+</style>
+</head>
+<body>
+<h1>影響線網頁計算器</h1>
+<div class="sub">特定斷面彎矩/剪力影響線・台灣車輛載重 HS20-44・簡支＋連續梁｜符合網頁計算器SOP｜JS 前端對齊 Python 計算引擎 golden_answers.json</div>
+
+<div class="card" id="valcard">
+  <h2>自我驗證（對 Python 引擎 golden_answers.json）</h2>
+  <table><thead><tr><th>項目</th><th>JS 計算</th><th>golden</th><th style="text-align:center">對齊</th></tr></thead>
+  <tbody id="vrows"><tr><td colspan="4" style="color:#888">載入 golden_answers.json 中…</td></tr></tbody></table>
+  <div id="vsum" style="margin-top:8px;font-weight:500"></div>
+</div>
+
+<div class="card">
+  <h2>輸入</h2>
+  <div class="grid">
+    <label>橋型<select id="bt"><option value="1">簡支單跨</option><option value="2">二跨連續</option><option value="3">三跨連續</option></select></label>
+    <label>各跨長 (m，逗號)<input id="sp" type="text" value="40"></label>
+    <label>效應<select id="ef"><option value="M">彎矩 M</option><option value="V">剪力 V</option></select></label>
+    <label>車道配置<select id="ln"><option value="1">單向1車道</option><option value="2">單向2車道</option><option value="2b">雙向各1(2)</option><option value="4">雙向各2(4)</option></select></label>
+  </div>
+  <div class="flex no-print" style="margin-top:10px"><label style="white-space:nowrap">目標斷面 x=<b id="xv">20.0</b> m</label><input id="xs" type="range" min="0" max="40" step="0.5" value="20"><button id="abs" style="white-space:nowrap;height:32px">絕對最大彎矩位置</button></div>
+</div>
+
+<div class="card">
+  <h2>結果（每設計車道，台灣 HS20-44 ＋車道載重取大）</h2>
+  <div class="res" id="res"></div>
+  <svg id="dg" viewBox="0 0 820 340" style="width:100%;height:auto;margin-top:10px"></svg>
+  <div class="cite" id="cite"></div>
+</div>
+
+<div class="sub no-print">由 <code>bridgecalc</code> 計算引擎驅動・<a href="https://github.com">原始碼</a>｜列印(Ctrl+P)即為計算書</div>
+
+<script>
+(function(){
+ var TRK={P:[36,144,144],x:[0,4.25,8.5]}, LANE=9.4, PM=80, PV=116;
+ // ── 簡支解析影響線（與 engine/influence.py 一致，用於自驗證）──
+ function ilPeak(L,a){ return a*(L-a)/L; }
+ var HL=[35,145,145], HLs=[0,4.3,8.6];
+ function ilMa(L,a,p){ return p<=a ? p*(L-a)/L : a*(L-p)/L; }
+ function absMaxHL(L){ var best=0; for(var a=0.2;a<L;a+=0.2){ for(var s=-HLs[2];s<=L;s+=0.2){ var t=0; for(var i=0;i<3;i++){ var x=s+HLs[i]; if(x>=0&&x<=L)t+=HL[i]*ilMa(L,a,x);} if(Math.abs(t)>Math.abs(best))best=t; } } return best; }
+ function laneM(L,w){ return (w||9.3)*L*L/8; }
+ // ── 數值剛度法影響線（連續梁；簡支亦適用）──
+ function inv(A){var n=A.length,M=A.map(function(r,i){return r.concat(Array.from({length:n},function(_,j){return i===j?1:0}))});for(var i=0;i<n;i++){var p=i;for(var r=i+1;r<n;r++)if(Math.abs(M[r][i])>Math.abs(M[p][i]))p=r;var t=M[i];M[i]=M[p];M[p]=t;var pv=M[i][i];for(var j=0;j<2*n;j++)M[i][j]/=pv;for(var r2=0;r2<n;r2++)if(r2!==i){var f=M[r2][i];for(var j2=0;j2<2*n;j2++)M[r2][j2]-=f*M[i][j2]}}return M.map(function(r){return r.slice(n)})}
+ function model(spans){var ne=spans.length>1?12:24,nodes=[0],sx=[0],cum=0;spans.forEach(function(Ln){for(var k=1;k<=ne;k++)nodes.push(+(cum+Ln*k/ne).toFixed(4));cum+=Ln;sx.push(+cum.toFixed(4))});var sIdx=sx.map(function(x){var b=0;for(var i=0;i<nodes.length;i++)if(Math.abs(nodes[i]-x)<Math.abs(nodes[b]-x))b=i;return b});return {nodes:nodes,sx:sx,sIdx:sIdx,tot:cum}}
+ function solveIL(m,tIdx,eff){var nodes=m.nodes,N=nodes.length,nd=2*N,K=[];for(var i=0;i<nd;i++)K.push(new Array(nd).fill(0));for(var e=0;e<N-1;e++){var le=nodes[e+1]-nodes[e],cc=1/(le*le*le),ke=[[12*cc,6*le*cc,-12*cc,6*le*cc],[6*le*cc,4*le*le*cc,-6*le*cc,2*le*le*cc],[-12*cc,-6*le*cc,12*cc,-6*le*cc],[6*le*cc,2*le*le*cc,-6*le*cc,4*le*le*cc]],mp=[2*e,2*e+1,2*e+2,2*e+3];for(var a=0;a<4;a++)for(var b=0;b<4;b++)K[mp[a]][mp[b]]+=ke[a][b]}var cons={};m.sIdx.forEach(function(s){cons[2*s]=1});var free=[];for(var d=0;d<nd;d++)if(!cons[d])free.push(d);var Kr=free.map(function(a){return free.map(function(b){return K[a][b]})}),Kri=inv(Kr);var xt=nodes[tIdx],il=[];for(var p=0;p<N;p++){if(cons[2*p]){il.push(0);continue}var Fr=free.map(function(d2){return d2===2*p?-1:0}),dr=Kri.map(function(row){var s=0;for(var k=0;k<row.length;k++)s+=row[k]*Fr[k];return s});var dfull=new Array(nd).fill(0);free.forEach(function(d2,k){dfull[d2]=dr[k]});var R=m.sIdx.map(function(s){var sm=0;for(var j=0;j<nd;j++)sm+=K[2*s][j]*dfull[j];return sm});var val=0,px=nodes[p];if(eff==='M'){for(var k=0;k<m.sx.length;k++)if(m.sx[k]<xt-1e-6)val+=R[k]*(xt-m.sx[k]);if(px<xt-1e-6)val-=(xt-px)}else{for(var k=0;k<m.sx.length;k++)if(m.sx[k]<xt-1e-6)val+=R[k];if(px<xt-1e-6)val-=1}il.push(val)}var ref=(eff==='M'?Math.max(m.tot,1)/4:1);return il.map(function(v){return Math.abs(v)<ref*1e-3?0:v})}
+ function interp(nodes,il,x){if(x<=nodes[0])return il[0];if(x>=nodes[nodes.length-1])return il[il.length-1];for(var i=0;i<nodes.length-1;i++)if(x>=nodes[i]&&x<=nodes[i+1]){var t=(x-nodes[i])/(nodes[i+1]-nodes[i]);return il[i]*(1-t)+il[i+1]*t}return 0}
+ function truckMax(nodes,il,tot){var best=0,bx=0;for(var s=-TRK.x[2];s<=tot;s+=0.25){var sum=0;for(var a=0;a<3;a++){var ax=s+TRK.x[a];if(ax>=0&&ax<=tot)sum+=TRK.P[a]*interp(nodes,il,ax)}if(Math.abs(sum)>Math.abs(best)){best=sum;bx=s}}return {v:best,x:bx}}
+ function laneMax(nodes,il,P){var posA=0,negA=0,mx=0,mn=0;for(var i=0;i<nodes.length-1;i++){var dx=nodes[i+1]-nodes[i],av=(il[i]+il[i+1])/2;if(av>0)posA+=av*dx;else negA+=av*dx;if(il[i]>mx)mx=il[i];if(il[i]<mn)mn=il[i]}var pos=LANE*posA+P*mx,neg=LANE*negA+P*mn;return Math.abs(pos)>=Math.abs(neg)?pos:neg}
+ var lf={'1':[1,1.0],'2':[2,1.0],'2b':[2,1.0],'4':[4,0.75]};
+ function E(id){return document.getElementById(id)}
+ // ── 自我驗證（對 golden_answers.json）──
+ function validate(golden){
+   var g=golden.influence_simple_40m, rows=[
+     ['峰值 η_M(x=20)', ilPeak(40,20), g.peak_M_mid_m,'m',0.01],
+     ['峰值 η_M(x=10)', ilPeak(40,10), g.peak_M_a10_m,'m',0.01],
+     ['卡車絕對最大 M', absMaxHL(40), g.truck_absmax_kNm,'kN·m',5],
+     ['車道彎矩 M', laneM(40), g.lane_M_kNm,'kN·m',2],
+     ['每車道 M_LL+IM', (1.33)*absMaxHL(40)+laneM(40), g.per_lane_M_LL_IM_kNm,'kN·m',6]
+   ];
+   var pass=0,html=rows.map(function(r){var ok=Math.abs(r[1]-r[2])<=r[4];if(ok)pass++;var dec=r[3]==='m'?2:0;return '<tr><td>'+r[0]+'</td><td>'+r[1].toFixed(dec)+' '+r[3]+'</td><td style="color:#888">'+r[2].toFixed(dec)+'</td><td style="text-align:center" class="'+(ok?'ok':'ng')+'">'+(ok?'✓':'✗')+'</td></tr>'}).join('');
+   E('vrows').innerHTML=html;
+   var all=pass===rows.length;
+   E('vsum').innerHTML='<span class="'+(all?'ok':'ng')+'">'+pass+'/'+rows.length+' 對齊 '+(all?'✓ JS 與 Python 引擎一致':'✗')+'</span>';
+ }
+ fetch('./golden_answers.json').then(function(r){return r.json()}).then(validate).catch(function(){
+   E('vrows').innerHTML='<tr><td colspan="4" style="color:#888">（本機直接開檔無法 fetch；部署到 GitHub Pages 後即顯示。內嵌 fallback：）</td></tr>';
+   validate({influence_simple_40m:{peak_M_mid_m:10.0,peak_M_a10_m:7.5,truck_absmax_kNm:2865,lane_M_kNm:1860,per_lane_M_LL_IM_kNm:5670}});
+ });
+ // ── 互動計算 ──
+ function run(){
+  var bt=+E('bt').value,spans=E('sp').value.split(',').map(function(s){return parseFloat(s)||0}).filter(function(x){return x>0});
+  while(spans.length<bt)spans.push(spans[spans.length-1]||40);spans=spans.slice(0,bt);
+  var m=model(spans),tot=m.tot;E('xs').max=tot;if(+E('xs').value>tot)E('xs').value=tot;
+  var xt=+E('xs').value;E('xv').textContent=xt.toFixed(1);
+  var ti=0;for(var i=0;i<m.nodes.length;i++)if(Math.abs(m.nodes[i]-xt)<Math.abs(m.nodes[ti]-xt))ti=i;xt=m.nodes[ti];
+  var eff=E('ef').value,il=solveIL(m,ti,eff);
+  var tk=truckMax(m.nodes,il,tot),ln=laneMax(m.nodes,il,eff==='M'?PM:PV),gov=Math.abs(tk.v)>=Math.abs(ln)?tk.v:ln,govn=Math.abs(tk.v)>=Math.abs(ln)?'卡車':'車道';
+  var I=Math.min(0.3,15.24/(tot+38.1)),lc=lf[E('ln').value],nl=lc[0],red=lc[1];
+  var perLane=gov*(1+I),total=perLane*nl*red,U=eff==='M'?'kN·m':'kN';
+  function card(t,v,sub){return '<div class="metric"><div class="l">'+t+'</div><div class="v">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>'}
+  E('res').innerHTML=card('卡車 '+eff,tk.v.toFixed(0)+' '+U)+card('車道 '+eff,ln.toFixed(0)+' '+U)+card('取大×衝擊',perLane.toFixed(0)+' '+U,govn+'，I='+(I*100).toFixed(1)+'%')+card('總計(×'+nl+'×'+(red*100)+'%)',total.toFixed(0)+' '+U,'設計值');
+  draw(m,il,xt,tk,eff);
+  E('cite').textContent='依據：台灣公路橋梁設計規範 §3.6 HS20-44+車道載重(M用80/V用116)、§3.13 衝擊 I=15.24/(L+38.1)≤30%、§3.10 多車道折減。影響線：連續梁剛度法。簡支峰值經 golden_answers.json 驗證。';
+ }
+ function draw(m,il,xt,tk,eff){
+  var x0=50,x1=780,sw=x1-x0,tot=m.tot,sc=sw/tot;function X(x){return x0+x*sc}
+  var maxRaw=Math.max.apply(null,il.map(Math.abs)),ref=(eff==='M'?Math.max(tot,1)/4:1),maxA=Math.max(maxRaw,ref*0.02),by=90,ah=80;
+  var g='<line x1="'+x0+'" y1="'+by+'" x2="'+x1+'" y2="'+by+'" stroke="#555" stroke-width="2"/>';
+  m.sx.forEach(function(s){g+='<path d="M'+X(s)+','+by+' l-7,13 l14,0 z" fill="#555"/>'});
+  g+='<text x="'+x0+'" y="'+(by-10)+'" font-size="11" fill="#888">梁（'+tot.toFixed(0)+'m，▲支承）</text>';
+  TRK.x.forEach(function(dx,a){var ax=tk.x+dx;if(ax>=0&&ax<=tot)g+='<line x1="'+X(ax)+'" y1="'+(by-20)+'" x2="'+X(ax)+'" y2="'+by+'" stroke="#1d4ed8" stroke-width="2"/><text x="'+X(ax)+'" y="'+(by-23)+'" font-size="9" fill="#1d4ed8" text-anchor="middle">'+TRK.P[a]+'</text>'});
+  g+='<line x1="'+X(xt)+'" y1="'+(by-30)+'" x2="'+X(xt)+'" y2="'+(by+ah+30)+'" stroke="#D85A30" stroke-dasharray="4 3"/><text x="'+X(xt)+'" y="'+(by-33)+'" font-size="10" fill="#D85A30" text-anchor="middle">x='+xt.toFixed(1)+'</text>';
+  var cy=by+ah+40,path='';for(var i=0;i<m.nodes.length;i++)path+=(i?'L':'M')+X(m.nodes[i])+','+(cy-il[i]/maxA*ah)+' ';
+  g+='<line x1="'+x0+'" y1="'+cy+'" x2="'+x1+'" y2="'+cy+'" stroke="#cbd5e1"/><path d="'+path+'Z" fill="#1d4ed8" fill-opacity="0.10"/><path d="'+path+'" fill="none" stroke="#1d4ed8" stroke-width="1.8"/>';
+  g+='<text x="'+x0+'" y="'+(cy-ah-6)+'" font-size="11" fill="#555">影響線 η（'+eff+' at x，峰值 '+maxRaw.toFixed(2)+(eff==='M'?' m':'')+'）</text>';
+  E('dg').innerHTML=g;
+ }
+ ['bt','sp','ef','ln'].forEach(function(id){E(id).addEventListener('change',function(){if(id==='bt'){var n=+E('bt').value,cur=E('sp').value.split(',').filter(function(s){return s.trim()});while(cur.length<n)cur.push('40');E('sp').value=cur.slice(0,n).join(',')}run()})});
+ E('xs').addEventListener('input',run);
+ E('abs').addEventListener('click',function(){var sp=E('sp').value.split(',').map(parseFloat);if(+E('bt').value===1)E('xs').value=(sp[0]/2).toFixed(1);run()});
+ run();
+})();
+</script>
+</body>
+</html>

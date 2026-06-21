@@ -1,0 +1,31 @@
+name: bridgecalc CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安裝 pytest
+        run: pip install pytest
+
+      - name: 重新產生 golden_answers.json
+        working-directory: engine
+        run: python make_golden.py
+
+      - name: 回歸測試（黃金答案）
+        working-directory: engine
+        run: pytest tests/ -q
+
+      - name: golden 新鮮度檢查（忘記重產則紅燈）
+        run: |
+          git diff --exit-code golden_answers.json \
+            || (echo "::error::golden_answers.json 過時，請本機跑 engine/make_golden.py 後再 commit" && exit 1)

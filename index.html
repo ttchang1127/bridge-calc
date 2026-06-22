@@ -22,7 +22,8 @@ tbody tr{border-bottom:0.5px solid var(--line)}
 .ok{color:var(--ok);font-weight:600}.ng{color:var(--ng);font-weight:600}
 .cite{font-size:11px;color:#888;margin-top:8px}
 .flex{display:flex;align-items:center;gap:10px}
-@media print{body{max-width:none;padding:0}.no-print{display:none}.card{break-inside:avoid;border-color:#ccc}}
+.print-only{display:none}
+@media print{body{max-width:none;padding:0}.no-print{display:none!important}.print-only{display:block!important}.card{break-inside:avoid;border-color:#ccc}#phdr{border-bottom:2px solid #1d4ed8;padding-bottom:8px;margin-bottom:10px}#phdr h1{margin:0;font-size:20px}#phdr .m{font-size:12px;color:#555}}
 </style>
 </head>
 <body>
@@ -43,10 +44,22 @@ tbody tr{border-bottom:0.5px solid var(--line)}
     <label>各跨長 (m，逗號)<input id="sp" type="text" value="40"></label>
     <label>效應<select id="ef"><option value="M">彎矩 M</option><option value="V">剪力 V</option></select></label>
     <label>車道配置<select id="ln"><option value="1">單向1車道</option><option value="2">單向2車道</option><option value="2b">雙向各1(2)</option><option value="4">雙向各2(4)</option></select></label>
-    <label>顯示模式<select id="mode"><option value="single">單一斷面影響線</option><option value="env">設計包絡線（掃全跨）</option></select></label>
+    <label>顯示模式<select id="mode"><option value="single">單一斷面影響線</option><option value="env">設計包絡線（掃全跨）</option><option value="bmd">BMD/SFD（最不利載重下）</option></select></label>
+    <label>梁間距 S (m，橫向 g)<input id="sgw" type="text" value="3.2"></label>
   </div>
-  <div class="flex no-print" style="margin-top:10px"><label style="white-space:nowrap">目標斷面 x=<b id="xv">20.0</b> m</label><input id="xs" type="range" min="0" max="40" step="0.5" value="20"><button id="abs" style="white-space:nowrap;height:32px">絕對最大彎矩位置</button></div>
+  <div class="flex no-print" style="margin-top:10px"><label style="white-space:nowrap">目標斷面 x=<b id="xv">20.0</b> m</label><input id="xs" type="range" min="0" max="40" step="0.5" value="20"><button id="abs" style="white-space:nowrap;height:32px">絕對最大彎矩位置</button><span id="dragh" style="font-size:12px;color:#888;white-space:nowrap">（可拖梁上卡車）</span></div>
 </div>
+
+<div class="card no-print">
+  <h2>計算書資訊</h2>
+  <div class="grid">
+    <label>橋名<input id="pj" type="text" value="40m 後張箱梁"></label>
+    <label>單位<input id="pu" type="text" value=""></label>
+    <label>工程師<input id="pe" type="text" value=""></label>
+  </div>
+  <button onclick="window.print()" style="margin-top:10px;height:34px;background:#1d4ed8;color:#fff;border:none;border-radius:6px;padding:0 16px;cursor:pointer">列印計算書（PDF）</button>
+</div>
+<div id="phdr" class="print-only" style="display:none"></div>
 
 <div class="card">
   <h2>結果（每設計車道，台灣 HS20-44 ＋車道載重取大）</h2>
@@ -79,6 +92,11 @@ tbody tr{border-bottom:0.5px solid var(--line)}
  function laneEnv(nodes,il,P){var posA=0,negA=0,mx=0,mn=0;for(var i=0;i<nodes.length-1;i++){var dx=nodes[i+1]-nodes[i],av=(il[i]+il[i+1])/2;if(av>0)posA+=av*dx;else negA+=av*dx;if(il[i]>mx)mx=il[i];if(il[i]<mn)mn=il[i]}return {pos:LANE*posA+P*mx,neg:LANE*negA+P*mn}}
  function envelope(m,eff,I,nl,red){var P=eff==='M'?PM:PV,fac=(1+I)*nl*red,posE=[],negE=[];for(var t=0;t<m.nodes.length;t++){var il=solveIL(m,t,eff);var te=truckEnv(m.nodes,il,m.tot),le=laneEnv(m.nodes,il,P);posE.push(Math.max(te.pos,le.pos)*fac);negE.push(Math.min(te.neg,le.neg)*fac)}return {pos:posE,neg:negE}}
  function E(id){return document.getElementById(id)}
+ var manualPos=null;   // 手動卡車位置(拖曳)；null=自動最不利
+ function gBox(S,nl){return nl>=2?S/2.10:S/2.40}   // 台灣 S/D 箱梁內梁
+ // BMD/SFD：簡支梁，卡車於 pos ＋車道均布
+ function bmdSimple(L,pos,eff){var P=TRK.P,Xa=TRK.x,RA=LANE*L/2;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L)RA+=P[i]*(L-p)/L}
+  var pts=[];for(var x=0;x<=L+1e-6;x+=L/60){var v;if(eff==='M'){v=RA*x-LANE*x*x/2;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L&&p<x)v-=P[i]*(x-p)}}else{v=RA-LANE*x;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L&&p<x)v-=P[i]}}pts.push([x,v])}return pts}
  // ── 自我驗證（對 golden_answers.json）──
  function validate(golden){
    var g=golden.influence_simple_40m, rows=[
@@ -107,14 +125,42 @@ tbody tr{border-bottom:0.5px solid var(--line)}
   var ti=0;for(var i=0;i<m.nodes.length;i++)if(Math.abs(m.nodes[i]-xt)<Math.abs(m.nodes[ti]-xt))ti=i;xt=m.nodes[ti];
   var eff=E('ef').value;
   var I=Math.min(0.3,15.24/(tot+38.1)),lc=lf[E('ln').value],nl=lc[0],red=lc[1],U=eff==='M'?'kN·m':'kN';
-  if(E('mode').value==='env'){runEnvelope(m,eff,I,nl,red,U);return;}
+  if(E('mode').value==='env'){runEnvelope(m,eff,I,nl,red,U);phdr(eff,U);return;}
   var il=solveIL(m,ti,eff);
-  var tk=truckMax(m.nodes,il,tot),ln=laneMax(m.nodes,il,eff==='M'?PM:PV),gov=Math.abs(tk.v)>=Math.abs(ln)?tk.v:ln,govn=Math.abs(tk.v)>=Math.abs(ln)?'卡車':'車道';
+  if(E('mode').value==='bmd'){runBMD(m,il,ti,eff,tot,U);phdr(eff,U);return;}
+  var tk;
+  if(manualPos!=null){var sm=0;for(var a=0;a<3;a++){var ax=manualPos+TRK.x[a];if(ax>=0&&ax<=tot)sm+=TRK.P[a]*interp(m.nodes,il,ax)}tk={v:sm,x:manualPos}}
+  else tk=truckMax(m.nodes,il,tot);
+  var ln=laneMax(m.nodes,il,eff==='M'?PM:PV),gov=Math.abs(tk.v)>=Math.abs(ln)?tk.v:ln,govn=Math.abs(tk.v)>=Math.abs(ln)?'卡車':'車道';
   var perLane=gov*(1+I),total=perLane*nl*red;
+  var S=parseFloat(E('sgw').value)||0,g=gBox(S,nl),perWeb=perLane*g;
   function card(t,v,sub){return '<div class="metric"><div class="l">'+t+'</div><div class="v">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>'}
-  E('res').innerHTML=card('卡車 '+eff,tk.v.toFixed(0)+' '+U)+card('車道 '+eff,ln.toFixed(0)+' '+U)+card('取大×衝擊',perLane.toFixed(0)+' '+U,govn+'，I='+(I*100).toFixed(1)+'%')+card('總計(×'+nl+'×'+(red*100)+'%)',total.toFixed(0)+' '+U,'設計值');
+  E('res').innerHTML=card('卡車 '+eff,tk.v.toFixed(0)+' '+U,manualPos!=null?'手動 x='+manualPos.toFixed(1)+'（雙擊梁回自動）':'')+card('車道 '+eff,ln.toFixed(0)+' '+U)+card('每車道×衝擊',perLane.toFixed(0)+' '+U,govn+'，I='+(I*100).toFixed(1)+'%')+card('總計(×'+nl+'×'+(red*100)+'%)',total.toFixed(0)+' '+U,'多車道法')+card('單腹版(×g)',perWeb.toFixed(0)+' '+U,'g=S/'+(nl>=2?'2.10':'2.40')+'='+g.toFixed(2)+'，分配法不再乘折減');
   draw(m,il,xt,tk,eff);
-  E('cite').textContent='依據：台灣公路橋梁設計規範 §3.6 HS20-44+車道載重(M用80/V用116)、§3.13 衝擊 I=15.24/(L+38.1)≤30%、§3.10 多車道折減。影響線：連續梁剛度法。簡支峰值經 golden_answers.json 驗證。';
+  E('cite').textContent='依據：台灣公路橋梁設計規範 §3.6 HS20-44+車道載重(M用80/V用116)、§3.13 衝擊 I=15.24/(L+38.1)≤30%、§3.10 多車道折減、§4.2 橫向分配 S/D 法。影響線：連續梁剛度法。簡支峰值經 golden_answers.json 驗證。可拖梁上卡車手動定位。';
+ }
+ function runBMD(m,il,ti,eff,tot,U){
+  var tk=truckMax(m.nodes,il,tot),pos=tk.x;   // 取對目標斷面最不利的卡車位置
+  var pts=bmdSimple(tot,pos,eff),mx=0,mn=0;pts.forEach(function(p){if(p[1]>mx)mx=p[1];if(p[1]<mn)mn=p[1]});
+  function card(t,v,sub){return '<div class="metric"><div class="l">'+t+'</div><div class="v">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>'}
+  E('res').innerHTML=card('最大 '+eff,mx.toFixed(0)+' '+U,'卡車@x='+pos.toFixed(1)+'+車道')+card('最小 '+eff,mn.toFixed(0)+' '+U)+card('斷面數','61','沿梁離散');
+  drawDiag(m,pts,eff,U,pos);
+  E('cite').textContent=(eff==='M'?'彎矩圖 BMD':'剪力圖 SFD')+'：HS20-44 卡車置於對目標斷面最不利位置 ＋ 車道載重，簡支解析。連續梁 BMD 待擴（可用影響線/包絡）。';
+ }
+ function drawDiag(m,pts,eff,U,pos){
+  var x0=50,x1=780,tot=m.tot,sc=(x1-x0)/tot;function X(x){return x0+x*sc}
+  var maxA=Math.max.apply(null,pts.map(function(p){return Math.abs(p[1])}))||1,by=60,ah=110,cy=by+ah;
+  var g='<text x="'+x0+'" y="'+(by-20)+'" font-size="11" fill="#555">'+(eff==='M'?'彎矩圖 BMD':'剪力圖 SFD')+'（'+tot.toFixed(0)+'m，'+U+'，卡車@'+pos.toFixed(1)+'m）</text>';
+  m.sx.forEach(function(s){g+='<path d="M'+X(s)+','+(cy+ah+5)+' l-6,11 l12,0 z" fill="#555"/>'});
+  TRK.x.forEach(function(dx,a){var ax=pos+dx;if(ax>=0&&ax<=tot)g+='<line x1="'+X(ax)+'" y1="'+(cy-ah-12)+'" x2="'+X(ax)+'" y2="'+(cy-ah)+'" stroke="#1d4ed8" stroke-width="2"/>'});
+  g+='<line x1="'+x0+'" y1="'+cy+'" x2="'+x1+'" y2="'+cy+'" stroke="#555" stroke-width="1.5"/>';
+  var p='M'+X(0)+','+cy+' ';pts.forEach(function(pt){p+='L'+X(pt[0])+','+(cy-pt[1]/maxA*ah)+' '});p+='L'+X(tot)+','+cy+'Z';
+  g+='<path d="'+p+'" fill="#1d4ed8" fill-opacity="0.12" stroke="#1d4ed8" stroke-width="1.8"/>';
+  E('dg').innerHTML=g;
+ }
+ function phdr(eff,U){
+  var d=new Date().toISOString().slice(0,10);
+  E('phdr').innerHTML='<h1>'+E('pj').value+'　影響線計算書</h1><div class="m">單位：'+(E('pu').value||'—')+'　工程師：'+(E('pe').value||'—')+'　日期：'+d+'　｜　橋型：'+E('bt').options[E('bt').selectedIndex].text+' 跨長 '+E('sp').value+'m、效應 '+eff+'、車道 '+E('ln').options[E('ln').selectedIndex].text+'、模式 '+E('mode').options[E('mode').selectedIndex].text+'</div>';
  }
  function draw(m,il,xt,tk,eff){
   var x0=50,x1=780,sw=x1-x0,tot=m.tot,sc=sw/tot;function X(x){return x0+x*sc}
@@ -150,9 +196,18 @@ tbody tr{border-bottom:0.5px solid var(--line)}
   if(mn<-1)g+='<text x="'+(x1-4)+'" y="'+(cy-mn/maxA*ah+12)+'" font-size="10" fill="#dc2626" text-anchor="end">'+mn.toFixed(0)+'</text>';
   E('dg').innerHTML=g;
  }
- ['bt','sp','ef','ln','mode'].forEach(function(id){E(id).addEventListener('change',function(){if(id==='bt'){var n=+E('bt').value,cur=E('sp').value.split(',').filter(function(s){return s.trim()});while(cur.length<n)cur.push('40');E('sp').value=cur.slice(0,n).join(',')}run()})});
+ ['bt','sp','ef','ln','mode','sgw'].forEach(function(id){E(id).addEventListener('change',function(){manualPos=null;if(id==='bt'){var n=+E('bt').value,cur=E('sp').value.split(',').filter(function(s){return s.trim()});while(cur.length<n)cur.push('40');E('sp').value=cur.slice(0,n).join(',')}run()})});
  E('xs').addEventListener('input',run);
- E('abs').addEventListener('click',function(){var sp=E('sp').value.split(',').map(parseFloat);if(+E('bt').value===1)E('xs').value=(sp[0]/2).toFixed(1);run()});
+ E('abs').addEventListener('click',function(){manualPos=null;var sp=E('sp').value.split(',').map(parseFloat);if(+E('bt').value===1)E('xs').value=(sp[0]/2).toFixed(1);run()});
+ // 拖卡車（單一斷面模式，滑鼠拖梁上卡車）
+ var dragging=false;
+ function spanTot(){return E('sp').value.split(',').map(parseFloat).filter(function(x){return x>0}).reduce(function(a,b){return a+b},0)}
+ function setManual(ev){var r=E('dg').getBoundingClientRect(),vx=(ev.clientX-r.left)/r.width*820,tot=spanTot(),sc=(780-50)/tot,xm=(vx-50)/sc;manualPos=Math.max(0,Math.min(tot,xm));run()}
+ E('dg').addEventListener('mousedown',function(ev){if(E('mode').value==='single'){dragging=true;setManual(ev);ev.preventDefault()}});
+ window.addEventListener('mousemove',function(ev){if(dragging)setManual(ev)});
+ window.addEventListener('mouseup',function(){dragging=false});
+ E('dg').addEventListener('dblclick',function(){manualPos=null;run()});
+ window.addEventListener('beforeprint',function(){phdr(E('ef').value,E('ef').value==='M'?'kN·m':'kN')});
  run();
 })();
 </script>

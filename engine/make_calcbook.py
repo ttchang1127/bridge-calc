@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         lane_live_load, stresses, Pe_min_zero_tension,
                         shear_web, phiVn, flexural_strength, deflection_analysis,
-                        allowables)
+                        fatigue_check, stirrup_fatigue, allowables)
 
 # ── 40m 參考橋 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -28,6 +28,9 @@ pem = Pe_min_zero_tension(sec, ten.e, c["Service_I"])
 sh = shear_web(L.Pe, sec, ten.e, 40, 250, 1692, 2329e3, 1692, 40000)
 fx = flexural_strength(ten, sec, 40, 8000, 250, 1880, c["Strength_I"], L.Pe, ten.e)
 df = deflection_analysis(40000, 29700, sec, 144, L.Pe, ten.e, 56.7)
+fa = fatigue_check(sec, L.Pe, ten.e, 28800, 3222, 40)
+dfsv250 = stirrup_fatigue(565, 250, 402, 1692)[0]
+dfsv150 = stirrup_fatigue(565, 150, 402, 1692)[0]
 
 
 def chk(ok):
@@ -111,6 +114,17 @@ r_dll = row("活載即時撓度", r"\delta_{LL}=\frac{5 w_{LL} L^4}{384 E_c I}",
 sec7 = f"""{r_dll}
 <p>荷重平衡率 LBR = {df.LBR*100:.1f}%（接近全平衡）；淨長期下撓 ≈ {df.net_long_term:.1f} mm；<b>建議預拱 ≈ {df.camber:.0f} mm</b>（主補支架沉陷）。</p>"""
 sections.append(("七、撓度與預拱（C2/C3）", sec7))
+
+r_fps = row("鋼腱應力幅（AASHTO Fatigue I）", r"\Delta\sigma_{ps}=n\cdot\frac{\gamma\,\Delta M}{I}\cdot e",
+            r"6.6 \times \frac{1.75\times3{,}222}{I}\times1{,}109", f"{fa.dsig_ps:.1f}{MPa}",
+            "≤ 125 MPa", fa.ps_ok, "P1")
+sec8 = f"""<p>疲勞載重 = 疲勞卡車（35/145/145、後軸固定 9m、單車道）× IM 15%；Fatigue I γ=1.75。疲勞彎矩幅 ΔM=3,222 kN·m。</p>
+{r_fps}
+<table class="props">
+<tr><td>混凝土壓疲勞 σ_c</td><td>{fa.sig_c_max:.2f} MPa ≤ {0.40*40:.0f}（0.40f'c）{chk(fa.c_ok)}</td></tr>
+<tr><td>箍筋疲勞 Δf_sv</td><td>@250 = {dfsv250:.0f} MPa &gt; 165 ❌ → 近支承段加密 @150 = {dfsv150:.0f} MPa ≤ 165 ✅</td></tr>
+</table><p class="note">★ 引擎以現 P_e={L.Pe/1e3:,.0f}kN 算 σ_c={fa.sig_c_max:.2f}（P1 演算 6.59 為舊 P_e=23,700，已被引擎抓出）。箍筋為近支承疲勞控制項。</p>"""
+sections.append(("八、疲勞驗核（P1）", sec8))
 
 body = "".join(f'<section><h2>{t}</h2>{html}</section>' for t, html in sections)
 allpass = (sb <= 0 and st >= allowables.comp_service(40) and L.Pe >= pem

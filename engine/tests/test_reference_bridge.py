@@ -14,7 +14,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         shear_web, phiVn, Av_s_min_TW, flexural_strength,
                         deflection_analysis, il_moment_peak, il_shear_simple,
                         abs_max_moment, lane_moment_simple, hl93_per_lane_moment,
-                        moment_envelope_simple)
+                        moment_envelope_simple, fatigue_check, stirrup_fatigue)
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -130,6 +130,22 @@ def test_influence_simple_span():
     _close(abs_max_moment(40), 2867, 5)           # HL-93 卡車絕對最大
     _close(lane_moment_simple(40), 1860, 2)
     _close(hl93_per_lane_moment(40), 5673, 5)     # = loads.lane_live_load 的 per_lane
+
+
+def test_fatigue_P1():
+    """疲勞 P1：鋼腱應力幅、混凝土壓疲勞、箍筋疲勞（@250 超→@150 過）。"""
+    Pe = compute_losses(ten, sec, M_DC, M_DW).Pe
+    fa = fatigue_check(sec, Pe, ten.e, M_perm_kNm=28800, dM_fatigue_kNm=3222, fc=40)
+    _close(fa.dsig_ps, 12.6, 0.2)             # 鋼腱應力幅
+    assert fa.ps_ok                            # ≤ 125
+    _close(fa.sig_c_max, 6.47, 0.1)           # 混凝土壓疲勞（新 Pe；P1 演算 6.59 為舊 Pe）
+    assert fa.c_ok                             # ≤ 0.40f'c
+    d250, ok250 = stirrup_fatigue(565, 250, 402, 1692)
+    d150, ok150 = stirrup_fatigue(565, 150, 402, 1692)
+    _close(d250, 208, 3)
+    assert not ok250                           # @250 超限（近支承疲勞控制）
+    _close(d150, 125, 3)
+    assert ok150                               # @150 通過
 
 
 def test_moment_envelope():

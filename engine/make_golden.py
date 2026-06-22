@@ -12,7 +12,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         lane_live_load, stresses, Pe_min_zero_tension,
                         shear_web, phiVn, flexural_strength, deflection_analysis,
                         il_moment_peak, abs_max_moment, lane_moment_simple,
-                        hl93_per_lane_moment, moment_envelope_simple)
+                        hl93_per_lane_moment, moment_envelope_simple,
+                        fatigue_check, stirrup_fatigue)
 
 sec = Section(5.065e6, 3.287e12, 1329, 2100)
 ten = Tendon(8, 21, 1109)
@@ -56,6 +57,11 @@ golden = {
                    "Mn_kNm": round(fx.Mn), "CR": round(fx.CR, 2)},
     "deflection": {"LBR_pct": round(df.LBR * 100, 1), "delta_LL_mm": round(df.d_LL, 1),
                    "net_longterm_mm": round(df.net_long_term, 1), "camber_mm": round(df.camber)},
+    "fatigue_P1": (lambda fa: {"dsig_ps_MPa": round(fa.dsig_ps, 1),
+                               "sig_c_max_MPa": round(fa.sig_c_max, 2),
+                               "stirrup_250_MPa": round(stirrup_fatigue(565, 250, 402, 1692)[0]),
+                               "stirrup_150_MPa": round(stirrup_fatigue(565, 150, 402, 1692)[0])})
+                  (fatigue_check(sec, L.Pe, ten.e, 28800, 3222, 40)),
 }
 
 if __name__ == "__main__":

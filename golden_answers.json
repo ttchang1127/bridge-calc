@@ -45,5 +45,11 @@
     "delta_LL_mm": 19.4,
     "net_longterm_mm": 2.2,
     "camber_mm": 7
+  },
+  "fatigue_P1": {
+    "dsig_ps_MPa": 12.6,
+    "sig_c_max_MPa": 6.47,
+    "stirrup_250_MPa": 208,
+    "stirrup_150_MPa": 125
   }
 }

@@ -51,5 +51,11 @@
     "sig_c_max_MPa": 6.47,
     "stirrup_250_MPa": 208,
     "stirrup_150_MPa": 125
+  },
+  "torsion_D2": {
+    "fpc_MPa": 5.05,
+    "Tcr_kNm": 43764,
+    "threshold_kNm": 9847,
+    "neglect_explicit": true
   }
 }

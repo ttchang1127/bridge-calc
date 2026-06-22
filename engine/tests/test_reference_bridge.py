@@ -14,7 +14,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         shear_web, phiVn, Av_s_min_TW, flexural_strength,
                         deflection_analysis, il_moment_peak, il_shear_simple,
                         abs_max_moment, lane_moment_simple, hl93_per_lane_moment,
-                        moment_envelope_simple, fatigue_check, stirrup_fatigue)
+                        moment_envelope_simple, fatigue_check, stirrup_fatigue,
+                        torsion_check)
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -146,6 +147,17 @@ def test_fatigue_P1():
     assert not ok250                           # @250 超限（近支承疲勞控制）
     _close(d150, 125, 3)
     assert ok150                               # @150 通過
+
+
+def test_torsion_D2():
+    """扭力 D2：箱梁 T_cr 極大、Tu 遠低於門檻 → 可免顯式扭設計但須閉合箍。"""
+    Pe = compute_losses(ten, sec, M_DC, M_DW).Pe
+    tr = torsion_check(sec, Pe, fc=40, Acp=23.1e6, pc=26200, Tu_kNm=1900)
+    _close(tr.fpc, 5.05, 0.05)
+    _close(tr.Tcr, 43764, 100)                 # 新 Pe（D2 演算 42,380 為舊 Pe）
+    _close(tr.threshold, 9847, 30)
+    assert tr.neglect                           # Tu 1,900 << 門檻 → 可忽略
+    assert tr.need_closed_stirrup               # 箱梁恆需閉合箍
 
 
 def test_moment_envelope():

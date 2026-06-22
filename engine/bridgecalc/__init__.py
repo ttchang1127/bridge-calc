@@ -17,6 +17,7 @@ from .influence import (il_moment_simple, il_shear_simple, il_moment_peak,
                         max_moment_moving, abs_max_moment, lane_moment_simple,
                         hl93_per_lane_moment, moment_envelope_simple)
 from .fatigue import fatigue_check, FatigueResult, stirrup_fatigue
+from .torsion import torsion_check, TorsionResult
 from . import allowables
 
 __all__ = [
@@ -29,5 +30,6 @@ __all__ = [
     "il_moment_simple", "il_shear_simple", "il_moment_peak",
     "max_moment_moving", "abs_max_moment", "lane_moment_simple",
     "hl93_per_lane_moment", "moment_envelope_simple",
-    "fatigue_check", "FatigueResult", "stirrup_fatigue", "allowables",
+    "fatigue_check", "FatigueResult", "stirrup_fatigue",
+    "torsion_check", "TorsionResult", "allowables",
 ]

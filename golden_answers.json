@@ -57,5 +57,11 @@
     "Tcr_kNm": 43764,
     "threshold_kNm": 9847,
     "neglect_explicit": true
+  },
+  "transverse_D3": {
+    "cantilever_phiMn_kNm": 113.0,
+    "span_phiMn_kNm": 153.2,
+    "support_phiMn_kNm": 176.6,
+    "As_min_mm2": 571
   }
 }

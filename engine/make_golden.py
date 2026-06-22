@@ -13,7 +13,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         shear_web, phiVn, flexural_strength, deflection_analysis,
                         il_moment_peak, abs_max_moment, lane_moment_simple,
                         hl93_per_lane_moment, moment_envelope_simple,
-                        fatigue_check, stirrup_fatigue, torsion_check)
+                        fatigue_check, stirrup_fatigue, torsion_check,
+                        slab_flexure, As_min_slab)
 
 sec = Section(5.065e6, 3.287e12, 1329, 2100)
 ten = Tendon(8, 21, 1109)
@@ -65,6 +66,10 @@ golden = {
     "torsion_D2": (lambda tr: {"fpc_MPa": round(tr.fpc, 2), "Tcr_kNm": round(tr.Tcr),
                                "threshold_kNm": round(tr.threshold), "neglect_explicit": tr.neglect})
                   (torsion_check(sec, L.Pe, 40, 23.1e6, 26200, 1900)),
+    "transverse_D3": {"cantilever_phiMn_kNm": round(slab_flexure(105.8, 1571, 200, 40, 420).phiMn, 1),
+                      "span_phiMn_kNm": round(slab_flexure(133.8, 2172, 200, 40, 420).phiMn, 1),
+                      "support_phiMn_kNm": round(slab_flexure(150.3, 2534, 200, 40, 420).phiMn, 1),
+                      "As_min_mm2": round(As_min_slab(40, 420, 1000, 200))},
 }
 
 if __name__ == "__main__":

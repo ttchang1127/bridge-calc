@@ -15,7 +15,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         deflection_analysis, il_moment_peak, il_shear_simple,
                         abs_max_moment, lane_moment_simple, hl93_per_lane_moment,
                         moment_envelope_simple, fatigue_check, stirrup_fatigue,
-                        torsion_check)
+                        torsion_check, slab_flexure, As_min_slab)
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -158,6 +158,15 @@ def test_torsion_D2():
     _close(tr.threshold, 9847, 30)
     assert tr.neglect                           # Tu 1,900 << 門檻 → 可忽略
     assert tr.need_closed_stirrup               # 箱梁恆需閉合箍
+
+
+def test_transverse_D3():
+    """橫向 D3：懸臂/跨中/墩面 RC 板撓曲 φMn ≥ Mu。"""
+    _close(slab_flexure(105.8, 1571, 200, 40, 420).phiMn, 113.0, 0.5)   # 懸臂 D20@200
+    _close(slab_flexure(133.8, 2172, 200, 40, 420).phiMn, 153.2, 0.5)   # 跨中 D22@175
+    _close(slab_flexure(150.3, 2534, 200, 40, 420).phiMn, 176.6, 0.5)   # 墩面 D22@150
+    assert slab_flexure(150.3, 2534, 200, 40, 420).ok
+    _close(As_min_slab(40, 420, 1000, 200), 571, 2)
 
 
 def test_moment_envelope():

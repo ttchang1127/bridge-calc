@@ -15,7 +15,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         deflection_analysis, il_moment_peak, il_shear_simple,
                         abs_max_moment, lane_moment_simple, hl93_per_lane_moment,
                         moment_envelope_simple, fatigue_check, stirrup_fatigue,
-                        torsion_check, slab_flexure, As_min_slab, temp_gradient_AASHTO)
+                        torsion_check, slab_flexure, As_min_slab, temp_gradient_AASHTO,
+                        bearing_check, anchorage_check)
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -175,6 +176,22 @@ def test_temperature_T1():
     _close(g["neg_T1"], -5.4, 0.05)
     _close(g["neg_T2"], -1.5, 0.05)
     assert g["gamma_TG"] == 0.5
+
+
+def test_bearing_E1():
+    """支承 E1：剪切應變 γ_S=0.40≤0.50、無上拔。"""
+    b = bearing_check(1730, 1440, 291, 40, 100, 550*450)
+    _close(b.gamma_s, 0.40, 0.01)
+    assert b.gamma_ok and b.no_uplift
+
+
+def test_anchorage_F1():
+    """錨碇 F1（8組×21、Pi=32,826）：Pu/Tburst/Fspall/剝落筋。"""
+    a = anchorage_check(32826, 8, 260, 2100, 4)
+    _close(a.Pu, 4924, 5)
+    _close(a.sum_Tburst, 4314, 10)
+    _close(a.Fspall, 394, 3)
+    _close(a.As_spall, 1641, 5)         # >1548(4-D22) → 須 5-D22
 
 
 def test_moment_envelope():

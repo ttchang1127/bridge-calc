@@ -71,5 +71,16 @@
     "neg_T1": -5.4,
     "neg_T2": -1.5,
     "gamma_TG": 0.5
+  },
+  "bearing_E1": {
+    "gamma_s": 0.4,
+    "sigma_TL_MPa": 6.99,
+    "no_uplift": true
+  },
+  "anchorage_F1": {
+    "Pu_kN": 4924,
+    "sum_Tburst_kN": 4314,
+    "Fspall_kN": 394,
+    "As_spall_mm2": 1641
   }
 }

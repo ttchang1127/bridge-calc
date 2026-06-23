@@ -16,7 +16,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         abs_max_moment, lane_moment_simple, hl93_per_lane_moment,
                         moment_envelope_simple, fatigue_check, stirrup_fatigue,
                         torsion_check, slab_flexure, As_min_slab, temp_gradient_AASHTO,
-                        bearing_check, anchorage_check)
+                        bearing_check, anchorage_check, expansion_joint)
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -192,6 +192,14 @@ def test_anchorage_F1():
     _close(a.sum_Tburst, 4314, 10)
     _close(a.Fspall, 394, 3)
     _close(a.As_spall, 1641, 5)         # >1548(4-D22) → 須 5-D22
+
+
+def test_expansion_E2():
+    """伸縮縫 E2：縮短量 29.4、最大開度 49.4、Strip Seal 75。"""
+    j = expansion_joint(8.8, 12.6, 8.0, 20)
+    _close(j.shortening, 29.4, 0.1)
+    _close(j.g_max, 49.4, 0.1)
+    assert j.joint_type == "Strip Seal 75mm"
 
 
 def test_moment_envelope():

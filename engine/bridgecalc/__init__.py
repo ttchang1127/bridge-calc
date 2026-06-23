@@ -22,6 +22,7 @@ from .transverse import slab_flexure, SlabResult, As_min_slab
 from .temperature import temp_gradient_AASHTO
 from .bearing import bearing_check, BearingResult
 from .anchorage import anchorage_check, AnchorageResult
+from .expansion import expansion_joint, JointResult
 from . import allowables
 
 __all__ = [
@@ -36,5 +37,5 @@ __all__ = [
     "hl93_per_lane_moment", "moment_envelope_simple",
     "fatigue_check", "FatigueResult", "stirrup_fatigue",
     "torsion_check", "TorsionResult",
-    "slab_flexure", "SlabResult", "As_min_slab", "temp_gradient_AASHTO", "bearing_check", "BearingResult", "anchorage_check", "AnchorageResult", "allowables",
+    "slab_flexure", "SlabResult", "As_min_slab", "temp_gradient_AASHTO", "bearing_check", "BearingResult", "anchorage_check", "AnchorageResult", "expansion_joint", "JointResult", "allowables",
 ]

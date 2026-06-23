@@ -82,5 +82,11 @@
     "sum_Tburst_kN": 4314,
     "Fspall_kN": 394,
     "As_spall_mm2": 1641
+  },
+  "expansion_E2": {
+    "shortening_mm": 29.4,
+    "g_max_mm": 49.4,
+    "capacity_mm": 52,
+    "joint": "Strip Seal 75mm"
   }
 }

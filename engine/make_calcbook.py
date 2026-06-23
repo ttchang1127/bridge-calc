@@ -50,6 +50,13 @@ tband = [ThermalBand(0, 300, 3_000_000, 11.5), ThermalBand(300, 400, 80_000, 2.5
 tg = self_equilibrating_stress(tband, 1.26e12, 870, 2000,
                                [("頂板頂", 0, 18.0), ("底板底", 2000, 0.0)])
 tg_serv, tg_ok = thermal_service_check(tg.sigma_neg["底板底"], 1.2, 0.5)
+# ★ 接線：config A 斷面 + 引擎服務性底緣（含預力）
+tbandA = [ThermalBand(0, 250, 11000*250, 12.58), ThermalBand(250, 300, 700*50, 6.08),
+          ThermalBand(300, 400, 700*100, 2.5), ThermalBand(400, 1900, 700*1500, 0),
+          ThermalBand(1900, 2100, 5800*200, 0)]
+tgA = self_equilibrating_stress(tbandA, sec.I, sec.h - sec.yb, sec.h,
+                                [("底板底", 2100, 0.0)], Ec=29700)
+tgA_serv, tgA_ok = thermal_service_check(tgA.sigma_neg["底板底"], sb, 0.5)
 
 
 def chk(ok):
@@ -188,20 +195,21 @@ sec13 = f"""<p>端橫隔版錨碇區（逐束法，8 束、單腹版群 4 束）
 </table><p class="note">配置隨 P<sub>i</sub>={an.Pu*8/1.2/1e3*1.2:,.0f}… P<sub>i</sub>≈29,686 kN（8組×19股、HS20-44）。</p>"""
 sections.append(("十三、錨碇區爆裂力（F1）", sec13))
 
-r_tse = row("自平衡應力（負梯度底板）", r"\sigma_{SE}=-E_c\,\alpha\,[T(y)-T_u-T_L\frac{\bar y_t-y}{h}]",
-            r"-0.3304 \times (-4.83)", f"{tg.sigma_neg['底板底']:+.2f}{MPa}",
+r_tse = row("自平衡應力（負梯度底板，配置A）", r"\sigma_{SE}=-E_c\,\alpha\,[T(y)-T_u-T_L\frac{\bar y_t-y}{h}]",
+            r"-0.3208 \times (-0.66)", f"{tgA.sigma_neg['底板底']:+.2f}{MPa}",
             "Service 後判定", True, "T1")
-sec14 = f"""<p class="note">★ 自含斷面（h=2,000、f'c=35），非配置 A。非線性溫度剖面強迫斷面維持平面 → 斷面自我約束生自平衡應力。</p>
+sec14 = f"""<p>非線性溫度剖面強迫斷面維持平面 → 斷面自我約束生自平衡應力 σ_SE。靜定梁 T<sub>u</sub>/T<sub>L</sub> 不生應力，故 σ_TG=σ_SE。</p>
 <table class="props">
-<tr><td>等效均勻溫度 T<sub>u</sub></td><td>{tg.Tu:.2f} °C</td><td>等效線性溫差 T<sub>L</sub></td><td>{tg.TL:.1f} °C</td></tr>
-<tr><td>正梯度 σ_SE 頂板頂</td><td>{tg.sigma_pos['頂板頂']:+.2f} MPa（拉）</td><td>正梯度 σ_SE 底板底</td><td>{tg.sigma_pos['底板底']:+.2f} MPa（壓）</td></tr>
+<tr><td colspan="4"><b>配置 A 斷面（h=2,100、頂板 250mm）＋ 引擎實際服務性（含預力）</b></td></tr>
+<tr><td>T<sub>u</sub> / T<sub>L</sub></td><td>{tgA.Tu:.2f} / {tgA.TL:.2f} °C</td><td>負梯度 σ_SE 底板底</td><td>{tgA.sigma_neg['底板底']:+.2f} MPa</td></tr>
 </table>
 {r_tse}
 <table class="props">
-<tr><td>負梯度 Service（底板底）</td><td>σ<sub>DC+LL</sub>(+1.2) + 0.5×{tg.sigma_neg['底板底']:.2f} = <b>{tg_serv:+.2f} MPa</b>　{chk(tg_ok)}（台灣 ≤ 0）</td></tr>
+<tr><td>負梯度 Service（底板底，含預力）</td><td>σ<sub>服務,底</sub>({sb:+.2f}) + 0.5×{tgA.sigma_neg['底板底']:.2f} = <b>{tgA_serv:+.2f} MPa</b>　{chk(tgA_ok)}（台灣 ≤ 0）</td></tr>
 </table>
-<p class="note">★ <b>負梯度底板 {tg_serv:+.2f} MPa 拉為控制工況</b>（超台灣完全預壓 ≤0）→ 底板需有效預壓 ≥ 2.5 MPa。靜定梁 Tu/TL 不生應力，故 σ_TG=σ_SE。連續梁另有溫度次彎矩 M₂T（中墩 −0.10 剛好通過）。</p>"""
-sections.append(("十四、溫度梯度自平衡應力（T1）", sec14))
+<p class="note">★ <b>接引擎服務性後通過（{tgA_serv:+.2f} MPa 壓）</b>：底緣 {sb:+.2f} 的預力餘裕吸收負梯度熱應力。
+<br>對照標準算例 T1（<b>自含斷面 h=2,000、σ_base 取無預力 +1.2</b>）得 +2.00 MPa 拉「控制工況」——該值為自含斷面 + 無預力假設下的<b>保守 illustration</b>；配置 A 頂板較薄使 T<sub>L</sub> 由 39.6→{tgA.TL:.1f}°C，且真實底緣全壓，故實際參考橋不控制。連續梁中墩另案（次彎矩 M₂T）。</p>"""
+sections.append(("十四、溫度梯度自平衡應力（T1，已接引擎服務性）", sec14))
 
 body = "".join(f'<section><h2>{t}</h2>{html}</section>' for t, html in sections)
 allpass = (sb <= 0 and st >= allowables.comp_service(40) and L.Pe >= pem

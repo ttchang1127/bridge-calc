@@ -138,21 +138,22 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
 <table class="props">
 <tr><td>群爆裂力 ΣT<sub>burst</sub></td><td>3,902 kN（爆裂筋 A<sub>s</sub>=3,443 mm²）</td></tr>
 <tr><td>剝落力 F<sub>spall</sub></td><td>356 kN → 剝落筋 A<sub>s</sub>=1,484 mm² → 4-D22</td></tr>
-</table><p class="note">配置隨 P<sub>i</sub>=36… P<sub>i</sub>≈29,686 kN（8組×19股、HS20-44）。</p></section><section><h2>十四、溫度梯度自平衡應力（T1）</h2><p class="note">★ 自含斷面（h=2,000、f'c=35），非配置 A。非線性溫度剖面強迫斷面維持平面 → 斷面自我約束生自平衡應力。</p>
+</table><p class="note">配置隨 P<sub>i</sub>=36… P<sub>i</sub>≈29,686 kN（8組×19股、HS20-44）。</p></section><section><h2>十四、溫度梯度自平衡應力（T1，已接引擎服務性）</h2><p>非線性溫度剖面強迫斷面維持平面 → 斷面自我約束生自平衡應力 σ_SE。靜定梁 T<sub>u</sub>/T<sub>L</sub> 不生應力，故 σ_TG=σ_SE。</p>
 <table class="props">
-<tr><td>等效均勻溫度 T<sub>u</sub></td><td>6.27 °C</td><td>等效線性溫差 T<sub>L</sub></td><td>39.6 °C</td></tr>
-<tr><td>正梯度 σ_SE 頂板頂</td><td>+1.81 MPa（拉）</td><td>正梯度 σ_SE 底板底</td><td>-5.32 MPa（壓）</td></tr>
+<tr><td colspan="4"><b>配置 A 斷面（h=2,100、頂板 250mm）＋ 引擎實際服務性（含預力）</b></td></tr>
+<tr><td>T<sub>u</sub> / T<sub>L</sub></td><td>6.91 / 14.39 °C</td><td>負梯度 σ_SE 底板底</td><td>+0.21 MPa</td></tr>
 </table>
 <div class="row">
-  <div class="rt">自平衡應力（負梯度底板） <span class="cite">T1</span></div>
+  <div class="rt">自平衡應力（負梯度底板，配置A） <span class="cite">T1</span></div>
   <div class="eq">$$ \sigma_{SE}=-E_c\,\alpha\,[T(y)-T_u-T_L\frac{\bar y_t-y}{h}] $$</div>
-  <div class="eq sub">$$ = -0.3304 \times (-4.83) = \boxed{+1.60\ MPa} $$</div>
+  <div class="eq sub">$$ = -0.3208 \times (-0.66) = \boxed{+0.21\ MPa} $$</div>
   <div class="chk">容許：Service 後判定　<span class="ok">✓ OK</span></div>
 </div>
 <table class="props">
-<tr><td>負梯度 Service（底板底）</td><td>σ<sub>DC+LL</sub>(+1.2) + 0.5×1.60 = <b>+2.00 MPa</b>　<span class="ng">✗ NG</span>（台灣 ≤ 0）</td></tr>
+<tr><td>負梯度 Service（底板底，含預力）</td><td>σ<sub>服務,底</sub>(-0.91) + 0.5×0.21 = <b>-0.80 MPa</b>　<span class="ok">✓ OK</span>（台灣 ≤ 0）</td></tr>
 </table>
-<p class="note">★ <b>負梯度底板 +2.00 MPa 拉為控制工況</b>（超台灣完全預壓 ≤0）→ 底板需有效預壓 ≥ 2.5 MPa。靜定梁 Tu/TL 不生應力，故 σ_TG=σ_SE。連續梁另有溫度次彎矩 M₂T（中墩 −0.10 剛好通過）。</p></section>
+<p class="note">★ <b>接引擎服務性後通過（-0.80 MPa 壓）</b>：底緣 -0.91 的預力餘裕吸收負梯度熱應力。
+<br>對照標準算例 T1（<b>自含斷面 h=2,000、σ_base 取無預力 +1.2</b>）得 +2.00 MPa 拉「控制工況」——該值為自含斷面 + 無預力假設下的<b>保守 illustration</b>；配置 A 頂板較薄使 T<sub>L</sub> 由 39.6→14.4°C，且真實底緣全壓，故實際參考橋不控制。連續梁中墩另案（次彎矩 M₂T）。</p></section>
 <div class="summary">設計結論：服務性底緣全壓（-0.91 MPa）、強度 CR=1.42、剪力 φVn>Vu、撓度<L/800 ——
 跨中各項通過（主拉超限為近支承常態、由箍筋承力）。連續梁中墩另案。</div>
 <p class="note">本計算書數值由單一真理源 bridgecalc 產生，與知識庫算例 golden_answers.json 一致。</p>

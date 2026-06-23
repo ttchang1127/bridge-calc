@@ -87,15 +87,28 @@ golden = {
     "live_load_TW_HS20_40m": {"model": "卡車或車道取大", "impact": round(taiwan_impact(40),4),
         "per_lane_M_kNm": round(taiwan_per_lane_moment(40)), "per_lane_V_kN": round(taiwan_per_lane_shear(40)),
         "_note": "台灣 HS20-44；對照 HL-93 每車道 5673/588"},
+    # 標準算例 T1（自含斷面 h=2000、無預力 σ_base=1.2）：孤島保守 illustration → +2.00 控制
     "temperature_SE_T1": (lambda r: {"Tu_C": round(r.Tu,2), "TL_C": round(r.TL,1),
         "sigSE_top_MPa": round(r.sigma_pos["頂板頂"],2), "sigSE_bot_pos_MPa": round(r.sigma_pos["底板底"],2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2),
         "service_bot_neg_MPa": round(thermal_service_check(r.sigma_neg["底板底"],1.2,0.5)[0],2),
-        "service_ok": thermal_service_check(r.sigma_neg["底板底"],1.2,0.5)[1]})(
+        "service_ok": thermal_service_check(r.sigma_neg["底板底"],1.2,0.5)[1],
+        "_note": "自含斷面 h=2000、σ_base=1.2（無預力）孤島 illustration；實際橋見 temperature_integrated_T1"})(
         self_equilibrating_stress(
             [ThermalBand(0,300,3_000_000,11.5),ThermalBand(300,400,80_000,2.5),
              ThermalBand(400,1750,1_080_000,0),ThermalBand(1750,2000,1_375_000,0)],
             1.26e12,870,2000,[("頂板頂",0,18.0),("底板底",2000,0.0)])),
+    # ★ 接線：config A 斷面 + 引擎實際服務性底緣（含預力）→ 真實參考橋的 T1 整合檢核
+    "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
+        "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
+        "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),
+        "service_ok": thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[1],
+        "_note": "σ_base=引擎服務性底緣(含預力,HS20)；預力餘裕吸收熱應力→通過(孤島illustration的+2.00為自含斷面/無預力假象)"})(
+        self_equilibrating_stress(
+            [ThermalBand(0,250,11000*250,12.58),ThermalBand(250,300,700*50,6.08),
+             ThermalBand(300,400,700*100,2.5),ThermalBand(400,1900,700*1500,0),
+             ThermalBand(1900,2100,5800*200,0)],
+            sec.I, sec.h-sec.yb, sec.h, [("底板底",2100,0.0)], Ec=29700)),
 }
 
 if __name__ == "__main__":

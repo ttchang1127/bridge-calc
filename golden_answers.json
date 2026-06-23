@@ -103,6 +103,17 @@
     "sigSE_bot_pos_MPa": -5.32,
     "sigSE_bot_neg_MPa": 1.6,
     "service_bot_neg_MPa": 2.0,
-    "service_ok": false
+    "service_ok": false,
+    "_note": "自含斷面 h=2000、σ_base=1.2（無預力）孤島 illustration；實際橋見 temperature_integrated_T1"
+  },
+  "temperature_integrated_T1": {
+    "section": "配置A h=2100",
+    "Tu_C": 6.91,
+    "TL_C": 14.39,
+    "sigSE_bot_neg_MPa": 0.21,
+    "service_base_MPa": -0.91,
+    "service_total_MPa": -0.8,
+    "service_ok": true,
+    "_note": "σ_base=引擎服務性底緣(含預力,HS20)；預力餘裕吸收熱應力→通過(孤島illustration的+2.00為自含斷面/無預力假象)"
   }
 }

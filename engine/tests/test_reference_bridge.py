@@ -227,7 +227,24 @@ def test_temperature_SE_T1():
     _close(r.sigma_neg["底板底"], 1.59, 0.03)     # 負梯度底板轉為拉
     total, ok = thermal_service_check(r.sigma_neg["底板底"], 1.2, 0.5)
     _close(total, 2.00, 0.03)
-    assert not ok                                  # +2.00 > 0 → 超限（控制工況，需底板預壓≥2.5）
+    assert not ok                                  # +2.00 > 0（自含斷面/無預力的孤島保守值）
+
+
+def test_temperature_integrated_T1():
+    """★ T1 接線：config A 斷面 + 引擎服務性底緣（含預力）→ 熱應力被預力吸收 → 通過。
+    證明孤島 illustration 的 +2.00（自含斷面 h=2000、σ_base 無預力）為保守假象。"""
+    bands = [ThermalBand(0, 250, 11000*250, 12.58), ThermalBand(250, 300, 700*50, 6.08),
+             ThermalBand(300, 400, 700*100, 2.5), ThermalBand(400, 1900, 700*1500, 0),
+             ThermalBand(1900, 2100, 5800*200, 0)]
+    r = self_equilibrating_stress(bands, sec.I, sec.h - sec.yb, sec.h,
+                                  [("底板底", 2100, 0.0)], Ec=29700)
+    _close(r.TL, 14.39, 0.2)                        # 配置A 頂板薄 → TL≪自含斷面 39.6
+    _close(r.sigma_neg["底板底"], 0.21, 0.03)
+    M_serv = combinations(M_DC, M_DW, M_LL_IM)["Service_I"]
+    _, sb = stresses(compute_losses(ten, sec, M_DC, M_DW).Pe, sec, ten.e, M_serv)
+    total, ok = thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)
+    _close(total, -0.80, 0.05)
+    assert ok                                       # 接真實預力(底緣-0.91)後 → 全壓通過
 
 
 def test_moment_envelope():

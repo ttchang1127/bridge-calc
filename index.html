@@ -144,7 +144,7 @@ tbody tr{border-bottom:0.5px solid var(--line)}
    function v(ok){return ok?['✓','ok']:['✗','ng']}
    var p=g.prestress,s=g.service,sh=g.shear_D1,fx=g.flexure_M1,df=g.deflection,
        fa=g.fatigue_P1,tr=g.torsion_D2,d3=g.transverse_D3,e1=g.bearing_E1,
-       f1=g.anchorage_F1,e2=g.expansion_E2,se=g.temperature_SE_T1,ld=g.loads;
+       f1=g.anchorage_F1,e2=g.expansion_E2,ti=g.temperature_integrated_T1,ld=g.loads;
    var rows=[
      ['L0 載重組合','Strength I '+fmt(ld.StrengthI_kNm)+' ・ Service I '+fmt(ld.ServiceI_kNm)+' kN·m',['—','mut']],
      ['B 預力損失','損失 '+p.loss_pct+'% ・ Pe '+fmt(p.Pe_kN)+' kN（≥ Pe,min '+fmt(p.Pe_min_kN)+'）',v(p.Pe_kN>=p.Pe_min_kN)],
@@ -158,10 +158,10 @@ tbody tr{border-bottom:0.5px solid var(--line)}
      ['E1 支承','γ_S '+e1.gamma_s+' ≤0.50 ・ '+(e1.no_uplift?'無上拔':'上拔'),v(e1.gamma_s<=0.5&&e1.no_uplift)],
      ['E2 伸縮縫','最大開度 '+e2.g_max_mm+' mm → '+e2.joint,['—','mut']],
      ['F1 錨碇','Pu '+fmt(f1.Pu_kN)+' ・ ΣTburst '+fmt(f1.sum_Tburst_kN)+' ・ 剝落筋 '+f1.As_spall_mm2+' mm²（5-D22）',['—','mut']],
-     ['T1 溫度梯度','Tu '+se.Tu_C+'°C ・ TL '+se.TL_C+'°C ・ 負梯度底板 Service '+se.service_bot_neg_MPa+' MPa',v(se.service_ok)]
+     ['T1 溫度梯度','TL '+ti.TL_C+'°C ・ 負梯度底板 Service(含預力) '+ti.service_total_MPa+' MPa',v(ti.service_ok)]
    ];
    E('grows').innerHTML=rows.map(function(r){return '<tr><td>'+r[0]+'</td><td style="text-align:left;color:#444">'+r[1]+'</td><td style="text-align:center" class="'+r[2][1]+'">'+r[2][0]+'</td></tr>'}).join('');
-   E('gsrc').textContent="配置："+p.config+"（2 設計車道）・f'c=40 MPa・由 bridgecalc 單一真理源產生。T1 負梯度底板拉 +2.00 MPa 為控制工況（底板需有效預壓 ≥2.5 MPa）；D1 近支承主拉超限由箍筋承力（設計常態）。";
+   E('gsrc').textContent="配置："+p.config+"（台灣 HS20-44、2 設計車道）・f'c=40 MPa・由 bridgecalc 單一真理源產生。T1 已接引擎服務性（底緣預力餘裕吸收熱應力 → 通過；孤島自含斷面 illustration 的 +2.00 為保守假象）；D1 近支承主拉超限由箍筋承力（設計常態）。";
  }
  fetch('./golden_answers.json').then(function(r){return r.json()}).then(function(g){validate(g);renderGolden(g)}).catch(function(){
    E('vrows').innerHTML='<tr><td colspan="4" style="color:#888">（本機直接開檔無法 fetch；部署到 GitHub Pages 後即顯示。內嵌 fallback：）</td></tr>';

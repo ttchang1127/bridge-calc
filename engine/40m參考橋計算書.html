@@ -1,0 +1,145 @@
+<!DOCTYPE html><html lang="zh-Hant"><head><meta charset="utf-8">
+<title>40m 後張箱梁設計計算書</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true}]})"></script>
+<style>
+body{font-family:"Noto Sans TC",system-ui,sans-serif;max-width:820px;margin:0 auto;padding:24px;color:#1a1a1a;line-height:1.6}
+.hdr{border-bottom:2px solid #1d4ed8;padding-bottom:12px;margin-bottom:8px}
+.hdr h1{margin:0;font-size:22px} .meta{color:#555;font-size:13px;margin-top:4px}
+section{margin:18px 0;page-break-inside:avoid}
+h2{font-size:16px;background:#f1f5f9;padding:6px 10px;border-left:3px solid #1d4ed8;margin:0 0 10px}
+.row{margin:10px 0;padding:8px 0;border-bottom:0.5px solid #e5e7eb}
+.rt{font-weight:500;font-size:14px} .cite{color:#1d4ed8;font-size:12px;margin-left:6px}
+.eq{margin:4px 0;font-size:14px} .sub{color:#444}
+.chk{font-size:13px;color:#555} .ok{color:#16a34a;font-weight:600} .ng{color:#dc2626;font-weight:600}
+table.props{width:100%;border-collapse:collapse;font-size:13px;margin:6px 0}
+table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-child(odd){color:#555;width:22%}
+.note{font-size:12px;color:#777}
+.summary{margin-top:20px;padding:12px;background:#f0fdf4;border:1px solid #16a34a;border-radius:8px;font-weight:500}
+@media print{body{padding:0} a{display:none} .hdr{margin-top:0}}
+</style></head><body>
+<div class="hdr"><h1>40m 後張預力混凝土箱梁　設計計算書</h1>
+<div class="meta">單跨簡支 L=40m｜f'c=40 MPa｜鋼腱 8組×21股｜2 設計車道（台灣 HS20-44 / HL-93）｜
+由 bridgecalc 計算引擎自動產生・回歸驗證 21/21・13 檢核章節</div></div>
+<section><h2>一、斷面性質（A1）</h2><table class="props">
+<tr><td>斷面積 A</td><td>5,065,000 mm²</td><td>慣性矩 I</td><td>3.287e+12 mm⁴</td></tr>
+<tr><td>形心距底 ȳ_b</td><td>1,329 mm</td><td>形心距頂 ȳ_t</td><td>771 mm</td></tr>
+<tr><td>底緣模數 S_b</td><td>2.473e+09 mm³</td><td>頂緣模數 S_t</td><td>4.263e+09 mm³</td></tr></table></section><section><h2>二、活載與載重組合（L0）</h2><p>2 設計車道：M<sub>LL+IM</sub> = 2 × 5,673 × 1.0 = <b>11,346</b> kN·m</p>
+<table class="props">
+<tr><td>Strength I</td><td>1.25 DC + 1.50 DW + 1.75 LL = <b>56,856</b> kN·m</td></tr>
+<tr><td>Service I</td><td>DC + DW + LL = <b>40,146</b> kN·m</td></tr>
+<tr><td>Service III</td><td>DC + DW + 0.8 LL = <b>37,877</b> kN·m</td></tr>
+</table><p class="note">AASHTO §3.4.1。活載來源見影響線實算（每車道 5,673 含 IM）。</p></section><section><h2>三、預力損失與有效預力（B1–B3）</h2><p>鋼腱 8 組 × 21 股，A<sub>ps</sub> = 23,520 mm²，P<sub>i</sub> = 32,810 kN（f<sub>pj</sub>=1,395 MPa）</p>
+<div class="row">
+  <div class="rt">鋼腱形心混凝土應力 <span class="cite">B1</span></div>
+  <div class="eq">$$ f_{cgp}=\frac{P_i}{A}+\frac{P_i e^2}{I}-\frac{M_D e}{I} $$</div>
+  <div class="eq sub">$$ = 6.48+12.28-8.37 = \boxed{10.39\ MPa} $$</div>
+  <div class="chk">容許：—　<span class="ok">✓ OK</span></div>
+</div>
+<table class="props">
+<tr><td>彈性縮短 ES</td><td>33 MPa</td><td>摩擦</td><td>117 MPa</td></tr>
+<tr><td>潛變 CR</td><td>115 MPa</td><td>乾縮/鬆弛</td><td>32/10 MPa</td></tr>
+<tr><td>總損失</td><td><b>22.0%</b></td><td>有效預力 f<sub>pe</sub></td><td>1087 MPa</td></tr>
+<tr><td>有效預力 P<sub>e</sub></td><td colspan="3"><b>25,578 kN</b>（增配的非線性損失耦合：f<sub>cgp</sub> 隨股數升高）</td></tr></table></section><section><h2>四、服務性應力（C1）</h2><div class="row">
+  <div class="rt">跨中底緣（全服務） <span class="cite">C1</span></div>
+  <div class="eq">$$ \sigma_b=-\frac{P_e}{A}-\frac{P_e e}{S_b}+\frac{M}{S_b} $$</div>
+  <div class="eq sub">$$ = -5.05-11.48+16.23 = \boxed{-0.29\ MPa} $$</div>
+  <div class="chk">容許：≤ 0（台灣零拉）　<span class="ok">✓ OK</span></div>
+</div><div class="row">
+  <div class="rt">跨中頂緣（全服務） <span class="cite">C1</span></div>
+  <div class="eq">$$ \sigma_t=-\frac{P_e}{A}+\frac{P_e e}{S_t}-\frac{M}{S_t} $$</div>
+  <div class="eq sub">$$ = -5.05+6.66-9.42 = \boxed{-7.81\ MPa} $$</div>
+  <div class="chk">容許：≥ -24.0（0.6f'c）　<span class="ok">✓ OK</span></div>
+</div><div class="row">
+  <div class="rt">最小預力反解（驗算變設計） <span class="cite">C1</span></div>
+  <div class="eq">$$ P_{e,min}=\frac{M A}{S_b+A e} $$</div>
+  <div class="eq sub">$$ = \frac{40{,}146 \times 5.065e6}{8.09e9} = \boxed{25,134\ kN} $$</div>
+  <div class="chk">容許：現 P_e=25,578 ≥　<span class="ok">✓ OK</span></div>
+</div></section><section><h2>五、腹板抗剪（D1）</h2><div class="row">
+  <div class="rt">主拉應力（莫耳圓） <span class="cite">D1</span></div>
+  <div class="eq">$$ \sigma_1=-\frac{f_{pc}}{2}+\sqrt{(f_{pc}/2)^2+\tau^2} $$</div>
+  <div class="eq sub">$$ = -2.53+6.06 = \boxed{3.53\ MPa} $$</div>
+  <div class="chk">容許：≤ 0.595（台灣，近支承常超→箍筋）　<span class="ng">✗ NG</span></div>
+</div>
+<table class="props">
+<tr><td>軸壓 f<sub>pc</sub></td><td>5.05 MPa</td><td>鋼腱 V<sub>p</sub></td><td>1,298 kN（佔 V<sub>u</sub> 56%）</td></tr>
+<tr><td>V<sub>cw</sub>（含 V<sub>p</sub>）</td><td>2,191 kN</td><td>所需 V<sub>s</sub></td><td>549 kN</td></tr>
+</table><div class="row">
+  <div class="rt">設計抗剪（D16@250 雙腳箍） <span class="cite">D1</span></div>
+  <div class="eq">$$ \phi V_n=\phi(V_{cw}+V_s) $$</div>
+  <div class="eq sub">$$ = 0.85(2{,}191+1{,}130) = \boxed{2,822\ kN} $$</div>
+  <div class="chk">容許：≥ V_u=2,329 kN　<span class="ok">✓ OK</span></div>
+</div></section><section><h2>六、極限強度彎曲（M1）</h2><table class="props">
+<tr><td>β₁</td><td>0.764</td><td>中性軸 c</td><td>204.0 mm（翼板內）</td></tr>
+<tr><td>鋼腱應力 f<sub>ps</sub></td><td>1,803 MPa</td><td>延性 ε<sub>t</sub></td><td>0.0246（φ=1.00）</td></tr>
+</table><div class="row">
+  <div class="rt">公稱彎矩強度 <span class="cite">M1</span></div>
+  <div class="eq">$$ M_n=A_{ps}f_{ps}(d_p-a/2) $$</div>
+  <div class="eq sub">$$ = 23{,}520 \times 1{,}803 \times 1{,}802 = \boxed{76,438\ kN\cdot m} $$</div>
+  <div class="chk">容許：φM_n=76,438 ≥ M_u=56,856（CR=1.34）　<span class="ok">✓ OK</span></div>
+</div></section><section><h2>七、撓度與預拱（C2/C3）</h2><div class="row">
+  <div class="rt">活載即時撓度 <span class="cite">C2</span></div>
+  <div class="eq">$$ \delta_{LL}=\frac{5 w_{LL} L^4}{384 E_c I} $$</div>
+  <div class="eq sub">$$ = 0.3415 \times 56.7 = \boxed{19.4\ mm} $$</div>
+  <div class="chk">容許：≤ L/800=50 mm　<span class="ok">✓ OK</span></div>
+</div>
+<p>荷重平衡率 LBR = 98.5%（接近全平衡）；淨長期下撓 ≈ 2.2 mm；<b>建議預拱 ≈ 7 mm</b>（主補支架沉陷）。</p></section><section><h2>八、疲勞驗核（P1）</h2><p>疲勞載重 = 疲勞卡車（35/145/145、後軸固定 9m、單車道）× IM 15%；Fatigue I γ=1.75。疲勞彎矩幅 ΔM=3,222 kN·m。</p>
+<div class="row">
+  <div class="rt">鋼腱應力幅（AASHTO Fatigue I） <span class="cite">P1</span></div>
+  <div class="eq">$$ \Delta\sigma_{ps}=n\cdot\frac{\gamma\,\Delta M}{I}\cdot e $$</div>
+  <div class="eq sub">$$ = 6.6 \times \frac{1.75\times3{,}222}{I}\times1{,}109 = \boxed{12.6\ MPa} $$</div>
+  <div class="chk">容許：≤ 125 MPa　<span class="ok">✓ OK</span></div>
+</div>
+<table class="props">
+<tr><td>混凝土壓疲勞 σ_c</td><td>6.47 MPa ≤ 16（0.40f'c）<span class="ok">✓ OK</span></td></tr>
+<tr><td>箍筋疲勞 Δf_sv</td><td>@250 = 208 MPa &gt; 165 ❌ → 近支承段加密 @150 = 125 MPa ≤ 165 ✅</td></tr>
+</table><p class="note">★ 引擎以現 P_e=25,578kN 算 σ_c=6.47（P1 演算 6.59 為舊 P_e=23,700，已被引擎抓出）。箍筋為近支承疲勞控制項。</p></section><section><h2>九、扭力驗核（D2）</h2><p>偏載扭矩 T<sub>u</sub> = 1,900 kN·m；A<sub>cp</sub>=23.1×10⁶ mm²、p<sub>c</sub>=26,200 mm、f<sub>pc</sub>=5.05 MPa。</p>
+<div class="row">
+  <div class="rt">開裂扭矩 <span class="cite">D2</span></div>
+  <div class="eq">$$ T_{cr}=0.125\sqrt{f'_c}\,\frac{A_{cp}^2}{p_c}\sqrt{1+\frac{f_{pc}}{0.125\sqrt{f'_c}}} $$</div>
+  <div class="eq sub">$$ = 0.79 \times 2.04\times10^{10} \times 2.72 = \boxed{43,764\ kN\cdot m} $$</div>
+  <div class="chk">容許：0.25φT_cr=9,847 kN·m　<span class="ok">✓ OK</span></div>
+</div>
+<p class="note">T<sub>u</sub>=1,900 ≪ 0.25φT<sub>cr</sub>=9,847 → <b>可免顯式扭矩設計</b>，惟箱梁仍須配置閉合箍筋（D16@200）。★ 引擎以現 P_e 算 T<sub>cr</sub>=43,764（D2 演算 42,380 為舊 P_e）。</p></section><section><h2>十、橫向設計（D3）</h2><p>頂板橫向 RC 板撓曲（每公尺寬，d=200 mm，f<sub>y</sub>=420 MPa）。</p>
+<table class="props">
+<tr><td>懸臂（D20@200）</td><td>φMn = 113.0 kN·m/m ≥ Mu=105.8 <span class="ok">✓ OK</span></td></tr>
+<tr><td>跨中正彎（D22@175）</td><td>φMn = 153.2 kN·m/m ≥ Mu⁺=133.8 <span class="ok">✓ OK</span></td></tr>
+</table><div class="row">
+  <div class="rt">墩面負彎矩（控制） <span class="cite">D3</span></div>
+  <div class="eq">$$ \phi M_n=\phi A_s f_y(d-a/2) $$</div>
+  <div class="eq sub">$$ = 0.9 \times 2{,}534 \times 420 \times 184.4 = \boxed{176.6\ kN\cdot m/m} $$</div>
+  <div class="chk">容許：≥ M_u⁻=150.3 kN·m/m　<span class="ok">✓ OK</span></div>
+</div><p class="note">日本算則 S<sub>net</sub>&gt;4,572 控制；墩面 D22@150 提供餘裕 +18%。</p></section><section><h2>十一、支承設計（E1）</h2><p>疊層橡膠支承 550×450×100 mm；反力 R<sub>max</sub>=1,730 / R<sub>min</sub>=1,440 kN。</p>
+<div class="row">
+  <div class="rt">剪切應變 <span class="cite">E1</span></div>
+  <div class="eq">$$ \gamma_S=\Delta_S/h_{rt} $$</div>
+  <div class="eq sub">$$ = 40/100 = \boxed{0.40} $$</div>
+  <div class="chk">容許：≤ 0.50　<span class="ok">✓ OK</span></div>
+</div>
+<table class="props">
+<tr><td>壓應力 σ<sub>TL</sub></td><td>6.99 MPa（≈70 kgf/cm² ≤ 112）</td></tr>
+<tr><td>上拔確認</td><td>R<sub>min</sub>−R<sub>LL</sub> = 1,440−291 = 1,149 kN &gt; 0 → 無上拔 <span class="ok">✓ OK</span></td></tr>
+</table></section><section><h2>十二、伸縮縫設計（E2）</h2><p>縮短量鏈（後安裝預力縮短不納入縫口）：溫度 8.8 + 潛變 12.6 + 乾縮 8.0 = <b>29.4 mm</b>。</p>
+<div class="row">
+  <div class="rt">最大開度 <span class="cite">E2</span></div>
+  <div class="eq">$$ g_{max}=g_{install}+\Delta_{shortening} $$</div>
+  <div class="eq sub">$$ = 20+29.4 = \boxed{49.4\ mm} $$</div>
+  <div class="chk">容許：選用 Strip Seal 75mm　<span class="ok">✓ OK</span></div>
+</div>
+<p class="note">安裝開度 20 mm；設計容量 52 mm（含 5% 裕度）→ Strip Seal 75 mm 規格充足。</p></section><section><h2>十三、錨碇區爆裂力（F1）</h2><p>端橫隔版錨碇區（逐束法，8 束、單腹版群 4 束）；P<sub>u</sub>=1.2P<sub>i</sub>/束 = 4,924 kN。</p>
+<div class="row">
+  <div class="rt">整體區爆裂力（每束） <span class="cite">F1</span></div>
+  <div class="eq">$$ T_{burst}=0.25P_u\left(1-\frac{a}{h}\right) $$</div>
+  <div class="eq sub">$$ = 0.25 \times 4{,}924 \times 0.876 = \boxed{1,079\ kN} $$</div>
+  <div class="chk">容許：→ 爆裂筋 5-D22　<span class="ok">✓ OK</span></div>
+</div>
+<table class="props">
+<tr><td>群爆裂力 ΣT<sub>burst</sub></td><td>4,314 kN（爆裂筋 A<sub>s</sub>=3,807 mm²）</td></tr>
+<tr><td>剝落力 F<sub>spall</sub></td><td>394 kN → 剝落筋 A<sub>s</sub>=1,641 mm² → 5-D22</td></tr>
+</table><p class="note">配置隨 P<sub>i</sub>=32,826 kN（8組×21股、2 車道）更新。</p></section>
+<div class="summary">設計結論：服務性底緣全壓（-0.29 MPa）、強度 CR=1.34、剪力 φVn>Vu、撓度<L/800 ——
+跨中各項通過（主拉超限為近支承常態、由箍筋承力）。連續梁中墩另案。</div>
+<p class="note">本計算書數值由單一真理源 bridgecalc 產生，與知識庫算例 golden_answers.json 一致。</p>
+</body></html>

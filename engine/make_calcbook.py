@@ -153,16 +153,18 @@ sec10 = f"""<p>頂板橫向 RC 板撓曲（每公尺寬，d=200 mm，f<sub>y</su
 </table>{r_d3}<p class="note">日本算則 S<sub>net</sub>&gt;4,572 控制；墩面 D22@150 提供餘裕 +18%。</p>"""
 sections.append(("十、橫向設計（D3）", sec10))
 
+r_e1 = row("剪切應變", r"\gamma_S=\Delta_S/h_{rt}", "40/100", f"{br.gamma_s:.2f}", "≤ 0.50", br.gamma_ok, "E1")
 sec11 = f"""<p>疊層橡膠支承 550×450×100 mm；反力 R<sub>max</sub>=1,730 / R<sub>min</sub>=1,440 kN。</p>
-{row("剪切應變", r"\gamma_S=\Delta_S/h_{rt}", f"40/100", f"{br.gamma_s:.2f}", "≤ 0.50", br.gamma_ok, "E1")}
+{r_e1}
 <table class="props">
 <tr><td>壓應力 σ<sub>TL</sub></td><td>{br.sigma_TL:.2f} MPa（≈70 kgf/cm² ≤ 112）</td></tr>
 <tr><td>上拔確認</td><td>R<sub>min</sub>−R<sub>LL</sub> = 1,440−291 = 1,149 kN &gt; 0 → 無上拔 {chk(br.no_uplift)}</td></tr>
 </table>"""
 sections.append(("十一、支承設計（E1）", sec11))
 
+r_e2 = row("最大開度", r"g_{max}=g_{install}+\Delta_{shortening}", "20+29.4", f"{ej.g_max:.1f}{mm}", f"選用 {ej.joint_type}", True, "E2")
 sec12 = f"""<p>縮短量鏈（後安裝預力縮短不納入縫口）：溫度 8.8 + 潛變 12.6 + 乾縮 8.0 = <b>{ej.shortening:.1f} mm</b>。</p>
-{row("最大開度", r"g_{max}=g_{install}+\Delta_{shortening}", "20+29.4", f"{ej.g_max:.1f}{mm}", f"選用 {ej.joint_type}", True, "E2")}
+{r_e2}
 <p class="note">安裝開度 20 mm；設計容量 {ej.capacity} mm（含 5% 裕度）→ Strip Seal 75 mm 規格充足。</p>"""
 sections.append(("十二、伸縮縫設計（E2）", sec12))
 

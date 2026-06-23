@@ -14,7 +14,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         il_moment_peak, abs_max_moment, lane_moment_simple,
                         hl93_per_lane_moment, moment_envelope_simple,
                         fatigue_check, stirrup_fatigue, torsion_check,
-                        slab_flexure, As_min_slab)
+                        slab_flexure, As_min_slab, temp_gradient_AASHTO)
 
 sec = Section(5.065e6, 3.287e12, 1329, 2100)
 ten = Tendon(8, 21, 1109)
@@ -70,6 +70,7 @@ golden = {
                       "span_phiMn_kNm": round(slab_flexure(133.8, 2172, 200, 40, 420).phiMn, 1),
                       "support_phiMn_kNm": round(slab_flexure(150.3, 2534, 200, 40, 420).phiMn, 1),
                       "As_min_mm2": round(As_min_slab(40, 420, 1000, 200))},
+    "temperature_T1": temp_gradient_AASHTO(18.0, 5.0, True),
 }
 
 if __name__ == "__main__":

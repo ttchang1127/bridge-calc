@@ -63,5 +63,13 @@
     "span_phiMn_kNm": 153.2,
     "support_phiMn_kNm": 176.6,
     "As_min_mm2": 571
+  },
+  "temperature_T1": {
+    "pos_T1": 18.0,
+    "pos_T2": 5.0,
+    "neg_factor": -0.3,
+    "neg_T1": -5.4,
+    "neg_T2": -1.5,
+    "gamma_TG": 0.5
   }
 }

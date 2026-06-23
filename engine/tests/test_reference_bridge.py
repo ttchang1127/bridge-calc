@@ -15,7 +15,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         deflection_analysis, il_moment_peak, il_shear_simple,
                         abs_max_moment, lane_moment_simple, hl93_per_lane_moment,
                         moment_envelope_simple, fatigue_check, stirrup_fatigue,
-                        torsion_check, slab_flexure, As_min_slab)
+                        torsion_check, slab_flexure, As_min_slab, temp_gradient_AASHTO)
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -167,6 +167,14 @@ def test_transverse_D3():
     _close(slab_flexure(150.3, 2534, 200, 40, 420).phiMn, 176.6, 0.5)   # 墩面 D22@150
     assert slab_flexure(150.3, 2534, 200, 40, 420).ok
     _close(As_min_slab(40, 420, 1000, 200), 571, 2)
+
+
+def test_temperature_T1():
+    """溫度載重定義：Zone3 正梯度 18/5 → PC 箱梁負梯度 -5.4/-1.5（×-0.30）。"""
+    g = temp_gradient_AASHTO(18.0, 5.0, True)
+    _close(g["neg_T1"], -5.4, 0.05)
+    _close(g["neg_T2"], -1.5, 0.05)
+    assert g["gamma_TG"] == 0.5
 
 
 def test_moment_envelope():

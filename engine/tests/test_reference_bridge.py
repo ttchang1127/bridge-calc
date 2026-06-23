@@ -14,7 +14,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         shear_web, phiVn, Av_s_min_TW, flexural_strength,
                         deflection_analysis, il_moment_peak, il_shear_simple,
                         abs_max_moment, lane_moment_simple, hl93_per_lane_moment,
-                        moment_envelope_simple, fatigue_check, stirrup_fatigue,
+                        moment_envelope_simple, taiwan_per_lane_moment, taiwan_per_lane_shear,
+                        taiwan_impact, fatigue_check, stirrup_fatigue,
                         torsion_check, slab_flexure, As_min_slab, temp_gradient_AASHTO,
                         bearing_check, anchorage_check, expansion_joint,
                         ThermalBand, self_equilibrating_stress, thermal_service_check)
@@ -133,6 +134,13 @@ def test_influence_simple_span():
     _close(abs_max_moment(40), 2867, 5)           # HL-93 卡車絕對最大
     _close(lane_moment_simple(40), 1860, 2)
     _close(hl93_per_lane_moment(40), 5673, 5)     # = loads.lane_live_load 的 per_lane
+
+
+def test_taiwan_hs20_live_load():
+    """台灣 HS20-44 每車道活載（卡車或車道取大，衝擊 I=15.24/(L+38.1)）。"""
+    _close(taiwan_impact(40), 0.195, 0.002)
+    _close(taiwan_per_lane_moment(40), 3418, 5)    # 卡車 2860 控制（< HL-93 5673）
+    _close(taiwan_per_lane_shear(40), 363, 3)      # 車道 304 控制（< HL-93 588）
 
 
 def test_fatigue_P1():

@@ -77,3 +77,53 @@ def moment_envelope_simple(L: float, axles=HL93_AXLES, spacing=HL93_SPACING,
 def hl93_per_lane_moment(L: float) -> float:
     """每設計車道 M_LL+IM = (1+IM)·卡車絕對最大 + 車道（簡支跨中近似）。"""
     return (1 + IM) * abs_max_moment(L) + lane_moment_simple(L)
+
+
+# ── 台灣 HS20-44（公路橋梁設計規範 §3.6/§3.13）──
+# 設計車輛 + 車道載重「取大」（非 HL-93 並計）；衝擊及於控制者。
+TW_HS20_AXLES = (36.0, 144.0, 144.0)
+TW_HS20_SPACING = (0.0, 4.25, 8.5)
+TW_LANE_W = 9.4       # 車道均布載重 kN/m
+TW_LANE_PM = 80.0     # 車道集中載重（彎矩用）kN
+TW_LANE_PV = 116.0    # 車道集中載重（剪力用）kN
+
+
+def taiwan_impact(L: float) -> float:
+    """台灣衝擊係數 I = 15.24/(L+38.1) ≤ 0.30（§3.13）。"""
+    return min(0.30, 15.24 / (L + 38.1))
+
+
+def max_shear_moving(L: float, a: float, axles=TW_HS20_AXLES,
+                     spacing=TW_HS20_SPACING, step: float = 0.1) -> float:
+    """移動車組於斷面 a 之最大剪力 max ΣPᵢ·η_V。"""
+    best = 0.0
+    s = -spacing[-1]
+    while s <= L:
+        tot = sum(P * il_shear_simple(L, a, s + dx)
+                  for P, dx in zip(axles, spacing) if 0 <= s + dx <= L)
+        if abs(tot) > abs(best):
+            best = tot
+        s += step
+    return best
+
+
+def taiwan_lane_moment(L: float) -> float:
+    """台灣車道載重跨中彎矩 = w·L²/8 + 集中載重 P_M·L/4。"""
+    return TW_LANE_W * L**2 / 8 + TW_LANE_PM * L / 4
+
+
+def taiwan_lane_shear(L: float) -> float:
+    """台灣車道載重支承剪力 = w·L/2 + 集中載重 P_V。"""
+    return TW_LANE_W * L / 2 + TW_LANE_PV
+
+
+def taiwan_per_lane_moment(L: float) -> float:
+    """台灣每設計車道 M_LL+IM = max(設計卡車絕對最大, 車道載重) × (1+I)。"""
+    truck = abs_max_moment(L, TW_HS20_AXLES, TW_HS20_SPACING)
+    return max(truck, taiwan_lane_moment(L)) * (1 + taiwan_impact(L))
+
+
+def taiwan_per_lane_shear(L: float) -> float:
+    """台灣每設計車道 V_LL+IM = max(設計卡車支承剪力, 車道剪力) × (1+I)。"""
+    truck = abs(max_shear_moving(L, 1e-6, TW_HS20_AXLES, TW_HS20_SPACING))
+    return max(truck, taiwan_lane_shear(L)) * (1 + taiwan_impact(L))

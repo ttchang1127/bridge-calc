@@ -89,6 +89,13 @@
     "capacity_mm": 52,
     "joint": "Strip Seal 75mm"
   },
+  "live_load_TW_HS20_40m": {
+    "model": "卡車或車道取大",
+    "impact": 0.1951,
+    "per_lane_M_kNm": 3418,
+    "per_lane_V_kN": 363,
+    "_note": "台灣 HS20-44；對照 HL-93 每車道 5673/588"
+  },
   "temperature_SE_T1": {
     "Tu_C": 6.27,
     "TL_C": 39.6,

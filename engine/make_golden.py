@@ -14,32 +14,35 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         il_moment_peak, abs_max_moment, lane_moment_simple,
                         hl93_per_lane_moment, moment_envelope_simple,
                         taiwan_per_lane_moment, taiwan_per_lane_shear, taiwan_impact,
+                        taiwan_truck_moment, taiwan_lane_moment, taiwan_moment_envelope,
                         fatigue_check, stirrup_fatigue, torsion_check,
                         slab_flexure, As_min_slab, temp_gradient_AASHTO,
                         bearing_check, anchorage_check, expansion_joint,
                         ThermalBand, self_equilibrating_stress, thermal_service_check)
 
 sec = Section(5.065e6, 3.287e12, 1329, 2100)
-ten = Tendon(8, 21, 1109)
+ten = Tendon(8, 19, 1109)                       # 台灣 HS20-44 最小設計（HL-93 才需增配 21 股）
 M_DC, M_DW = 24800, 4000
-M_LL = lane_live_load(5673, 2, 1.0)
+M_LL = lane_live_load(taiwan_per_lane_moment(40), 2, 1.0)   # HS20-44 2 車道 = 6,837
 L = compute_losses(ten, sec, M_DC, M_DW)
 c = combinations(M_DC, M_DW, M_LL)
 st, sb = stresses(L.Pe, sec, ten.e, c["Service_I"])
-sh = shear_web(L.Pe, sec, ten.e, 40, 250, 1692, 2329e3, 1692, 40000)
+Vu_HS20 = 1419 + 229 + 681 * taiwan_per_lane_shear(40) / 588   # 活載剪力按 HS20/HL-93 縮放 ≈ 2,069
+sh = shear_web(L.Pe, sec, ten.e, 40, 250, 1692, Vu_HS20 * 1e3, 1692, 40000)
 fx = flexural_strength(ten, sec, 40, 8000, 250, 1880, c["Strength_I"], L.Pe, ten.e)
-df = deflection_analysis(40000, 29700, sec, 144, L.Pe, ten.e, 56.7)
+w_LL_HS20 = 56.7 * taiwan_per_lane_moment(40) / hl93_per_lane_moment(40)   # 撓度等效 UDL 按比例 ≈ 34.2
+df = deflection_analysis(40000, 29700, sec, 144, L.Pe, ten.e, w_LL_HS20)
 
 golden = {
-    "_about": "40m參考橋黃金答案(2車道/8組×21股)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
+    "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
         "peak_M_mid_m": round(il_moment_peak(40, 20), 2),
         "peak_M_a10_m": round(il_moment_peak(40, 10), 2),
-        "truck_absmax_kNm": round(abs_max_moment(40)),
-        "lane_M_kNm": round(lane_moment_simple(40)),
-        "per_lane_M_LL_IM_kNm": round(hl93_per_lane_moment(40)),
-        "envelope_peak_kNm": round(max(m for _, m in moment_envelope_simple(40))),
-        "envelope_at_L4_kNm": round(dict((round(a), m) for a, m in moment_envelope_simple(40))[10]),
+        "truck_absmax_kNm": round(taiwan_truck_moment(40)),
+        "lane_M_kNm": round(taiwan_lane_moment(40)),
+        "per_lane_M_LL_IM_kNm": round(taiwan_per_lane_moment(40)),
+        "envelope_peak_kNm": round(max(m for _, m in taiwan_moment_envelope(40))),
+        "envelope_at_L4_kNm": round(dict((round(a), m) for a, m in taiwan_moment_envelope(40))[10]),
     },
     "loads": {
         "M_LL_IM_2lane_kNm": round(M_LL),
@@ -48,7 +51,7 @@ golden = {
         "ServiceIII_kNm": round(c["Service_III"]),
     },
     "prestress": {
-        "config": "8組×21股", "Aps_mm2": round(ten.Aps),
+        "config": "8組×19股", "Aps_mm2": round(ten.Aps),
         "loss_pct": round(L.loss_pct * 100, 1), "fpe_MPa": round(L.fpe),
         "Pe_kN": round(L.Pe / 1e3),
         "Pe_min_kN": round(Pe_min_zero_tension(sec, ten.e, c["Service_I"]) / 1e3),
@@ -78,7 +81,7 @@ golden = {
                               "no_uplift": b.no_uplift})(bearing_check(1730,1440,291,40,100,550*450)),
     "anchorage_F1": (lambda a: {"Pu_kN": round(a.Pu), "sum_Tburst_kN": round(a.sum_Tburst),
                                 "Fspall_kN": round(a.Fspall), "As_spall_mm2": round(a.As_spall)})
-                   (anchorage_check(32826,8,260,2100,4)),
+                   (anchorage_check(ten.Pi/1e3,8,260,2100,4)),
     "expansion_E2": (lambda j: {"shortening_mm": round(j.shortening,1), "g_max_mm": round(j.g_max,1),
                                 "capacity_mm": j.capacity, "joint": j.joint_type})(expansion_joint(8.8,12.6,8.0,20)),
     "live_load_TW_HS20_40m": {"model": "卡車或車道取大", "impact": round(taiwan_impact(40),4),

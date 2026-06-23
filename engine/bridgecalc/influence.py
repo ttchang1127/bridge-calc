@@ -117,6 +117,16 @@ def taiwan_lane_shear(L: float) -> float:
     return TW_LANE_W * L / 2 + TW_LANE_PV
 
 
+def taiwan_truck_moment(L: float) -> float:
+    """台灣 HS20-44 設計卡車絕對最大彎矩（不含衝擊）。"""
+    return abs_max_moment(L, TW_HS20_AXLES, TW_HS20_SPACING)
+
+
+def taiwan_moment_envelope(L: float, n: int = 20):
+    """HS20-44 設計卡車彎矩包絡線 [(a, M_max), ...]。"""
+    return moment_envelope_simple(L, TW_HS20_AXLES, TW_HS20_SPACING, n)
+
+
 def taiwan_per_lane_moment(L: float) -> float:
     """台灣每設計車道 M_LL+IM = max(設計卡車絕對最大, 車道載重) × (1+I)。"""
     truck = abs_max_moment(L, TW_HS20_AXLES, TW_HS20_SPACING)

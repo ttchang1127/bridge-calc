@@ -17,7 +17,8 @@ from .influence import (il_moment_simple, il_shear_simple, il_moment_peak,
                         max_moment_moving, abs_max_moment, lane_moment_simple,
                         hl93_per_lane_moment, moment_envelope_simple,
                         taiwan_per_lane_moment, taiwan_per_lane_shear, taiwan_impact,
-                        taiwan_lane_moment, taiwan_lane_shear)
+                        taiwan_lane_moment, taiwan_lane_shear,
+                        taiwan_truck_moment, taiwan_moment_envelope)
 from .fatigue import fatigue_check, FatigueResult, stirrup_fatigue
 from .torsion import torsion_check, TorsionResult
 from .transverse import slab_flexure, SlabResult, As_min_slab
@@ -40,6 +41,7 @@ __all__ = [
     "hl93_per_lane_moment", "moment_envelope_simple",
     "taiwan_per_lane_moment", "taiwan_per_lane_shear", "taiwan_impact",
     "taiwan_lane_moment", "taiwan_lane_shear",
+    "taiwan_truck_moment", "taiwan_moment_envelope",
     "fatigue_check", "FatigueResult", "stirrup_fatigue",
     "torsion_check", "TorsionResult",
     "slab_flexure", "SlabResult", "As_min_slab", "temp_gradient_AASHTO", "ThermalBand", "ThermalResult", "self_equilibrating_stress", "thermal_service_check", "bearing_check", "BearingResult", "anchorage_check", "AnchorageResult", "expansion_joint", "JointResult", "allowables",

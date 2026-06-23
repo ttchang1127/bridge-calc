@@ -95,10 +95,13 @@ tbody tr{border-bottom:0.5px solid var(--line)}
  var TRK={P:[36,144,144],x:[0,4.25,8.5]}, LANE=9.4, PM=80, PV=116;
  // ── 簡支解析影響線（與 engine/influence.py 一致，用於自驗證）──
  function ilPeak(L,a){ return a*(L-a)/L; }
- var HL=[35,145,145], HLs=[0,4.3,8.6];
  function ilMa(L,a,p){ return p<=a ? p*(L-a)/L : a*(L-p)/L; }
- function absMaxHL(L){ var best=0; for(var a=0.2;a<L;a+=0.2){ for(var s=-HLs[2];s<=L;s+=0.2){ var t=0; for(var i=0;i<3;i++){ var x=s+HLs[i]; if(x>=0&&x<=L)t+=HL[i]*ilMa(L,a,x);} if(Math.abs(t)>Math.abs(best))best=t; } } return best; }
- function laneM(L,w){ return (w||9.3)*L*L/8; }
+ // 台灣 HS20-44 設計卡車（自驗證用，與 engine/influence.py 的 taiwan_* 一致）
+ var TWa=[36,144,144], TWs=[0,4.25,8.5];
+ function absMaxTW(L){ var best=0; for(var a=0.2;a<L;a+=0.2){ for(var s=-TWs[2];s<=L;s+=0.2){ var t=0; for(var i=0;i<3;i++){ var x=s+TWs[i]; if(x>=0&&x<=L)t+=TWa[i]*ilMa(L,a,x);} if(Math.abs(t)>Math.abs(best))best=t; } } return best; }
+ function twLaneM(L){ return 9.4*L*L/8 + 80*L/4; }              // 車道均布 + 集中載重(彎矩)
+ function twImpact(L){ return Math.min(0.30, 15.24/(L+38.1)); }
+ function twPerLane(L){ return Math.max(absMaxTW(L), twLaneM(L))*(1+twImpact(L)); }   // 取大×(1+I)
  // ── 數值剛度法影響線（連續梁；簡支亦適用）──
  function inv(A){var n=A.length,M=A.map(function(r,i){return r.concat(Array.from({length:n},function(_,j){return i===j?1:0}))});for(var i=0;i<n;i++){var p=i;for(var r=i+1;r<n;r++)if(Math.abs(M[r][i])>Math.abs(M[p][i]))p=r;var t=M[i];M[i]=M[p];M[p]=t;var pv=M[i][i];for(var j=0;j<2*n;j++)M[i][j]/=pv;for(var r2=0;r2<n;r2++)if(r2!==i){var f=M[r2][i];for(var j2=0;j2<2*n;j2++)M[r2][j2]-=f*M[i][j2]}}return M.map(function(r){return r.slice(n)})}
  function model(spans){var ne=spans.length>1?12:24,nodes=[0],sx=[0],cum=0;spans.forEach(function(Ln){for(var k=1;k<=ne;k++)nodes.push(+(cum+Ln*k/ne).toFixed(4));cum+=Ln;sx.push(+cum.toFixed(4))});var sIdx=sx.map(function(x){var b=0;for(var i=0;i<nodes.length;i++)if(Math.abs(nodes[i]-x)<Math.abs(nodes[b]-x))b=i;return b});return {nodes:nodes,sx:sx,sIdx:sIdx,tot:cum}}
@@ -124,10 +127,10 @@ tbody tr{border-bottom:0.5px solid var(--line)}
    var g=golden.influence_simple_40m, rows=[
      ['峰值 η_M(x=20)', ilPeak(40,20), g.peak_M_mid_m,'m',0.01],
      ['峰值 η_M(x=10)', ilPeak(40,10), g.peak_M_a10_m,'m',0.01],
-     ['卡車絕對最大 M', absMaxHL(40), g.truck_absmax_kNm,'kN·m',5],
-     ['車道彎矩 M', laneM(40), g.lane_M_kNm,'kN·m',2],
-     ['每車道 M_LL+IM', (1.33)*absMaxHL(40)+laneM(40), g.per_lane_M_LL_IM_kNm,'kN·m',6],
-     ['彎矩包絡峰值', absMaxHL(40), g.envelope_peak_kNm,'kN·m',5]
+     ['HS20 卡車絕對最大 M', absMaxTW(40), g.truck_absmax_kNm,'kN·m',5],
+     ['車道彎矩 M(含集中80)', twLaneM(40), g.lane_M_kNm,'kN·m',2],
+     ['每車道 M_LL+IM(取大×I)', twPerLane(40), g.per_lane_M_LL_IM_kNm,'kN·m',6],
+     ['彎矩包絡峰值', absMaxTW(40), g.envelope_peak_kNm,'kN·m',6]
    ];
    var pass=0,html=rows.map(function(r){var ok=Math.abs(r[1]-r[2])<=r[4];if(ok)pass++;var dec=r[3]==='m'?2:0;return '<tr><td>'+r[0]+'</td><td>'+r[1].toFixed(dec)+' '+r[3]+'</td><td style="color:#888">'+r[2].toFixed(dec)+'</td><td style="text-align:center" class="'+(ok?'ok':'ng')+'">'+(ok?'✓':'✗')+'</td></tr>'}).join('');
    E('vrows').innerHTML=html;
@@ -162,7 +165,7 @@ tbody tr{border-bottom:0.5px solid var(--line)}
  }
  fetch('./golden_answers.json').then(function(r){return r.json()}).then(function(g){validate(g);renderGolden(g)}).catch(function(){
    E('vrows').innerHTML='<tr><td colspan="4" style="color:#888">（本機直接開檔無法 fetch；部署到 GitHub Pages 後即顯示。內嵌 fallback：）</td></tr>';
-   validate({influence_simple_40m:{peak_M_mid_m:10.0,peak_M_a10_m:7.5,truck_absmax_kNm:2867,lane_M_kNm:1860,per_lane_M_LL_IM_kNm:5673,envelope_peak_kNm:2863}});
+   validate({influence_simple_40m:{peak_M_mid_m:10.0,peak_M_a10_m:7.5,truck_absmax_kNm:2860,lane_M_kNm:2680,per_lane_M_LL_IM_kNm:3418,envelope_peak_kNm:2857}});
    renderGolden({});
  });
  // ── 互動計算 ──

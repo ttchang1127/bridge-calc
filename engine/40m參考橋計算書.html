@@ -22,7 +22,7 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
 </style></head><body>
 <div class="hdr"><h1>40m 後張預力混凝土箱梁　設計計算書</h1>
 <div class="meta">單跨簡支 L=40m｜f'c=40 MPa｜鋼腱 8組×21股｜2 設計車道（台灣 HS20-44 / HL-93）｜
-由 bridgecalc 計算引擎自動產生・回歸驗證 21/21・13 檢核章節</div></div>
+由 bridgecalc 計算引擎自動產生・回歸驗證 22/22・14 檢核章節</div></div>
 <section><h2>一、斷面性質（A1）</h2><table class="props">
 <tr><td>斷面積 A</td><td>5,065,000 mm²</td><td>慣性矩 I</td><td>3.287e+12 mm⁴</td></tr>
 <tr><td>形心距底 ȳ_b</td><td>1,329 mm</td><td>形心距頂 ȳ_t</td><td>771 mm</td></tr>
@@ -138,7 +138,21 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
 <table class="props">
 <tr><td>群爆裂力 ΣT<sub>burst</sub></td><td>4,314 kN（爆裂筋 A<sub>s</sub>=3,807 mm²）</td></tr>
 <tr><td>剝落力 F<sub>spall</sub></td><td>394 kN → 剝落筋 A<sub>s</sub>=1,641 mm² → 5-D22</td></tr>
-</table><p class="note">配置隨 P<sub>i</sub>=32,826 kN（8組×21股、2 車道）更新。</p></section>
+</table><p class="note">配置隨 P<sub>i</sub>=32,826 kN（8組×21股、2 車道）更新。</p></section><section><h2>十四、溫度梯度自平衡應力（T1）</h2><p class="note">★ 自含斷面（h=2,000、f'c=35），非配置 A。非線性溫度剖面強迫斷面維持平面 → 斷面自我約束生自平衡應力。</p>
+<table class="props">
+<tr><td>等效均勻溫度 T<sub>u</sub></td><td>6.27 °C</td><td>等效線性溫差 T<sub>L</sub></td><td>39.6 °C</td></tr>
+<tr><td>正梯度 σ_SE 頂板頂</td><td>+1.81 MPa（拉）</td><td>正梯度 σ_SE 底板底</td><td>-5.32 MPa（壓）</td></tr>
+</table>
+<div class="row">
+  <div class="rt">自平衡應力（負梯度底板） <span class="cite">T1</span></div>
+  <div class="eq">$$ \sigma_{SE}=-E_c\,\alpha\,[T(y)-T_u-T_L\frac{\bar y_t-y}{h}] $$</div>
+  <div class="eq sub">$$ = -0.3304 \times (-4.83) = \boxed{+1.60\ MPa} $$</div>
+  <div class="chk">容許：Service 後判定　<span class="ok">✓ OK</span></div>
+</div>
+<table class="props">
+<tr><td>負梯度 Service（底板底）</td><td>σ<sub>DC+LL</sub>(+1.2) + 0.5×1.60 = <b>+2.00 MPa</b>　<span class="ng">✗ NG</span>（台灣 ≤ 0）</td></tr>
+</table>
+<p class="note">★ <b>負梯度底板 +2.00 MPa 拉為控制工況</b>（超台灣完全預壓 ≤0）→ 底板需有效預壓 ≥ 2.5 MPa。靜定梁 Tu/TL 不生應力，故 σ_TG=σ_SE。連續梁另有溫度次彎矩 M₂T（中墩 −0.10 剛好通過）。</p></section>
 <div class="summary">設計結論：服務性底緣全壓（-0.29 MPa）、強度 CR=1.34、剪力 φVn>Vu、撓度<L/800 ——
 跨中各項通過（主拉超限為近支承常態、由箍筋承力）。連續梁中墩另案。</div>
 <p class="note">本計算書數值由單一真理源 bridgecalc 產生，與知識庫算例 golden_answers.json 一致。</p>

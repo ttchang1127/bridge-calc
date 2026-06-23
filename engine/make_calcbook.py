@@ -16,7 +16,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         shear_web, phiVn, flexural_strength, deflection_analysis,
                         fatigue_check, stirrup_fatigue, torsion_check,
                         slab_flexure, bearing_check, expansion_joint,
-                        anchorage_check, allowables)
+                        anchorage_check, ThermalBand,
+                        self_equilibrating_stress, thermal_service_check, allowables)
 
 # ── 40m 參考橋 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -40,6 +41,11 @@ sl_s = slab_flexure(150.3, 2534, 200, 40, 420)   # 墩面 D22@150
 br = bearing_check(1730, 1440, 291, 40, 100, 550 * 450)
 ej = expansion_joint(8.8, 12.6, 8.0, 20)
 an = anchorage_check(32826, 8, 260, 2100, 4)
+tband = [ThermalBand(0, 300, 3_000_000, 11.5), ThermalBand(300, 400, 80_000, 2.5),
+         ThermalBand(400, 1750, 1_080_000, 0), ThermalBand(1750, 2000, 1_375_000, 0)]
+tg = self_equilibrating_stress(tband, 1.26e12, 870, 2000,
+                               [("頂板頂", 0, 18.0), ("底板底", 2000, 0.0)])
+tg_serv, tg_ok = thermal_service_check(tg.sigma_neg["底板底"], 1.2, 0.5)
 
 
 def chk(ok):
@@ -178,6 +184,21 @@ sec13 = f"""<p>端橫隔版錨碇區（逐束法，8 束、單腹版群 4 束）
 </table><p class="note">配置隨 P<sub>i</sub>=32,826 kN（8組×21股、2 車道）更新。</p>"""
 sections.append(("十三、錨碇區爆裂力（F1）", sec13))
 
+r_tse = row("自平衡應力（負梯度底板）", r"\sigma_{SE}=-E_c\,\alpha\,[T(y)-T_u-T_L\frac{\bar y_t-y}{h}]",
+            r"-0.3304 \times (-4.83)", f"{tg.sigma_neg['底板底']:+.2f}{MPa}",
+            "Service 後判定", True, "T1")
+sec14 = f"""<p class="note">★ 自含斷面（h=2,000、f'c=35），非配置 A。非線性溫度剖面強迫斷面維持平面 → 斷面自我約束生自平衡應力。</p>
+<table class="props">
+<tr><td>等效均勻溫度 T<sub>u</sub></td><td>{tg.Tu:.2f} °C</td><td>等效線性溫差 T<sub>L</sub></td><td>{tg.TL:.1f} °C</td></tr>
+<tr><td>正梯度 σ_SE 頂板頂</td><td>{tg.sigma_pos['頂板頂']:+.2f} MPa（拉）</td><td>正梯度 σ_SE 底板底</td><td>{tg.sigma_pos['底板底']:+.2f} MPa（壓）</td></tr>
+</table>
+{r_tse}
+<table class="props">
+<tr><td>負梯度 Service（底板底）</td><td>σ<sub>DC+LL</sub>(+1.2) + 0.5×{tg.sigma_neg['底板底']:.2f} = <b>{tg_serv:+.2f} MPa</b>　{chk(tg_ok)}（台灣 ≤ 0）</td></tr>
+</table>
+<p class="note">★ <b>負梯度底板 {tg_serv:+.2f} MPa 拉為控制工況</b>（超台灣完全預壓 ≤0）→ 底板需有效預壓 ≥ 2.5 MPa。靜定梁 Tu/TL 不生應力，故 σ_TG=σ_SE。連續梁另有溫度次彎矩 M₂T（中墩 −0.10 剛好通過）。</p>"""
+sections.append(("十四、溫度梯度自平衡應力（T1）", sec14))
+
 body = "".join(f'<section><h2>{t}</h2>{html}</section>' for t, html in sections)
 allpass = (sb <= 0 and st >= allowables.comp_service(40) and L.Pe >= pem
            and sh.sigma1_ok is False and fx.ok and df.d_LL_ok)
@@ -206,7 +227,7 @@ table.props td{{padding:4px 8px;border:0.5px solid #e5e7eb}} table.props td:nth-
 </style></head><body>
 <div class="hdr"><h1>40m 後張預力混凝土箱梁　設計計算書</h1>
 <div class="meta">單跨簡支 L=40m｜f'c=40 MPa｜鋼腱 8組×21股｜2 設計車道（台灣 HS20-44 / HL-93）｜
-由 bridgecalc 計算引擎自動產生・回歸驗證 21/21・13 檢核章節</div></div>
+由 bridgecalc 計算引擎自動產生・回歸驗證 22/22・14 檢核章節</div></div>
 {body}
 <div class="summary">設計結論：服務性底緣全壓（{sb:+.2f} MPa）、強度 CR={fx.CR:.2f}、剪力 φVn>Vu、撓度<L/800 ——
 跨中各項通過（主拉超限為近支承常態、由箍筋承力）。連續梁中墩另案。</div>

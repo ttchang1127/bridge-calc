@@ -16,7 +16,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         abs_max_moment, lane_moment_simple, hl93_per_lane_moment,
                         moment_envelope_simple, fatigue_check, stirrup_fatigue,
                         torsion_check, slab_flexure, As_min_slab, temp_gradient_AASHTO,
-                        bearing_check, anchorage_check, expansion_joint)
+                        bearing_check, anchorage_check, expansion_joint,
+                        ThermalBand, self_equilibrating_stress, thermal_service_check)
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -200,6 +201,22 @@ def test_expansion_E2():
     _close(j.shortening, 29.4, 0.1)
     _close(j.g_max, 49.4, 0.1)
     assert j.joint_type == "Strip Seal 75mm"
+
+
+def test_temperature_SE_T1():
+    """T1 自平衡應力（斷面積分）：Tu/TL、σ_SE、負梯度底板 Service +2.00 超限（控制工況）。"""
+    bands = [ThermalBand(0,300,3_000_000,11.5), ThermalBand(300,400,80_000,2.5),
+             ThermalBand(400,1750,1_080_000,0), ThermalBand(1750,2000,1_375_000,0)]
+    fibers = [("頂板頂",0,18.0), ("底板底",2000,0.0)]
+    r = self_equilibrating_stress(bands, 1.26e12, 870, 2000, fibers)
+    _close(r.Tu, 6.27, 0.02)
+    _close(r.TL, 39.6, 0.2)
+    _close(r.sigma_pos["頂板頂"], 1.80, 0.03)
+    _close(r.sigma_pos["底板底"], -5.31, 0.03)
+    _close(r.sigma_neg["底板底"], 1.59, 0.03)     # 負梯度底板轉為拉
+    total, ok = thermal_service_check(r.sigma_neg["底板底"], 1.2, 0.5)
+    _close(total, 2.00, 0.03)
+    assert not ok                                  # +2.00 > 0 → 超限（控制工況，需底板預壓≥2.5）
 
 
 def test_moment_envelope():

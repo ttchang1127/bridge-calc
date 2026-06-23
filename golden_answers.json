@@ -88,5 +88,14 @@
     "g_max_mm": 49.4,
     "capacity_mm": 52,
     "joint": "Strip Seal 75mm"
+  },
+  "temperature_SE_T1": {
+    "Tu_C": 6.27,
+    "TL_C": 39.6,
+    "sigSE_top_MPa": 1.81,
+    "sigSE_bot_pos_MPa": -5.32,
+    "sigSE_bot_neg_MPa": 1.6,
+    "service_bot_neg_MPa": 2.0,
+    "service_ok": false
   }
 }

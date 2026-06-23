@@ -15,7 +15,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         hl93_per_lane_moment, moment_envelope_simple,
                         fatigue_check, stirrup_fatigue, torsion_check,
                         slab_flexure, As_min_slab, temp_gradient_AASHTO,
-                        bearing_check, anchorage_check, expansion_joint)
+                        bearing_check, anchorage_check, expansion_joint,
+                        ThermalBand, self_equilibrating_stress, thermal_service_check)
 
 sec = Section(5.065e6, 3.287e12, 1329, 2100)
 ten = Tendon(8, 21, 1109)
@@ -79,6 +80,15 @@ golden = {
                    (anchorage_check(32826,8,260,2100,4)),
     "expansion_E2": (lambda j: {"shortening_mm": round(j.shortening,1), "g_max_mm": round(j.g_max,1),
                                 "capacity_mm": j.capacity, "joint": j.joint_type})(expansion_joint(8.8,12.6,8.0,20)),
+    "temperature_SE_T1": (lambda r: {"Tu_C": round(r.Tu,2), "TL_C": round(r.TL,1),
+        "sigSE_top_MPa": round(r.sigma_pos["頂板頂"],2), "sigSE_bot_pos_MPa": round(r.sigma_pos["底板底"],2),
+        "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2),
+        "service_bot_neg_MPa": round(thermal_service_check(r.sigma_neg["底板底"],1.2,0.5)[0],2),
+        "service_ok": thermal_service_check(r.sigma_neg["底板底"],1.2,0.5)[1]})(
+        self_equilibrating_stress(
+            [ThermalBand(0,300,3_000_000,11.5),ThermalBand(300,400,80_000,2.5),
+             ThermalBand(400,1750,1_080_000,0),ThermalBand(1750,2000,1_375_000,0)],
+            1.26e12,870,2000,[("頂板頂",0,18.0),("底板底",2000,0.0)])),
 }
 
 if __name__ == "__main__":

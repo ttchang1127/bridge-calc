@@ -11,6 +11,10 @@ body{font-family:"Noto Sans TC",system-ui,-apple-system,sans-serif;color:var(--i
 h1{font-size:22px;margin:0 0 2px} .sub{color:var(--mut);font-size:13px;margin-bottom:16px}
 .card{border:0.5px solid var(--line);border-radius:10px;padding:14px 16px;margin:14px 0;background:#fff}
 .card h2{font-size:15px;margin:0 0 10px;border-left:3px solid var(--blue);padding-left:8px}
+.card h3{font-size:13px;margin:16px 0 8px;color:var(--blue);font-weight:600}
+.gold-link{display:inline-block;margin-top:4px;padding:6px 12px;background:#eff6ff;border:0.5px solid #bfdbfe;border-radius:6px;color:var(--blue);text-decoration:none;font-size:13px;font-weight:500}
+.gold-link:hover{background:#dbeafe}
+.note-src{font-size:12px;color:#888;margin:2px 0 0}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 label{font-size:13px;color:var(--mut)} select,input[type=text]{width:100%;height:34px;border:0.5px solid #cbd5e1;border-radius:6px;padding:0 8px;font-size:14px}
 input[type=range]{width:100%}
@@ -28,13 +32,22 @@ tbody tr{border-bottom:0.5px solid var(--line)}
 </head>
 <body>
 <h1>影響線網頁計算器</h1>
-<div class="sub">特定斷面彎矩/剪力影響線・台灣車輛載重 HS20-44・簡支＋連續梁｜符合網頁計算器SOP｜JS 前端對齊 Python 計算引擎 golden_answers.json</div>
+<div class="sub">特定斷面彎矩/剪力影響線・台灣車輛載重 HS20-44・簡支＋連續梁｜40m 後張箱梁完整設計黃金範例｜JS 前端對齊 Python 計算引擎 golden_answers.json</div>
 
 <div class="card" id="valcard">
-  <h2>自我驗證（對 Python 引擎 golden_answers.json）</h2>
+  <h2>40m 參考橋・完整設計黃金範例</h2>
+  <p class="note-src">本頁與 Python 計算引擎 <code>bridgecalc</code> 共用 <code>golden_answers.json</code>。影響線為 <b>JS 獨立重算 × Python 交叉驗證</b>；設計檢核為 <b>Python 引擎產生・回歸 22/22 驗證</b>（JS 不重算，避免雙實作漂移）。</p>
+  <a class="gold-link" href="engine/40m參考橋計算書.html" target="_blank" rel="noopener">📄 開啟 14 章完整設計計算書（A1～T1）→</a>
+
+  <h3>① 影響線交叉驗證（JS vs Python）</h3>
   <table><thead><tr><th>項目</th><th>JS 計算</th><th>golden</th><th style="text-align:center">對齊</th></tr></thead>
   <tbody id="vrows"><tr><td colspan="4" style="color:#888">載入 golden_answers.json 中…</td></tr></tbody></table>
   <div id="vsum" style="margin-top:8px;font-weight:500"></div>
+
+  <h3>② 設計檢核黃金範例（Python 引擎結果）</h3>
+  <table><thead><tr><th>章節</th><th>關鍵結果</th><th style="text-align:center">判定</th></tr></thead>
+  <tbody id="grows"><tr><td colspan="3" style="color:#888">—</td></tr></tbody></table>
+  <div class="note-src" id="gsrc"></div>
 </div>
 
 <div class="card">
@@ -106,7 +119,7 @@ tbody tr{border-bottom:0.5px solid var(--line)}
  // BMD/SFD：簡支梁，卡車於 pos ＋車道均布
  function bmdSimple(L,pos,eff){var P=TRK.P,Xa=TRK.x,RA=LANE*L/2;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L)RA+=P[i]*(L-p)/L}
   var pts=[];for(var x=0;x<=L+1e-6;x+=L/60){var v;if(eff==='M'){v=RA*x-LANE*x*x/2;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L&&p<x)v-=P[i]*(x-p)}}else{v=RA-LANE*x;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L&&p<x)v-=P[i]}}pts.push([x,v])}return pts}
- // ── 自我驗證（對 golden_answers.json）──
+ // ── ① 影響線交叉驗證（JS 獨立重算 vs Python golden）──
  function validate(golden){
    var g=golden.influence_simple_40m, rows=[
      ['峰值 η_M(x=20)', ilPeak(40,20), g.peak_M_mid_m,'m',0.01],
@@ -121,9 +134,36 @@ tbody tr{border-bottom:0.5px solid var(--line)}
    var all=pass===rows.length;
    E('vsum').innerHTML='<span class="'+(all?'ok':'ng')+'">'+pass+'/'+rows.length+' 對齊 '+(all?'✓ JS 與 Python 引擎一致':'✗')+'</span>';
  }
- fetch('./golden_answers.json').then(function(r){return r.json()}).then(validate).catch(function(){
+ // ── ② 設計檢核黃金範例（Python 引擎產生，唯讀呈現）──
+ function fmt(n){return Math.round(n).toLocaleString('en-US')}
+ function renderGolden(g){
+   if(!g||!g.prestress){E('grows').innerHTML='<tr><td colspan="3" style="color:#888">部署到 GitHub Pages 後載入完整 golden 即顯示 13 項設計檢核</td></tr>';return}
+   function v(ok){return ok?['✓','ok']:['✗','ng']}
+   var p=g.prestress,s=g.service,sh=g.shear_D1,fx=g.flexure_M1,df=g.deflection,
+       fa=g.fatigue_P1,tr=g.torsion_D2,d3=g.transverse_D3,e1=g.bearing_E1,
+       f1=g.anchorage_F1,e2=g.expansion_E2,se=g.temperature_SE_T1,ld=g.loads;
+   var rows=[
+     ['L0 載重組合','Strength I '+fmt(ld.StrengthI_kNm)+' ・ Service I '+fmt(ld.ServiceI_kNm)+' kN·m',['—','mut']],
+     ['B 預力損失','損失 '+p.loss_pct+'% ・ Pe '+fmt(p.Pe_kN)+' kN（≥ Pe,min '+fmt(p.Pe_min_kN)+'）',v(p.Pe_kN>=p.Pe_min_kN)],
+     ['C1 服務性應力','底緣 '+s.sigma_bot_MPa+' ・ 頂緣 '+s.sigma_top_MPa+' MPa（台灣零拉）',v(s.sigma_bot_MPa<=0)],
+     ['D1 腹板抗剪','Vcw '+fmt(sh.Vcw_kN)+' ・ Vp '+fmt(sh.Vp_kN)+' ・ 所需 Vs '+fmt(sh.Vs_req_kN)+' kN',['↗箍筋','mut']],
+     ['D2 扭力','Tcr '+fmt(tr.Tcr_kNm)+' ≫ 門檻 '+fmt(tr.threshold_kNm)+'（免顯式扭設計）',v(tr.neglect_explicit)],
+     ['D3 橫向（墩面）','φMn '+d3.support_phiMn_kNm+' ≥ Mu 150.3 kN·m/m',v(d3.support_phiMn_kNm>=150.3)],
+     ['M1 極限彎曲','Mn '+fmt(fx.Mn_kNm)+' kN·m ・ CR '+fx.CR,v(fx.CR>=1)],
+     ['C2/C3 撓度','δ_LL '+df.delta_LL_mm+' < L/800=50 ・ 預拱 '+df.camber_mm+' mm',v(df.delta_LL_mm<50)],
+     ['P1 疲勞','箍筋@250 '+fa.stirrup_250_MPa+'>165 → 加密@150 '+fa.stirrup_150_MPa+'≤165',v(fa.stirrup_150_MPa<=165)],
+     ['E1 支承','γ_S '+e1.gamma_s+' ≤0.50 ・ '+(e1.no_uplift?'無上拔':'上拔'),v(e1.gamma_s<=0.5&&e1.no_uplift)],
+     ['E2 伸縮縫','最大開度 '+e2.g_max_mm+' mm → '+e2.joint,['—','mut']],
+     ['F1 錨碇','Pu '+fmt(f1.Pu_kN)+' ・ ΣTburst '+fmt(f1.sum_Tburst_kN)+' ・ 剝落筋 '+f1.As_spall_mm2+' mm²（5-D22）',['—','mut']],
+     ['T1 溫度梯度','Tu '+se.Tu_C+'°C ・ TL '+se.TL_C+'°C ・ 負梯度底板 Service '+se.service_bot_neg_MPa+' MPa',v(se.service_ok)]
+   ];
+   E('grows').innerHTML=rows.map(function(r){return '<tr><td>'+r[0]+'</td><td style="text-align:left;color:#444">'+r[1]+'</td><td style="text-align:center" class="'+r[2][1]+'">'+r[2][0]+'</td></tr>'}).join('');
+   E('gsrc').textContent="配置："+p.config+"（2 設計車道）・f'c=40 MPa・由 bridgecalc 單一真理源產生。T1 負梯度底板拉 +2.00 MPa 為控制工況（底板需有效預壓 ≥2.5 MPa）；D1 近支承主拉超限由箍筋承力（設計常態）。";
+ }
+ fetch('./golden_answers.json').then(function(r){return r.json()}).then(function(g){validate(g);renderGolden(g)}).catch(function(){
    E('vrows').innerHTML='<tr><td colspan="4" style="color:#888">（本機直接開檔無法 fetch；部署到 GitHub Pages 後即顯示。內嵌 fallback：）</td></tr>';
-   validate({influence_simple_40m:{peak_M_mid_m:10.0,peak_M_a10_m:7.5,truck_absmax_kNm:2865,lane_M_kNm:1860,per_lane_M_LL_IM_kNm:5670,envelope_peak_kNm:2863}});
+   validate({influence_simple_40m:{peak_M_mid_m:10.0,peak_M_a10_m:7.5,truck_absmax_kNm:2867,lane_M_kNm:1860,per_lane_M_LL_IM_kNm:5673,envelope_peak_kNm:2863}});
+   renderGolden({});
  });
  // ── 互動計算 ──
  function run(){

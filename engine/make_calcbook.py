@@ -137,7 +137,7 @@ sections.append(("七、撓度與預拱（C2/C3）", sec7))
 r_fps = row("鋼腱應力幅（AASHTO Fatigue I）", r"\Delta\sigma_{ps}=n\cdot\frac{\gamma\,\Delta M}{I}\cdot e",
             r"6.6 \times \frac{1.75\times3{,}222}{I}\times1{,}109", f"{fa.dsig_ps:.1f}{MPa}",
             "≤ 125 MPa", fa.ps_ok, "P1")
-sec8 = f"""<p>疲勞載重 = 疲勞卡車（35/145/145、後軸固定 9m、單車道）× IM 15%；Fatigue I γ=1.75。疲勞彎矩幅 ΔM=3,222 kN·m。</p>
+sec8 = f"""<p>疲勞載重 = AASHTO 疲勞卡車（35/145/145、後軸固定 9m、單車道）× IM 15%；Fatigue I γ=1.75。疲勞彎矩幅 ΔM=3,222 kN·m。<br><span class="note">★ 疲勞援引 AASHTO 疲勞車（台灣 HS20-44 未另定疲勞車）；與設計用 HS20-44 設計車不同，屬常規。</span></p>
 {r_fps}
 <table class="props">
 <tr><td>混凝土壓疲勞 σ_c</td><td>{fa.sig_c_max:.2f} MPa ≤ {0.40*40:.0f}（0.40f'c）{chk(fa.c_ok)}</td></tr>
@@ -156,7 +156,7 @@ sections.append(("九、扭力驗核（D2）", sec9))
 r_d3 = row("墩面負彎矩（控制）", r"\phi M_n=\phi A_s f_y(d-a/2)",
            r"0.9 \times 2{,}534 \times 420 \times 184.4", f"{sl_s.phiMn:.1f}" + BS + " kN" + BS + "cdot m/m",
            "≥ M_u⁻=150.3 kN·m/m", sl_s.ok, "D3")
-sec10 = f"""<p>頂板橫向 RC 板撓曲（每公尺寬，d=200 mm，f<sub>y</sub>=420 MPa）。</p>
+sec10 = f"""<p>頂板橫向 RC 板撓曲（每公尺寬，d=200 mm，f<sub>y</sub>=420 MPa）。<span class="note">輪重 HS20-44 144/2=72.0 ≈ HL-93 72.5 kN，需求彎矩差 &lt;1%。</span></p>
 <table class="props">
 <tr><td>懸臂（D20@200）</td><td>φMn = {sl_c.phiMn:.1f} kN·m/m ≥ Mu=105.8 {chk(sl_c.ok)}</td></tr>
 <tr><td>跨中正彎（D22@175）</td><td>φMn = {sl_p.phiMn:.1f} kN·m/m ≥ Mu⁺=133.8 {chk(sl_p.ok)}</td></tr>
@@ -164,7 +164,7 @@ sec10 = f"""<p>頂板橫向 RC 板撓曲（每公尺寬，d=200 mm，f<sub>y</su
 sections.append(("十、橫向設計（D3）", sec10))
 
 r_e1 = row("剪切應變", r"\gamma_S=\Delta_S/h_{rt}", "40/100", f"{br.gamma_s:.2f}", "≤ 0.50", br.gamma_ok, "E1")
-sec11 = f"""<p>疊層橡膠支承 550×450×100 mm；反力 R<sub>max</sub>=1,730 / R<sub>min</sub>=1,440 kN。</p>
+sec11 = f"""<p>疊層橡膠支承 550×450×100 mm；反力 R<sub>max</sub>=1,730 / R<sub>min</sub>=1,440 kN。<br><span class="note">★ 反力沿用較重載重（HL-93）之保守值；HS20-44 下約 1,615 kN，剪切應變 γ_S 與上拔判定不受影響。</span></p>
 {r_e1}
 <table class="props">
 <tr><td>壓應力 σ<sub>TL</sub></td><td>{br.sigma_TL:.2f} MPa（≈70 kgf/cm² ≤ 112）</td></tr>

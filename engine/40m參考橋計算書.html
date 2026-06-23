@@ -85,7 +85,7 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
   <div class="eq sub">$$ = 0.3415 \times 34.2 = \boxed{11.7\ mm} $$</div>
   <div class="chk">容許：≤ L/800=50 mm　<span class="ok">✓ OK</span></div>
 </div>
-<p>荷重平衡率 LBR = 91.3%（接近全平衡）；淨長期下撓 ≈ 12.8 mm；<b>建議預拱 ≈ 18 mm</b>（主補支架沉陷）。</p></section><section><h2>八、疲勞驗核（P1）</h2><p>疲勞載重 = 疲勞卡車（35/145/145、後軸固定 9m、單車道）× IM 15%；Fatigue I γ=1.75。疲勞彎矩幅 ΔM=3,222 kN·m。</p>
+<p>荷重平衡率 LBR = 91.3%（接近全平衡）；淨長期下撓 ≈ 12.8 mm；<b>建議預拱 ≈ 18 mm</b>（主補支架沉陷）。</p></section><section><h2>八、疲勞驗核（P1）</h2><p>疲勞載重 = AASHTO 疲勞卡車（35/145/145、後軸固定 9m、單車道）× IM 15%；Fatigue I γ=1.75。疲勞彎矩幅 ΔM=3,222 kN·m。<br><span class="note">★ 疲勞援引 AASHTO 疲勞車（台灣 HS20-44 未另定疲勞車）；與設計用 HS20-44 設計車不同，屬常規。</span></p>
 <div class="row">
   <div class="rt">鋼腱應力幅（AASHTO Fatigue I） <span class="cite">P1</span></div>
   <div class="eq">$$ \Delta\sigma_{ps}=n\cdot\frac{\gamma\,\Delta M}{I}\cdot e $$</div>
@@ -102,7 +102,7 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
   <div class="eq sub">$$ = 0.79 \times 2.04\times10^{10} \times 2.63 = \boxed{42,367\ kN\cdot m} $$</div>
   <div class="chk">容許：0.25φT_cr=9,533 kN·m　<span class="ok">✓ OK</span></div>
 </div>
-<p class="note">T<sub>u</sub>=1,900 ≪ 0.25φT<sub>cr</sub>=9,533 → <b>可免顯式扭矩設計</b>，惟箱梁仍須配置閉合箍筋（D16@200）。T<sub>cr</sub>=42,367，與 D2 演算 42,380 一致（8組×19股、f<sub>pc</sub>=4.68）。</p></section><section><h2>十、橫向設計（D3）</h2><p>頂板橫向 RC 板撓曲（每公尺寬，d=200 mm，f<sub>y</sub>=420 MPa）。</p>
+<p class="note">T<sub>u</sub>=1,900 ≪ 0.25φT<sub>cr</sub>=9,533 → <b>可免顯式扭矩設計</b>，惟箱梁仍須配置閉合箍筋（D16@200）。T<sub>cr</sub>=42,367，與 D2 演算 42,380 一致（8組×19股、f<sub>pc</sub>=4.68）。</p></section><section><h2>十、橫向設計（D3）</h2><p>頂板橫向 RC 板撓曲（每公尺寬，d=200 mm，f<sub>y</sub>=420 MPa）。<span class="note">輪重 HS20-44 144/2=72.0 ≈ HL-93 72.5 kN，需求彎矩差 &lt;1%。</span></p>
 <table class="props">
 <tr><td>懸臂（D20@200）</td><td>φMn = 113.0 kN·m/m ≥ Mu=105.8 <span class="ok">✓ OK</span></td></tr>
 <tr><td>跨中正彎（D22@175）</td><td>φMn = 153.2 kN·m/m ≥ Mu⁺=133.8 <span class="ok">✓ OK</span></td></tr>
@@ -111,7 +111,7 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
   <div class="eq">$$ \phi M_n=\phi A_s f_y(d-a/2) $$</div>
   <div class="eq sub">$$ = 0.9 \times 2{,}534 \times 420 \times 184.4 = \boxed{176.6\ kN\cdot m/m} $$</div>
   <div class="chk">容許：≥ M_u⁻=150.3 kN·m/m　<span class="ok">✓ OK</span></div>
-</div><p class="note">日本算則 S<sub>net</sub>&gt;4,572 控制；墩面 D22@150 提供餘裕 +18%。</p></section><section><h2>十一、支承設計（E1）</h2><p>疊層橡膠支承 550×450×100 mm；反力 R<sub>max</sub>=1,730 / R<sub>min</sub>=1,440 kN。</p>
+</div><p class="note">日本算則 S<sub>net</sub>&gt;4,572 控制；墩面 D22@150 提供餘裕 +18%。</p></section><section><h2>十一、支承設計（E1）</h2><p>疊層橡膠支承 550×450×100 mm；反力 R<sub>max</sub>=1,730 / R<sub>min</sub>=1,440 kN。<br><span class="note">★ 反力沿用較重載重（HL-93）之保守值；HS20-44 下約 1,615 kN，剪切應變 γ_S 與上拔判定不受影響。</span></p>
 <div class="row">
   <div class="rt">剪切應變 <span class="cite">E1</span></div>
   <div class="eq">$$ \gamma_S=\Delta_S/h_{rt} $$</div>

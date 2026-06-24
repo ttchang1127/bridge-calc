@@ -20,7 +20,7 @@
     "Aps_mm2": 21280,
     "loss_pct": 20.1,
     "fpe_MPa": 1115,
-    "Pe_kN": 23720,
+    "Pe_kN": 23722,
     "Pe_min_kN": 22311
   },
   "service": {
@@ -54,7 +54,7 @@
   },
   "torsion_D2": {
     "fpc_MPa": 4.68,
-    "Tcr_kNm": 42367,
+    "Tcr_kNm": 42369,
     "threshold_kNm": 9533,
     "neglect_explicit": true
   },
@@ -113,7 +113,7 @@
     "TL_C": 14.39,
     "sigSE_bot_neg_MPa": 0.21,
     "service_base_MPa": -0.91,
-    "service_total_MPa": -0.8,
+    "service_total_MPa": -0.81,
     "service_ok": true,
     "_note": "σ_base=引擎服務性底緣(含預力,HS20)；預力餘裕吸收熱應力→通過(孤島illustration的+2.00為自含斷面/無預力假象)"
   }

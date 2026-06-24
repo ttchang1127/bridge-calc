@@ -42,7 +42,7 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
 <tr><td>彈性縮短 ES</td><td>28 MPa</td><td>摩擦</td><td>117 MPa</td></tr>
 <tr><td>潛變 CR</td><td>94 MPa</td><td>乾縮/鬆弛</td><td>32/10 MPa</td></tr>
 <tr><td>總損失</td><td><b>20.1%</b></td><td>有效預力 f<sub>pe</sub></td><td>1115 MPa</td></tr>
-<tr><td>有效預力 P<sub>e</sub></td><td colspan="3"><b>23,720 kN</b>（損失與股數非線性耦合：f<sub>cgp</sub> 隨股數升高 → 損失率升）</td></tr></table></section><section><h2>四、服務性應力（C1）</h2><div class="row">
+<tr><td>有效預力 P<sub>e</sub></td><td colspan="3"><b>23,722 kN</b>（損失與股數非線性耦合：f<sub>cgp</sub> 隨股數升高 → 損失率升）</td></tr></table></section><section><h2>四、服務性應力（C1）</h2><div class="row">
   <div class="rt">跨中底緣（全服務） <span class="cite">C1</span></div>
   <div class="eq">$$ \sigma_b=-\frac{P_e}{A}-\frac{P_e e}{S_b}+\frac{M}{S_b} $$</div>
   <div class="eq sub">$$ = -4.68-10.64+14.41 = \boxed{-0.91\ MPa} $$</div>
@@ -56,7 +56,7 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
   <div class="rt">最小預力反解（驗算變設計） <span class="cite">C1</span></div>
   <div class="eq">$$ P_{e,min}=\frac{M A}{S_b+A e} $$</div>
   <div class="eq sub">$$ = \frac{35{,}637 \times 5.065e6}{8.09e9} = \boxed{22,311\ kN} $$</div>
-  <div class="chk">容許：現 P_e=23,720 ≥　<span class="ok">✓ OK</span></div>
+  <div class="chk">容許：現 P_e=23,722 ≥　<span class="ok">✓ OK</span></div>
 </div></section><section><h2>五、腹板抗剪（D1）</h2><div class="row">
   <div class="rt">主拉應力（莫耳圓） <span class="cite">D1</span></div>
   <div class="eq">$$ \sigma_1=-\frac{f_{pc}}{2}+\sqrt{(f_{pc}/2)^2+\tau^2} $$</div>
@@ -69,7 +69,7 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
 </table><div class="row">
   <div class="rt">設計抗剪（D16@250 雙腳箍） <span class="cite">D1</span></div>
   <div class="eq">$$ \phi V_n=\phi(V_{cw}+V_s) $$</div>
-  <div class="eq sub">$$ = 0.85(2{,}050+1{,}129) = \boxed{2,702\ kN} $$</div>
+  <div class="eq sub">$$ = 0.85(2{,}050+1{,}129) = \boxed{2,703\ kN} $$</div>
   <div class="chk">容許：≥ V_u=2,069 kN　<span class="ok">✓ OK</span></div>
 </div></section><section><h2>六、極限強度彎曲（M1）</h2><table class="props">
 <tr><td>β₁</td><td>0.764</td><td>中性軸 c</td><td>185.1 mm（翼板內）</td></tr>
@@ -95,14 +95,14 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
 <table class="props">
 <tr><td>混凝土壓疲勞 σ_c</td><td>6.59 MPa ≤ 16（0.40f'c）<span class="ok">✓ OK</span></td></tr>
 <tr><td>箍筋疲勞 Δf_sv</td><td>@250 = 208 MPa &gt; 165 ❌ → 近支承段加密 @150 = 125 MPa ≤ 165 ✅</td></tr>
-</table><p class="note">P_e≈23,720kN（8組×19股），σ_c=6.59 與 P1 演算 6.59 一致。箍筋為近支承疲勞控制項。</p></section><section><h2>九、扭力驗核（D2）</h2><p>偏載扭矩 T<sub>u</sub> = 1,900 kN·m；A<sub>cp</sub>=23.1×10⁶ mm²、p<sub>c</sub>=26,200 mm、f<sub>pc</sub>=4.68 MPa。</p>
+</table><p class="note">P_e≈23,722kN（8組×19股），σ_c=6.59 與 P1 演算 6.59 一致。箍筋為近支承疲勞控制項。</p></section><section><h2>九、扭力驗核（D2）</h2><p>偏載扭矩 T<sub>u</sub> = 1,900 kN·m；A<sub>cp</sub>=23.1×10⁶ mm²、p<sub>c</sub>=26,200 mm、f<sub>pc</sub>=4.68 MPa。</p>
 <div class="row">
   <div class="rt">開裂扭矩 <span class="cite">D2</span></div>
   <div class="eq">$$ T_{cr}=0.125\sqrt{f'_c}\,\frac{A_{cp}^2}{p_c}\sqrt{1+\frac{f_{pc}}{0.125\sqrt{f'_c}}} $$</div>
-  <div class="eq sub">$$ = 0.79 \times 2.04\times10^{10} \times 2.63 = \boxed{42,367\ kN\cdot m} $$</div>
+  <div class="eq sub">$$ = 0.79 \times 2.04\times10^{10} \times 2.63 = \boxed{42,369\ kN\cdot m} $$</div>
   <div class="chk">容許：0.25φT_cr=9,533 kN·m　<span class="ok">✓ OK</span></div>
 </div>
-<p class="note">T<sub>u</sub>=1,900 ≪ 0.25φT<sub>cr</sub>=9,533 → <b>可免顯式扭矩設計</b>，惟箱梁仍須配置閉合箍筋（D16@200）。T<sub>cr</sub>=42,367，與 D2 演算 42,380 一致（8組×19股、f<sub>pc</sub>=4.68）。</p></section><section><h2>十、橫向設計（D3）</h2><p>頂板橫向 RC 板撓曲（每公尺寬，d=200 mm，f<sub>y</sub>=420 MPa）。<span class="note">輪重 HS20-44 144/2=72.0 ≈ HL-93 72.5 kN，需求彎矩差 &lt;1%。</span></p>
+<p class="note">T<sub>u</sub>=1,900 ≪ 0.25φT<sub>cr</sub>=9,533 → <b>可免顯式扭矩設計</b>，惟箱梁仍須配置閉合箍筋（D16@200）。T<sub>cr</sub>=42,369，與 D2 演算 42,380 一致（8組×19股、f<sub>pc</sub>=4.68）。</p></section><section><h2>十、橫向設計（D3）</h2><p>頂板橫向 RC 板撓曲（每公尺寬，d=200 mm，f<sub>y</sub>=420 MPa）。<span class="note">輪重 HS20-44 144/2=72.0 ≈ HL-93 72.5 kN，需求彎矩差 &lt;1%。</span></p>
 <table class="props">
 <tr><td>懸臂（D20@200）</td><td>φMn = 113.0 kN·m/m ≥ Mu=105.8 <span class="ok">✓ OK</span></td></tr>
 <tr><td>跨中正彎（D22@175）</td><td>φMn = 153.2 kN·m/m ≥ Mu⁺=133.8 <span class="ok">✓ OK</span></td></tr>
@@ -150,9 +150,9 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
   <div class="chk">容許：Service 後判定　<span class="ok">✓ OK</span></div>
 </div>
 <table class="props">
-<tr><td>負梯度 Service（底板底，含預力）</td><td>σ<sub>服務,底</sub>(-0.91) + 0.5×0.21 = <b>-0.80 MPa</b>　<span class="ok">✓ OK</span>（台灣 ≤ 0）</td></tr>
+<tr><td>負梯度 Service（底板底，含預力）</td><td>σ<sub>服務,底</sub>(-0.91) + 0.5×0.21 = <b>-0.81 MPa</b>　<span class="ok">✓ OK</span>（台灣 ≤ 0）</td></tr>
 </table>
-<p class="note">★ <b>接引擎服務性後通過（-0.80 MPa 壓）</b>：底緣 -0.91 的預力餘裕吸收負梯度熱應力。
+<p class="note">★ <b>接引擎服務性後通過（-0.81 MPa 壓）</b>：底緣 -0.91 的預力餘裕吸收負梯度熱應力。
 <br>對照標準算例 T1（<b>自含斷面 h=2,000、σ_base 取無預力 +1.2</b>）得 +2.00 MPa 拉「控制工況」——該值為自含斷面 + 無預力假設下的<b>保守 illustration</b>；配置 A 頂板較薄使 T<sub>L</sub> 由 39.6→14.4°C，且真實底緣全壓，故實際參考橋不控制。連續梁中墩另案（次彎矩 M₂T）。</p></section>
 <div class="summary">設計結論：服務性底緣全壓（-0.91 MPa）、強度 CR=1.42、剪力 φVn>Vu、撓度<L/800 ——
 跨中各項通過（主拉超限為近支承常態、由箍筋承力）。連續梁中墩另案。</div>

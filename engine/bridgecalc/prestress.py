@@ -7,6 +7,7 @@
    （見 算例_後張箱梁服務性應力驗算 §十觀察 3）
 """
 from dataclasses import dataclass
+from math import exp
 from .model import Section, Tendon
 
 
@@ -28,12 +29,17 @@ class LossResult:
 
 def compute_losses(tendon: Tendon, section: Section,
                    M_D_kNm: float, M_SDL_kNm: float,
-                   friction: float = 117.0, shrink: float = 32.0,
+                   mu: float = 0.25, K: float = 0.003, alpha: float = 0.111,
+                   x_ctrl: float = 20.0, RH: float = 75.0,
                    relax: float = 10.0, Ep_Eci: float = 7.33) -> LossResult:
-    """以集總法計算總損失與有效預力 Pe。
+    """計算總損失與有效預力 Pe（各損失由第一原理參數推導）。
 
-    friction/shrink/relax 為幾何/環境相關（與股數無關），預設取 40m 參考橋值。
-    ES 與 creep 由 f_cgp 推算 → 隨配置自動變動（非線性耦合的來源）。
+    摩擦  ΔfpF = fpj·(1−e^(−(K·x+μ·α)))           （公式卡_後張預力短期損失 §一）
+    乾縮  SH  = 0.8·(1195−10.55·RH)（kgf/cm²）×0.0981 （長期損失 §二，台灣式）
+    ES、creep 由 f_cgp 推算 → 隨配置自動變動（非線性耦合的來源）。
+    鬆弛  relax：低鬆弛型 ~8–10 MPa（AASHTO 5.9.5.4.2c 簡化 8；本庫取 10），
+                量小且公式分歧，保留為參數。錨具滑移跨中=0（影響長度未達 L/2）。
+    參數 μ/K/α/x_ctrl/RH 預設為 40m 參考橋值（雙端張拉、跨中控制 x=L/2=20m）。
     """
     Pi = tendon.Pi
     e = tendon.e
@@ -44,11 +50,14 @@ def compute_losses(tendon: Tendon, section: Section,
     fcir = fcgp
     fcds = M_SDL * e / section.I
 
+    friction = tendon.fpj * (1 - exp(-(K * x_ctrl + mu * alpha)))   # ΔfpF（摩擦+偏折）
+    shrink = 0.8 * (1195 - 10.55 * RH) * 0.0981                     # SH（kgf/cm²→MPa）
+
     N = tendon.n_tendons
     ES = (N - 1) / (2 * N) * Ep_Eci * fcgp          # 後張順序張拉
     short = friction + ES                            # 錨具滑移跨中=0（影響長度未達）
 
-    creep = 12.0 * fcir - 7.0 * fcds                 # 台灣法（MPa）
+    creep = 12.0 * fcir - 7.0 * fcds                 # 台灣法（MPa，12/7 為無因次係數）
     long = creep + shrink + relax
 
     total = short + long

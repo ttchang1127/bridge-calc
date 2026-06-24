@@ -155,9 +155,9 @@ tbody tr{border-bottom:0.5px solid var(--line)}
      ['M1 極限彎曲','Mn '+fmt(fx.Mn_kNm)+' kN·m ・ CR '+fx.CR,v(fx.CR>=1)],
      ['C2/C3 撓度','δ_LL '+df.delta_LL_mm+' < L/800=50 ・ 預拱 '+df.camber_mm+' mm',v(df.delta_LL_mm<50)],
      ['P1 疲勞','箍筋@250 '+fa.stirrup_250_MPa+'>165 → 加密@150 '+fa.stirrup_150_MPa+'≤165',v(fa.stirrup_150_MPa<=165)],
-     ['E1 支承','γ_S '+e1.gamma_s+' ≤0.50 ・ '+(e1.no_uplift?'無上拔':'上拔'),v(e1.gamma_s<=0.5&&e1.no_uplift)],
+     ['E1 支承','γ_S '+e1.gamma_s+'≤0.50 ・ σ_TL '+e1.sigma_TL_MPa+'≤'+e1.sigma_TL_limit_MPa+' ・ H_m '+e1.H_m_kN+'kN ・ '+(e1.no_uplift?'無上拔':'上拔'),v(e1.gamma_ok&&e1.sigma_ok&&e1.stability_ok&&e1.H_ok&&e1.no_uplift)],
      ['E2 伸縮縫','最大開度 '+e2.g_max_mm+' mm → '+e2.joint,['—','mut']],
-     ['F1 錨碇','Pu '+fmt(f1.Pu_kN)+' ・ ΣTburst '+fmt(f1.sum_Tburst_kN)+' ・ 剝落筋 '+f1.As_spall_mm2+' mm²（5-D22）',['—','mut']],
+     ['F1 錨碇','Pu '+fmt(f1.Pu_kN)+' ・ ΣTburst '+fmt(f1.sum_Tburst_kN)+' ・ 剝落筋 '+f1.As_spall_mm2+'mm²(4-D22) ・ 螺旋 Pult '+fmt(f1.spiral_Pult_kN)+'≥Pu(餘裕'+f1.bearing_margin+')',v(f1.bearing_ok)],
      ['T1 溫度梯度','TL '+ti.TL_C+'°C ・ 負梯度底板 Service(含預力) '+ti.service_total_MPa+' MPa',v(ti.service_ok)]
    ];
    E('grows').innerHTML=rows.map(function(r){return '<tr><td>'+r[0]+'</td><td style="text-align:left;color:#444">'+r[1]+'</td><td style="text-align:center" class="'+r[2][1]+'">'+r[2][0]+'</td></tr>'}).join('');

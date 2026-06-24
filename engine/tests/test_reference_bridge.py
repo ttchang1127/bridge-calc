@@ -191,9 +191,11 @@ def test_temperature_T1():
 
 
 def test_bearing_E1():
-    """支承 E1：剪切應變 γ_S=0.40≤0.50、無上拔。"""
-    b = bearing_check(1730, 1440, 291, 40, 100, 550*450)
+    """支承 E1（HS20 純化反力）：γ_S=0.40≤0.50、σ_TL≈6.54、無上拔。"""
+    R_LL = 290 * taiwan_per_lane_shear(40) / 588          # HS20 支承活載反力 ≈179
+    b = bearing_check(1440 + R_LL, 1440, R_LL, 40, 100, 550*450)
     _close(b.gamma_s, 0.40, 0.01)
+    _close(b.sigma_TL, 6.54, 0.05)                        # R_max≈1,619（純化，舊 HL-93 為 6.99）
     assert b.gamma_ok and b.no_uplift
 
 

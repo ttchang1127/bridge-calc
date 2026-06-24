@@ -32,6 +32,7 @@ sh = shear_web(L.Pe, sec, ten.e, 40, 250, 1692, Vu_HS20 * 1e3, 1692, 40000)
 fx = flexural_strength(ten, sec, 40, 8000, 250, 1880, c["Strength_I"], L.Pe, ten.e)
 w_LL_HS20 = 56.7 * taiwan_per_lane_moment(40) / hl93_per_lane_moment(40)   # 撓度等效 UDL 按比例 ≈ 34.2
 df = deflection_analysis(40000, 29700, sec, 144, L.Pe, ten.e, w_LL_HS20)
+R_LL_HS20 = 290 * taiwan_per_lane_shear(40) / 588          # 支承活載反力 HS20/HL-93 縮放 ≈ 179
 
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
@@ -77,8 +78,9 @@ golden = {
                       "support_phiMn_kNm": round(slab_flexure(150.3, 2534, 200, 40, 420).phiMn, 1),
                       "As_min_mm2": round(As_min_slab(40, 420, 1000, 200))},
     "temperature_T1": temp_gradient_AASHTO(18.0, 5.0, True),
-    "bearing_E1": (lambda b: {"gamma_s": round(b.gamma_s,2), "sigma_TL_MPa": round(b.sigma_TL,2),
-                              "no_uplift": b.no_uplift})(bearing_check(1730,1440,291,40,100,550*450)),
+    "bearing_E1": (lambda b: {"R_max_kN": round(1440+R_LL_HS20), "gamma_s": round(b.gamma_s,2),
+                              "sigma_TL_MPa": round(b.sigma_TL,2), "no_uplift": b.no_uplift})
+                  (bearing_check(1440+R_LL_HS20, 1440, R_LL_HS20, 40, 100, 550*450)),
     "anchorage_F1": (lambda a: {"Pu_kN": round(a.Pu), "sum_Tburst_kN": round(a.sum_Tburst),
                                 "Fspall_kN": round(a.Fspall), "As_spall_mm2": round(a.As_spall)})
                    (anchorage_check(ten.Pi/1e3,8,260,2100,4)),

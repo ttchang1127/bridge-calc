@@ -73,8 +73,9 @@
     "gamma_TG": 0.5
   },
   "bearing_E1": {
+    "R_max_kN": 1619,
     "gamma_s": 0.4,
-    "sigma_TL_MPa": 6.99,
+    "sigma_TL_MPa": 6.54,
     "no_uplift": true
   },
   "anchorage_F1": {

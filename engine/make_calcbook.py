@@ -42,7 +42,8 @@ tr = torsion_check(sec, L.Pe, 40, 23.1e6, 26200, 1900)
 sl_c = slab_flexure(105.8, 1571, 200, 40, 420)   # 懸臂 D20@200
 sl_p = slab_flexure(133.8, 2172, 200, 40, 420)   # 跨中 D22@175
 sl_s = slab_flexure(150.3, 2534, 200, 40, 420)   # 墩面 D22@150
-br = bearing_check(1730, 1440, 291, 40, 100, 550 * 450)
+R_LL_E1 = 290 * taiwan_per_lane_shear(40) / 588    # HS20 支承活載反力 ≈179
+br = bearing_check(1440 + R_LL_E1, 1440, R_LL_E1, 40, 100, 550 * 450)
 ej = expansion_joint(8.8, 12.6, 8.0, 20)
 an = anchorage_check(ten.Pi / 1e3, 8, 260, 2100, 4)
 tband = [ThermalBand(0, 300, 3_000_000, 11.5), ThermalBand(300, 400, 80_000, 2.5),
@@ -171,11 +172,11 @@ sec10 = f"""<p>頂板橫向 RC 板撓曲（每公尺寬，d=200 mm，f<sub>y</su
 sections.append(("十、橫向設計（D3）", sec10))
 
 r_e1 = row("剪切應變", r"\gamma_S=\Delta_S/h_{rt}", "40/100", f"{br.gamma_s:.2f}", "≤ 0.50", br.gamma_ok, "E1")
-sec11 = f"""<p>疊層橡膠支承 550×450×100 mm；反力 R<sub>max</sub>=1,730 / R<sub>min</sub>=1,440 kN。<br><span class="note">★ 反力沿用較重載重（HL-93）之保守值；HS20-44 下約 1,615 kN，剪切應變 γ_S 與上拔判定不受影響。</span></p>
+sec11 = f"""<p>疊層橡膠支承 550×450×100 mm；HS20-44 反力 R<sub>max</sub>={1440+R_LL_E1:,.0f} / R<sub>min</sub>=1,440 kN（DL）/ R<sub>LL</sub>={R_LL_E1:,.0f} kN。</p>
 {r_e1}
 <table class="props">
-<tr><td>壓應力 σ<sub>TL</sub></td><td>{br.sigma_TL:.2f} MPa（≈70 kgf/cm² ≤ 112）</td></tr>
-<tr><td>上拔確認</td><td>R<sub>min</sub>−R<sub>LL</sub> = 1,440−291 = 1,149 kN &gt; 0 → 無上拔 {chk(br.no_uplift)}</td></tr>
+<tr><td>壓應力 σ<sub>TL</sub></td><td>{br.sigma_TL:.2f} MPa（≈{br.sigma_TL*10.197:.0f} kgf/cm² ≤ 112）</td></tr>
+<tr><td>上拔確認</td><td>R<sub>min</sub>−R<sub>LL</sub> = 1,440−{R_LL_E1:,.0f} = {1440-R_LL_E1:,.0f} kN &gt; 0 → 無上拔 {chk(br.no_uplift)}</td></tr>
 </table>"""
 sections.append(("十一、支承設計（E1）", sec11))
 

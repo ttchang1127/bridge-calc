@@ -88,7 +88,7 @@ tbody tr{border-bottom:0.5px solid var(--line)}
   <div class="cite" id="cite"></div>
 </div>
 
-<div class="sub no-print">由 <code>bridgecalc</code> 計算引擎驅動・<a href="https://github.com">原始碼</a>｜列印(Ctrl+P)即為計算書</div>
+<div class="sub no-print">由 <code>bridgecalc</code> 計算引擎驅動（engine/ 內附原始碼與回歸測試）｜列印(Ctrl+P)即為計算書</div>
 
 <script>
 (function(){
@@ -119,9 +119,11 @@ tbody tr{border-bottom:0.5px solid var(--line)}
  var UF=1;             // 力單位換算係數（kN→tf=0.10197）
  function F(v){return (v*UF).toFixed(UF<1?1:0)}   // 力/彎矩值依單位格式化
  function gBox(S,nl){return nl>=2?S/2.10:S/2.40}   // 台灣 S/D 箱梁內梁
- // BMD/SFD：簡支梁，卡車於 pos ＋車道均布
- function bmdSimple(L,pos,eff){var P=TRK.P,Xa=TRK.x,RA=LANE*L/2;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L)RA+=P[i]*(L-p)/L}
-  var pts=[];for(var x=0;x<=L+1e-6;x+=L/60){var v;if(eff==='M'){v=RA*x-LANE*x*x/2;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L&&p<x)v-=P[i]*(x-p)}}else{v=RA-LANE*x;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L&&p<x)v-=P[i]}}pts.push([x,v])}return pts}
+ // BMD/SFD：簡支梁設計卡車圖 ×(1+I)。HS20-44 取「卡車或車道大者」，故圖示卡車（不疊加車道）。
+ function bmdSimple(L,pos,eff,IM){var P=TRK.P,Xa=TRK.x,RA=0,f=1+(IM||0);for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L)RA+=P[i]*(L-p)/L}
+  var pts=[];for(var x=0;x<=L+1e-6;x+=L/60){var v;if(eff==='M'){v=RA*x;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L&&p<x)v-=P[i]*(x-p)}}else{v=RA;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L&&p<x)v-=P[i]}}pts.push([x,v*f])}return pts}
+ // 車道載重簡支圖峰值（與卡車比，判斷誰控制）
+ function laneSimplePeak(L,eff){return eff==='M'?(LANE*L*L/8+PM*L/4):(LANE*L/2+PV)}
  // ── ① 影響線交叉驗證（JS 獨立重算 vs Python golden）──
  function validate(golden){
    var g=golden.influence_simple_40m, rows=[
@@ -180,7 +182,7 @@ tbody tr{border-bottom:0.5px solid var(--line)}
   var I=Math.min(0.3,15.24/(tot+38.1)),lc=lf[E('ln').value],nl=lc[0],red=lc[1],U=unit==='tf'?(eff==='M'?'tf·m':'tf'):(eff==='M'?'kN·m':'kN');
   if(E('mode').value==='env'){runEnvelope(m,eff,I,nl,red,U);phdr(eff,U);return;}
   var il=solveIL(m,ti,eff);
-  if(E('mode').value==='bmd'){runBMD(m,il,ti,eff,tot,U);phdr(eff,U);return;}
+  if(E('mode').value==='bmd'){runBMD(m,il,ti,eff,tot,U,I);phdr(eff,U);return;}
   var tk;
   if(manualPos!=null){var sm=0;for(var a=0;a<3;a++){var ax=manualPos+TRK.x[a];if(ax>=0&&ax<=tot)sm+=TRK.P[a]*interp(m.nodes,il,ax)}tk={v:sm,x:manualPos}}
   else tk=truckMax(m.nodes,il,tot);
@@ -192,13 +194,20 @@ tbody tr{border-bottom:0.5px solid var(--line)}
   draw(m,il,xt,tk,eff);
   E('cite').textContent='依據：台灣公路橋梁設計規範 §3.6 HS20-44+車道載重(M用80/V用116)、§3.13 衝擊 I=15.24/(L+38.1)≤30%、§3.10 多車道折減、§4.2 橫向分配 S/D 法。影響線：連續梁剛度法。簡支峰值經 golden_answers.json 驗證。可拖梁上卡車手動定位。';
  }
- function runBMD(m,il,ti,eff,tot,U){
-  var tk=truckMax(m.nodes,il,tot),pos=tk.x;   // 取對目標斷面最不利的卡車位置
-  var pts=bmdSimple(tot,pos,eff),mx=0,mn=0;pts.forEach(function(p){if(p[1]>mx)mx=p[1];if(p[1]<mn)mn=p[1]});
+ function runBMD(m,il,ti,eff,tot,U,I){
   function card(t,v,sub){return '<div class="metric"><div class="l">'+t+'</div><div class="v">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>'}
-  E('res').innerHTML=card('最大 '+eff,F(mx)+' '+U,'卡車@x='+pos.toFixed(1)+'+車道')+card('最小 '+eff,F(mn)+' '+U)+card('斷面數','61','沿梁離散');
+  if(m.sx.length>2){   // 連續梁：簡支 BMD 公式不適用 → 不畫錯圖
+    E('res').innerHTML=card('BMD/SFD','—','連續梁不適用簡支圖');
+    E('dg').innerHTML='<text x="50" y="120" font-size="13" fill="#888">連續梁 BMD/SFD 待擴（簡支解析公式不適用多跨）。請改用「單一斷面影響線」或「設計包絡線」模式。</text>';
+    E('cite').textContent='連續梁的 BMD/SFD 需完整結構分析（簡支公式僅適用單跨）；本計算器以影響線／包絡線涵蓋連續梁設計效應。';
+    return;
+  }
+  var tk=truckMax(m.nodes,il,tot),pos=tk.x;   // 取對目標斷面最不利的卡車位置
+  var pts=bmdSimple(tot,pos,eff,I),mx=0,mn=0;pts.forEach(function(p){if(p[1]>mx)mx=p[1];if(p[1]<mn)mn=p[1]});
+  var lanePk=laneSimplePeak(tot,eff)*(1+I),govLane=lanePk>Math.abs(mx);
+  E('res').innerHTML=card('最大 '+eff,F(mx)+' '+U,'設計卡車×IM @x='+pos.toFixed(1))+card('最小 '+eff,F(mn)+' '+U)+card('車道(取大比較)',F(govLane?lanePk:mx)+' '+U,govLane?'車道控制!':'卡車控制');
   drawDiag(m,pts,eff,U,pos);
-  E('cite').textContent=(eff==='M'?'彎矩圖 BMD':'剪力圖 SFD')+'：HS20-44 卡車置於對目標斷面最不利位置 ＋ 車道載重，簡支解析。連續梁 BMD 待擴（可用影響線/包絡）。';
+  E('cite').textContent=(eff==='M'?'彎矩圖 BMD':'剪力圖 SFD')+'：HS20-44 設計卡車置最不利位置 ×(1+I)，簡支解析。台灣取卡車<b>或</b>車道大者——車道峰值 '+F(lanePk)+' '+U+' 一併比較（不疊加）。';
  }
  function drawDiag(m,pts,eff,U,pos){
   var x0=50,x1=780,tot=m.tot,sc=(x1-x0)/tot;function X(x){return x0+x*sc}

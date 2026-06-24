@@ -61,7 +61,10 @@ def flexural_strength(tendon: Tendon, section: Section, fc: float,
     phiMn = phi * Mn
     CR = phiMn / Mu_kNm
 
-    fr = 0.97 * sqrt(fc)                                # 破裂模數（本庫採值）
+    # 破裂模數 fr = 0.97√f'c (MPa) ≡ 0.37√f'c (ksi)：AASHTO LRFD 用於最小鋼筋 Mcr 之值
+    # （計入開裂變異，高於基本破裂模數 0.24√f'c ksi = 0.63√f'c MPa）。fr↑ → Mcr↑ →
+    # 1.2Mcr 下限↑ → 對最小鋼筋偏保守（安全方向）。換算：0.37×2.627=0.972。
+    fr = 0.97 * sqrt(fc)
     fcpe = Pe / section.A + Pe * e / section.Sb         # 底緣預壓 MPa
     Mcr = section.Sb * (fr + fcpe) / 1e6               # kN·m
     lower = min(1.33 * Mu_kNm, 1.2 * Mcr)

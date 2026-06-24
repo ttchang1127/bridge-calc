@@ -40,5 +40,29 @@ chk('M1 CR', fx.CR, g.flexure_M1.CR, 0.02);
 chk('C2C3 δ_LL', df.d_LL, g.deflection.delta_LL_mm, 0.5);
 chk('C2C3 預拱', df.camber, g.deflection.camber_mm, 1);
 
-console.log('\n' + pass + '/' + (pass + fail) + ' 對齊 golden' + (fail ? ' ❌ ' + fail + ' 項不符' : ' ✓ JS 引擎 = Python 引擎'));
+// ── 次檢核（v2）──
+var tr = BC.torsionCheck(L.Pe, sec, 40, 23.1e6, 26200, 1900);
+chk('D2 Tcr', tr.Tcr, g.torsion_D2.Tcr_kNm, 100);
+chk('D3 墩面 φMn', BC.slabFlexure(150.3, 2534, 200, 40, 420).phiMn, g.transverse_D3.support_phiMn_kNm, 0.5);
+var R_LL = 290 * BC.taiwanPerLaneShear(40) / 588;
+var br = BC.bearingCheck(1440 + R_LL, 1440, R_LL, 40, 100, 550, 450, 10, 8);
+chk('E1 σ_TL', br.sigma_TL, g.bearing_E1.sigma_TL_MPa, 0.05);
+chk('E1 形狀係數', br.shape_S, g.bearing_E1.shape_S, 0.1);
+var ej = BC.expansionJoint(8.8, 12.6, 8.0, 20);
+chk('E2 最大開度', ej.g_max, g.expansion_E2.g_max_mm, 0.1);
+var an = BC.anchorageCheck(t.Pi / 1e3, 8, 260, 2100, 4);
+chk('F1 Pu', an.Pu, g.anchorage_F1.Pu_kN, 5);
+chk('F1 剝落筋', an.As_spall, g.anchorage_F1.As_spall_mm2, 5);
+chk('F1 螺旋 Pult', BC.spiralLocalBearing(an.Pu, 2919, 8.47, 104044, 50, 380).Pult, g.anchorage_F1.spiral_Pult_kN, 5);
+var fa = BC.fatigueCheck(sec, L.Pe, t.e, 28800, 3222, 40);
+chk('P1 Δσ_ps', fa.dsig_ps, g.fatigue_P1.dsig_ps_MPa, 0.2);
+chk('P1 σ_c', fa.sig_c_max, g.fatigue_P1.sig_c_max_MPa, 0.1);
+chk('P1 箍筋@250', BC.stirrupFatigue(565, 250, 402, 1692).dfsv, g.fatigue_P1.stirrup_250_MPa, 3);
+var tbands = BC.thermalBandsFromDims(11000, 250, 5800, 200, 350, 2, 2100);
+var tg = BC.selfEquilibratingStress(tbands, 3.287e12, 771, 2100, [['底', 2100, 0]], 29700, 1.08e-5);
+chk('T1 TL', tg.TL, g.temperature_integrated_T1.TL_C, 0.2);
+chk('T1 負梯度底σ_SE', tg.sigma_neg['底'], g.temperature_integrated_T1.sigSE_bot_neg_MPa, 0.03);
+chk('T1 Service(含預力)', BC.thermalServiceCheck(tg.sigma_neg['底'], s.sb, 0.5).total, g.temperature_integrated_T1.service_total_MPa, 0.05);
+
+console.log('\n' + pass + '/' + (pass + fail) + ' 對齊 golden' + (fail ? ' ❌ ' + fail + ' 項不符' : ' ✓ JS 引擎 = Python 引擎（核心 + 次檢核）'));
 process.exit(fail ? 1 : 0);

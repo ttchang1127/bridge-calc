@@ -129,6 +129,89 @@
              net_long_term: net_LT, d_LL: d_LL, camber: max(net_LT, 0) + settle, d_LL_ok: d_LL <= L / 800 };
   };
 
+  // ── 扭力 D2 ───────────────────────────────────────────
+  BC.torsionCheck = function (Pe, sec, fc, Acp, pc, Tu_kNm, phi) {
+    phi = phi || 0.90;
+    var fpc = Pe / sec.A, k = 0.125 * sqrt(fc);
+    var Tcr = k * (Acp * Acp / pc) * sqrt(1 + fpc / k) / 1e6, threshold = 0.25 * phi * Tcr;
+    return { fpc: fpc, Tcr: Tcr, threshold: threshold, neglect: Tu_kNm < threshold, need_closed_stirrup: true };
+  };
+
+  // ── 橫向 D3（RC 板撓曲，每公尺寬）─────────────────────────
+  BC.slabFlexure = function (Mu, As, d, fc, fy, b, phi) {
+    b = b || 1000; phi = phi || 0.9;
+    var a = As * fy / (0.85 * fc * b), phiMn = phi * As * fy * (d - a / 2) / 1e6;
+    return { a: a, phiMn: phiMn, ok: phiMn >= Mu };
+  };
+
+  // ── 支承 E1 ───────────────────────────────────────────
+  BC.bearingCheck = function (Rmax, Rmin, R_LL, delta, h_rt, Lb, Wb, te, Gkgf, gLim) {
+    te = te || 10; Gkgf = Gkgf || 8; gLim = gLim || 0.50;
+    var A = Lb * Wb, gamma = delta / h_rt, sigTL = Rmax * 1e3 / A;
+    var S = Lb * Wb / (2 * te * (Lb + Wb)), limKgf = min(112, 1.66 * Gkgf * S), sigLim = limKgf * 0.0981;
+    var Hm = Gkgf * 0.0981 * A * delta / h_rt / 1e3, stab = min(Lb, Wb) / 3;
+    return { gamma_s: gamma, sigma_TL: sigTL, shape_S: S, sigma_TL_limit: sigLim, H_m: Hm,
+             gamma_ok: gamma <= gLim, sigma_ok: sigTL <= sigLim, stability_ok: h_rt <= stab,
+             H_ok: Hm <= Rmin / 5, no_uplift: (Rmin - R_LL) > 0 };
+  };
+
+  // ── 伸縮縫 E2 ─────────────────────────────────────────
+  BC.expansionJoint = function (dl_T, dl_c, dl_s, g_install, margin) {
+    margin = margin || 1.05;
+    var sh = dl_T + dl_c + dl_s, gmax = g_install + sh, cap = Math.round(gmax * margin);
+    return { shortening: sh, g_max: gmax, capacity: cap, joint: cap <= 75 ? 'Strip Seal 75mm' : cap <= 100 ? 'Modular ≤100mm' : 'Modular >100mm' };
+  };
+
+  // ── 錨碇 F1 ───────────────────────────────────────────
+  BC.anchorageCheck = function (Pi_total, n, a_plate, h_diaph, n_per_web, fy, lf) {
+    fy = fy || 400; lf = lf || 1.2;
+    var Pu = lf * Pi_total / n, Tb = 0.25 * Pu * (1 - a_plate / h_diaph);
+    var Fspall = 0.02 * n_per_web * Pu;
+    return { Pu: Pu, Tburst: Tb, sum_Tburst: n_per_web * Tb, As_burst: 1.2 * Tb * 1e3 / (0.85 * fy),
+             Fspall: Fspall, As_spall: Fspall * 1e3 / (0.6 * fy) };
+  };
+  BC.spiralLocalBearing = function (Pu, Pult0, flat, A_core, s, Dsp) {
+    var Pult = Pult0 + 4.1 * flat * A_core * Math.pow(1 - s / Dsp, 2) / 1e3;
+    return { Pult: Pult, margin: Pult / Pu, ok: Pult >= Pu };
+  };
+
+  // ── 疲勞 P1 ───────────────────────────────────────────
+  BC.fatigueCheck = function (sec, Pe, e, M_perm, dM_fat, fc, EpEc, gamma) {
+    EpEc = EpEc || 6.6; gamma = gamma || 1.75;
+    var dM = gamma * dM_fat * 1e6, dsig_ps = EpEc * (dM / sec.I) * e;
+    var sig_perm_top = -Pe / sec.A + Pe * e / sec.St - M_perm * 1e6 / sec.St;
+    var sig_c_max = abs(sig_perm_top) + dM / sec.I * sec.yt, lim = 0.40 * fc;
+    return { dsig_ps: dsig_ps, sig_c_max: sig_c_max, ps_ok: dsig_ps <= 125, c_ok: sig_c_max <= lim };
+  };
+  BC.stirrupFatigue = function (dV, s, Av, dv, lim) {
+    lim = lim || 165; var d = dV * 1e3 * s / (Av * dv); return { dfsv: d, ok: d <= lim };
+  };
+
+  // ── 溫度梯度自平衡應力 T1 ─────────────────────────────────
+  // bands: [[y_top,y_bot,area,T_mean],...]；fibers: [[name,y,T],...]
+  BC.selfEquilibratingStress = function (bands, I, yt, h, fibers, Ec, alpha, neg) {
+    Ec = Ec || 30590; alpha = alpha || 1.08e-5; neg = neg == null ? -0.30 : neg;
+    var At = 0, sTA = 0, sM = 0;
+    bands.forEach(function (b) { var yc = (b[0] + b[1]) / 2; At += b[2]; sTA += b[3] * b[2]; sM += b[3] * (yt - yc) * b[2]; });
+    var Tu = sTA / At, TL = (h / I) * sM, Ea = Ec * alpha, pos = {}, ng = {};
+    fibers.forEach(function (f) { var Tse = f[2] - (Tu + TL * (yt - f[1]) / h), sg = -Ea * Tse; pos[f[0]] = sg; ng[f[0]] = neg * sg; });
+    return { Tu: Tu, TL: TL, sigma_pos: pos, sigma_neg: ng };
+  };
+  BC.thermalServiceCheck = function (sig_thermal, sig_base, gTG) {
+    gTG = gTG || 0.5; var t = sig_base + gTG * sig_thermal; return { total: t, ok: t <= 0 };
+  };
+  // 由箱梁構件尺寸建 AASHTO 正梯度溫度分層（T1=18@頂、5@300mm、線性歸零@400）
+  BC.thermalBandsFromDims = function (topW, topT, botW, botT, webT, nWeb, h) {
+    var Tat = function (y) { return y <= 300 ? 18 - 13 * y / 300 : y <= 400 ? 5 * (400 - y) / 100 : 0; };
+    var web = nWeb * webT, yb1 = h - botT;
+    var bands = [[0, topT, topW * topT, (Tat(0) + Tat(topT)) / 2]];
+    if (topT < 300) bands.push([topT, 300, web * (300 - topT), (Tat(topT) + 5) / 2]);
+    bands.push([300, 400, web * 100, 2.5]);
+    bands.push([400, yb1, web * (yb1 - 400), 0]);
+    bands.push([yb1, h, botW * botT, 0]);
+    return bands;
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = BC;
   global.BC = BC;
 })(typeof window !== 'undefined' ? window : globalThis);

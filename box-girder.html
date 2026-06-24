@@ -28,7 +28,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 </head>
 <body x-data="calc()">
 <h1>簡支後張箱梁設計分析器</h1>
-<div class="sub">台灣 HS20-44 ＋車道載重・單室箱梁・輸入即時重算 14 項檢核｜核心 = <code>box-girder-engine.js</code>（= Python bridgecalc，對 golden 驗證）</div>
+<div class="sub">台灣 HS20-44 ＋車道載重・單室箱梁・輸入即時重算 16 項檢核（核心 9 + 次檢核 7）｜核心 = <code>box-girder-engine.js</code>（= Python bridgecalc，對 golden 驗證）</div>
 
 <div class="card no-print">
   <h2>輸入</h2>
@@ -56,6 +56,13 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <label>箍筋 Av (mm²,雙腳)<input type="number" x-model.number="Av" step="1"></label>
     <label>箍筋間距 s (mm)<input type="number" x-model.number="sv" step="25"></label>
     <label>控制斷面 Vu/腹板 (kN)<input type="number" x-model.number="Vu" step="10"></label>
+  </div>
+  <div style="font-size:12px;color:#888;margin:10px 0 4px">次檢核進階輸入（其餘由斷面/鋼腱自動推導）</div>
+  <div class="grid">
+    <label>設計扭矩 Tu (kN·m)<input type="number" x-model.number="Tu" step="50"></label>
+    <label>疲勞彎矩幅 ΔM (kN·m)<input type="number" x-model.number="dMfat" step="50"></label>
+    <label>支承位移 Δ_S (mm)<input type="number" x-model.number="deltaS" step="1"></label>
+    <label>縫口縮短Σ (mm)<input type="number" x-model.number="jointSh" step="1"></label>
   </div>
 </div>
 
@@ -101,6 +108,7 @@ function calc(){
     L:40, fc:40, lanes:2, wDW:20,
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, Av:397.4, sv:250, Vu:2069,
+    Tu:1900, dMfat:3222, deltaS:40, jointSh:29.4,
     get R(){
       var B=window.BC;
       var sec=B.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
@@ -130,6 +138,29 @@ function calc(){
         ['C2/C3 活載撓度 δ_LL',f(df.d_LL,1)+' mm','≤ L/800 = '+f(this.L*1000/800)+' mm',df.d_LL_ok],
         ['C2/C3 建議預拱',f(df.camber)+' mm（LBR '+f(df.LBR*100,1)+'%）','—',null]
       ];
+      // ── 次檢核（v2）──
+      var Acp=this.topW*this.h, pc=2*(this.topW+this.h);
+      var tor=B.torsionCheck(loss.Pe,sec,this.fc,Acp,pc,this.Tu);
+      var d3=B.slabFlexure(150.3,2534,200,this.fc,420);              // 墩面 D22@150
+      var R_DL=(wsw+this.wDW)*this.L/2/this.nWeb, R_LL=B.taiwanPerLaneShear(this.L)*this.lanes/(2*this.nWeb);
+      var br=B.bearingCheck(R_DL+R_LL,R_DL,R_LL,this.deltaS,100,550,450,10,8);
+      var ej=B.expansionJoint(this.jointSh,0,0,20);   // 縮短量Σ（溫度+潛變+乾縮）+ 安裝開度 20
+      var anc=B.anchorageCheck(ten.Pi/1e3,this.ntd,260,this.h,Math.floor(this.ntd/2));
+      var spr=B.spiralLocalBearing(anc.Pu,2919,8.47,104044,50,380);
+      var fat=B.fatigueCheck(sec,loss.Pe,this.e,Mdc+Mdw,this.dMfat,this.fc);
+      var stf=B.stirrupFatigue(565,this.sv,this.Av,dv);
+      var tb=B.thermalBandsFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
+      var tg=B.selfEquilibratingStress(tb,sec.I,sec.yt,this.h,[['底',this.h,0]],29700,1.08e-5);
+      var tgs=B.thermalServiceCheck(tg.sigma_neg['底'],serv.sb,0.5);
+      rows.push(
+        ['D2 扭力 Tcr','Tcr '+f(tor.Tcr)+' kN·m','Tu '+f(this.Tu)+' ≪ 門檻 '+f(tor.threshold)+'（可免顯式扭設計）',tor.neglect],
+        ['D3 橫向 墩面 φMn',f(d3.phiMn,1)+' kN·m/m','≥ Mu 150.3（D22@150）',d3.ok],
+        ['E1 支承 γ_S / σ_TL',f(br.gamma_s,2)+' / '+f(br.sigma_TL,2)+' MPa','γ≤0.5・σ≤'+f(br.sigma_TL_limit,2)+'・H_m '+f(br.H_m)+'≤'+f(R_DL/5)+'・無上拔',br.gamma_ok&&br.sigma_ok&&br.stability_ok&&br.H_ok&&br.no_uplift],
+        ['E2 伸縮縫 最大開度',f(ej.g_max,1)+' mm','容量 '+ej.capacity+' → '+ej.joint,ej.capacity<=75],
+        ['F1 錨碇 螺旋 Pult',f(spr.Pult)+' kN','≥ Pu '+f(anc.Pu)+'（餘裕 '+f(spr.margin,2)+'；剝落筋 '+f(anc.As_spall)+'mm²）',spr.ok],
+        ['P1 疲勞 鋼腱Δσ_ps',f(fat.dsig_ps,1)+' MPa','≤125；σ_c '+f(fat.sig_c_max,2)+'≤'+f(0.4*this.fc,1)+'；箍筋 '+f(stf.dfsv)+(stf.ok?'≤165':'>165→加密'),fat.ps_ok&&fat.c_ok],
+        ['T1 溫度 負梯度底Service',f(tgs.total,2)+' MPa（含預力）','≤ 0（σ_base '+f(serv.sb,2)+'+0.5×'+f(tg.sigma_neg['底'],2)+'；TL '+f(tg.TL,1)+'°C）',tgs.ok]
+      );
       var np=rows.filter(function(r){return r[3]===true}).length, nt=rows.filter(function(r){return r[3]!==null}).length;
       // 對齊 golden? (40m 參考輸入)
       var mg=(this.L===40&&this.ntd===8&&this.strands===19&&this.fc===40&&Math.abs(serv.sb+0.91)<0.05);

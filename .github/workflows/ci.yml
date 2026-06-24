@@ -25,6 +25,9 @@ jobs:
         working-directory: engine
         run: pytest tests/ -q
 
+      - name: JS 引擎回歸（box-girder-engine.js 對 golden）
+        run: node box-girder-engine.test.js
+
       - name: golden 新鮮度檢查（忘記重產則紅燈）
         run: |
           git diff --exit-code golden_answers.json \

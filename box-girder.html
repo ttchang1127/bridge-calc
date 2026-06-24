@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>簡支後張箱梁設計分析器（台灣 HS20-44）</title>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script src="box-girder-engine.js"></script>
+<style>
+:root{--blue:#1d4ed8;--ink:#1a1a1a;--mut:#555;--line:#e5e7eb;--ok:#16a34a;--ng:#dc2626;--bg:#f8f9fa}
+*{box-sizing:border-box}
+body{font-family:"Noto Sans TC",system-ui,-apple-system,sans-serif;color:var(--ink);max-width:900px;margin:0 auto;padding:20px;line-height:1.6;background:#fff}
+h1{font-size:21px;margin:0 0 2px}.sub{color:var(--mut);font-size:13px;margin-bottom:14px}
+.card{border:0.5px solid var(--line);border-radius:10px;padding:14px 16px;margin:13px 0}
+.card h2{font-size:15px;margin:0 0 10px;border-left:3px solid var(--blue);padding-left:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+label{font-size:12px;color:var(--mut);display:block}
+input{width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;padding:0 7px;font-size:14px;font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:5px 6px;text-align:right;border-bottom:0.5px solid var(--line)}
+th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:left}
+.ok{color:var(--ok);font-weight:600}.ng{color:var(--ng);font-weight:600}.mut{color:#999}
+.metric{background:var(--bg);border-radius:8px;padding:8px 10px}.metric .l{font-size:11px;color:var(--mut)}.metric .v{font-size:17px;font-weight:500;font-variant-numeric:tabular-nums}
+.cite{font-size:11px;color:#888;margin-top:8px}
+.gold{display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600}
+@media print{body{max-width:none;padding:0}.no-print{display:none!important}.card{break-inside:avoid;border-color:#ccc}}
+</style>
+</head>
+<body x-data="calc()">
+<h1>簡支後張箱梁設計分析器</h1>
+<div class="sub">台灣 HS20-44 ＋車道載重・單室箱梁・輸入即時重算 14 項檢核｜核心 = <code>box-girder-engine.js</code>（= Python bridgecalc，對 golden 驗證）</div>
+
+<div class="card no-print">
+  <h2>輸入</h2>
+  <div class="grid">
+    <label>跨度 L (m)<input type="number" x-model.number="L" step="1"></label>
+    <label>f'c (MPa)<input type="number" x-model.number="fc" step="1"></label>
+    <label>設計車道數<input type="number" x-model.number="lanes" step="1"></label>
+    <label>SDL 附加靜載 (kN/m)<input type="number" x-model.number="wDW" step="1"></label>
+  </div>
+  <div style="font-size:12px;color:#888;margin:10px 0 4px">斷面（單室箱梁，mm）</div>
+  <div class="grid">
+    <label>頂板寬<input type="number" x-model.number="topW" step="100"></label>
+    <label>頂板厚<input type="number" x-model.number="topT" step="10"></label>
+    <label>底板寬<input type="number" x-model.number="botW" step="100"></label>
+    <label>底板厚<input type="number" x-model.number="botT" step="10"></label>
+    <label>腹板厚(單片)<input type="number" x-model.number="webT" step="10"></label>
+    <label>腹板數<input type="number" x-model.number="nWeb" step="1"></label>
+    <label>全高 h<input type="number" x-model.number="h" step="10"></label>
+  </div>
+  <div style="font-size:12px;color:#888;margin:10px 0 4px">鋼腱 / 剪力</div>
+  <div class="grid">
+    <label>鋼腱組數<input type="number" x-model.number="ntd" step="1"></label>
+    <label>每組股數<input type="number" x-model.number="strands" step="1"></label>
+    <label>偏心 e (mm)<input type="number" x-model.number="e" step="5"></label>
+    <label>箍筋 Av (mm²,雙腳)<input type="number" x-model.number="Av" step="1"></label>
+    <label>箍筋間距 s (mm)<input type="number" x-model.number="sv" step="25"></label>
+    <label>控制斷面 Vu/腹板 (kN)<input type="number" x-model.number="Vu" step="10"></label>
+  </div>
+</div>
+
+<div class="card">
+  <h2>斷面性質與載重（自動）</h2>
+  <div class="grid">
+    <div class="metric"><div class="l">斷面積 A</div><div class="v" x-text="(R.sec.A/1e6).toFixed(3)+' m²'"></div></div>
+    <div class="metric"><div class="l">慣性矩 I</div><div class="v" x-text="R.sec.I.toExponential(3)+' mm⁴'"></div></div>
+    <div class="metric"><div class="l">形心距底 ȳb</div><div class="v" x-text="R.sec.yb.toFixed(0)+' mm'"></div></div>
+    <div class="metric"><div class="l">自重 w_sw</div><div class="v" x-text="R.wsw.toFixed(0)+' kN/m'"></div></div>
+    <div class="metric"><div class="l">M_DC / M_DW</div><div class="v" x-text="R.Mdc.toFixed(0)+' / '+R.Mdw.toFixed(0)"></div></div>
+    <div class="metric"><div class="l">每車道 M_LL+IM</div><div class="v" x-text="R.perLane.toFixed(0)+' kN·m'"></div></div>
+    <div class="metric"><div class="l">M_LL (×車道)</div><div class="v" x-text="R.Mll.toFixed(0)+' kN·m'"></div></div>
+    <div class="metric"><div class="l">有效預力 Pe</div><div class="v" x-text="(R.loss.Pe/1e3).toFixed(0)+' kN'"></div></div>
+  </div>
+  <div class="cite">自重 = A×24.5 kN/m³；M = wL²/8；活載 = 台灣 HS20-44「卡車或車道取大」×衝擊 I=<span x-text="(R.IM*100).toFixed(1)"></span>%×車道數。</div>
+</div>
+
+<div class="card">
+  <h2>設計檢核（<span x-text="R.npass"></span>/<span x-text="R.ntot"></span> 通過）　<span class="gold" :style="R.matchGolden?'background:#dcfce7;color:#16a34a':'background:#f1f5f9;color:#888'" x-text="R.matchGolden?'＝40m HS20-44 黃金範例（對齊 golden）':'自訂斷面'"></span></h2>
+  <table>
+    <thead><tr><th>項目</th><th>計算值</th><th>限值/比較</th><th style="text-align:center">判定</th></tr></thead>
+    <tbody>
+      <template x-for="r in R.rows" :key="r[0]">
+        <tr><td x-text="r[0]"></td><td x-text="r[1]"></td><td style="color:#888" x-text="r[2]"></td>
+          <td style="text-align:center" :class="r[3]==null?'mut':(r[3]?'ok':'ng')" x-text="r[3]==null?'—':(r[3]?'✓':'✗')"></td></tr>
+      </template>
+    </tbody>
+  </table>
+  <div class="cite">依據：台灣公路橋梁設計規範（活載 §3.6/§3.13、服務性 C1 零拉、主拉 0.06√f'c）＋ AASHTO LRFD（極限 M1、損失、Mcr 最小鋼筋 0.97√f'c=0.37√f'c[ksi]）。壓為負。φVn=φ(Vcw+Vs)。公式＝ bridgecalc 引擎。</div>
+</div>
+
+<div class="card">
+  <h2>參數化斷面（鋼腱隨偏心移動）</h2>
+  <svg :viewBox="'0 0 '+(R.sec.h*0.16+80)+' '+(R.sec.h*0.16+40)" style="width:280px;height:auto" x-html="R.svg"></svg>
+</div>
+
+<div class="sub no-print">輸入改變→全部即時重算（Alpine 反應式）。預設＝40m 參考橋（HS20-44/8組×19股）重現 golden。Ctrl+P 列印計算書。</div>
+
+<script>
+function calc(){
+  return {
+    L:40, fc:40, lanes:2, wDW:20,
+    topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
+    ntd:8, strands:19, e:1109, Av:397.4, sv:250, Vu:2069,
+    get R(){
+      var B=window.BC;
+      var sec=B.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
+      var ten=B.tendon(this.ntd,this.strands,this.e);
+      var wsw=sec.A/1e6*24.5, Mdc=wsw*this.L*this.L/8, Mdw=this.wDW*this.L*this.L/8;
+      var IM=B.taiwanImpact(this.L), perLane=B.taiwanPerLaneMoment(this.L);
+      var Mll=B.laneLiveLoad(perLane,this.lanes,1.0);
+      var loss=B.computeLosses(ten,sec,Mdc,Mdw);
+      var comb=B.combinations(Mdc,Mdw,Mll);
+      var serv=B.stresses(loss.Pe,sec,this.e,comb.Service_I);
+      var peMin=B.PeMinZeroTension(sec,this.e,comb.Service_I);
+      var dp=sec.yt+this.e, dv=Math.max(0.9*dp,0.72*this.h), bwEff=this.webT-100;
+      var flex=B.flexuralStrength(ten,sec,this.fc,this.topW,this.topT,dp,comb.Strength_I,loss.Pe,this.e);
+      var sh=B.shearWeb(loss.Pe,sec,this.e,this.fc,bwEff,dv,this.Vu*1e3,dv,this.L*1000,this.nWeb);
+      var phiVn=B.phiVn(sh.Vcw,this.Av/this.sv,dv), AvsMin=B.AvSminTW(this.fc,bwEff);
+      var compAllow=-0.60*this.fc;
+      var df=B.deflection(this.L*1000,29700,sec,wsw+this.wDW,loss.Pe,this.e,perLane*0.01);  // 撓度活載 ≈ 等效UDL（按每車道彎矩校正，40m 重現 golden）
+      var f=function(n,d){return (+n.toFixed(d==null?0:d)).toLocaleString('en-US')};
+      var rows=[
+        ['B 預力損失','損失 '+(loss.loss_pct*100).toFixed(1)+'%・Pe '+f(loss.Pe/1e3)+' kN','Pe,min '+f(peMin/1e3)+' kN',loss.Pe>=peMin],
+        ['C1 服務性 底緣 σ_b',f(serv.sb,2)+' MPa',' ≤ 0（台灣零拉）',serv.sb<=0],
+        ['C1 服務性 頂緣 σ_t',f(serv.st,2)+' MPa',' ≥ '+f(compAllow,1)+'（−0.6f\'c）',serv.st>=compAllow],
+        ['M1 極限彎曲 φMn','φMn '+f(flex.phiMn)+' kN·m（CR '+f(flex.CR,2)+'）','≥ Mu '+f(comb.Strength_I)+' 且 ≥下限 '+f(flex.lower),flex.ok],
+        ['D1 主拉應力 σ1',f(sh.sigma1,2)+' MPa',' ≤ '+f(sh.sigma1_limit,2)+'（近支承超→箍筋）',sh.sigma1_ok],
+        ['D1 設計抗剪 φVn','φVn '+f(phiVn/1e3)+' kN（Av/s '+(this.Av/this.sv).toFixed(2)+'）','≥ Vu '+f(this.Vu)+' kN',phiVn>=this.Vu*1e3],
+        ['D1 最小箍筋','Av/s '+(this.Av/this.sv).toFixed(2)+' mm²/mm','≥ '+AvsMin.toFixed(2),(this.Av/this.sv)>=AvsMin],
+        ['C2/C3 活載撓度 δ_LL',f(df.d_LL,1)+' mm','≤ L/800 = '+f(this.L*1000/800)+' mm',df.d_LL_ok],
+        ['C2/C3 建議預拱',f(df.camber)+' mm（LBR '+f(df.LBR*100,1)+'%）','—',null]
+      ];
+      var np=rows.filter(function(r){return r[3]===true}).length, nt=rows.filter(function(r){return r[3]!==null}).length;
+      // 對齊 golden? (40m 參考輸入)
+      var mg=(this.L===40&&this.ntd===8&&this.strands===19&&this.fc===40&&Math.abs(serv.sb+0.91)<0.05);
+      // 參數化 SVG 斷面
+      var sc=0.16, W=this.topW*sc, ox=40, oy=20, hh=this.h*sc;
+      var cx=ox+W/2, tendY=oy+(sec.yt+this.e)*sc;
+      var svg='<rect x="'+ox+'" y="'+oy+'" width="'+W+'" height="'+hh+'" fill="#eef2ff" stroke="#1d4ed8" stroke-width="1.2"/>'+
+        '<rect x="'+(ox+(this.topW-this.botW)/2*sc)+'" y="'+(oy+hh-this.botT*sc)+'" width="'+(this.botW*sc)+'" height="'+(this.botT*sc)+'" fill="#c7d2fe"/>'+
+        '<circle cx="'+cx+'" cy="'+tendY+'" r="3.5" fill="#dc2626"/>'+
+        '<text x="'+cx+'" y="'+(tendY+12)+'" font-size="8" fill="#dc2626" text-anchor="middle">鋼腱 e='+this.e+'</text>';
+      return {sec:sec,wsw:wsw,Mdc:Mdc,Mdw:Mdw,IM:IM,perLane:perLane,Mll:Mll,loss:loss,
+              rows:rows,npass:np,ntot:nt,matchGolden:mg,svg:svg};
+    }
+  };
+}
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-"""回歸測試：40m 參考橋（2 設計車道、8組×21股）黃金答案。
+"""回歸測試：40m 參考橋（台灣 HS20-44、2 設計車道、8組×19股最小設計）黃金答案。
 
 黃金答案來源（知識庫，2 車道修正後自洽）：
   算例_40m參考橋活載基準統一 / 算例_後張箱梁服務性應力驗算 / 算例_40m參考橋載重組合。
@@ -18,7 +18,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         taiwan_impact, taiwan_truck_moment, taiwan_lane_moment,
                         fatigue_check, stirrup_fatigue,
                         torsion_check, slab_flexure, As_min_slab, temp_gradient_AASHTO,
-                        bearing_check, anchorage_check, expansion_joint,
+                        bearing_check, anchorage_check, spiral_local_bearing, expansion_joint,
                         ThermalBand, self_equilibrating_stress, thermal_service_check)
 
 # ── 40m 參考橋輸入 ──
@@ -71,7 +71,7 @@ def test_pe_min_inverse():
 def test_design_adequate():
     L = compute_losses(ten, sec, M_DC, M_DW)
     M_serv = combinations(M_DC, M_DW, M_LL_IM)["Service_I"]
-    assert L.Pe >= Pe_min_zero_tension(sec, ten.e, M_serv)     # 8組×21股足夠
+    assert L.Pe >= Pe_min_zero_tension(sec, ten.e, M_serv)     # 8組×19股（HS20）足夠
 
 
 def test_shear_D1():
@@ -191,12 +191,15 @@ def test_temperature_T1():
 
 
 def test_bearing_E1():
-    """支承 E1（HS20 純化反力）：γ_S=0.40≤0.50、σ_TL≈6.54、無上拔。"""
+    """支承 E1（HS20 純化反力）：γ_S/σ_TL限值/形狀係數/穩定/H_m/上拔 全檢核。"""
     R_LL = 290 * taiwan_per_lane_shear(40) / 588          # HS20 支承活載反力 ≈179
-    b = bearing_check(1440 + R_LL, 1440, R_LL, 40, 100, 550*450)
+    b = bearing_check(1440 + R_LL, 1440, R_LL, 40, 100, 550, 450, te=10, G_kgf=8)
     _close(b.gamma_s, 0.40, 0.01)
+    _close(b.shape_S, 12.4, 0.1)                          # 形狀係數
     _close(b.sigma_TL, 6.54, 0.05)                        # R_max≈1,619（純化，舊 HL-93 為 6.99）
-    assert b.gamma_ok and b.no_uplift
+    _close(b.sigma_TL_limit, 10.99, 0.05)                # = 112 kgf/cm²（< 1.66GS=16.2）
+    _close(b.H_m, 77.7, 0.5)                              # 水平力（算例 79，捨入）
+    assert b.gamma_ok and b.sigma_ok and b.stability_ok and b.H_ok and b.no_uplift
 
 
 def test_anchorage_F1():
@@ -206,6 +209,9 @@ def test_anchorage_F1():
     _close(a.sum_Tburst, 3902, 10)
     _close(a.Fspall, 356, 3)
     _close(a.As_spall, 1484, 5)         # <1548 → 4-D22（19股回到原配置）
+    Pult, margin, ok = spiral_local_bearing(a.Pu, 2919, 8.47, 104044, 50, 380)
+    _close(Pult, 5644, 5)               # 螺旋 D16@50 局部承壓
+    assert ok and margin > 1.0          # Pult > Pu（餘裕 1.27）
 
 
 def test_expansion_E2():

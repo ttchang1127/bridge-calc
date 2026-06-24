@@ -119,8 +119,9 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
   <div class="chk">容許：≤ 0.50　<span class="ok">✓ OK</span></div>
 </div>
 <table class="props">
-<tr><td>壓應力 σ<sub>TL</sub></td><td>6.54 MPa（≈67 kgf/cm² ≤ 112）</td></tr>
-<tr><td>上拔確認</td><td>R<sub>min</sub>−R<sub>LL</sub> = 1,440−179 = 1,261 kN &gt; 0 → 無上拔 <span class="ok">✓ OK</span></td></tr>
+<tr><td>形狀係數 S</td><td>12.4（= LbWb/2te(Lb+Wb)）</td><td>壓應力 σ<sub>TL</sub></td><td>6.54 ≤ 10.99 MPa（min(112kgf, 1.66GS)）<span class="ok">✓ OK</span></td></tr>
+<tr><td>穩定 h<sub>rt</sub></td><td>100 ≤ min(Lb,Wb)/3=150 mm <span class="ok">✓ OK</span></td><td>水平力 H<sub>m</sub></td><td>78 ≤ R<sub>min</sub>/5=288 kN <span class="ok">✓ OK</span></td></tr>
+<tr><td>上拔確認</td><td colspan="3">R<sub>min</sub>−R<sub>LL</sub> = 1,440−179 = 1,261 kN &gt; 0 → 無上拔 <span class="ok">✓ OK</span></td></tr>
 </table></section><section><h2>十二、伸縮縫設計（E2）</h2><p>縮短量鏈（後安裝預力縮短不納入縫口）：溫度 8.8 + 潛變 12.6 + 乾縮 8.0 = <b>29.4 mm</b>。</p>
 <div class="row">
   <div class="rt">最大開度 <span class="cite">E2</span></div>
@@ -138,6 +139,7 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
 <table class="props">
 <tr><td>群爆裂力 ΣT<sub>burst</sub></td><td>3,902 kN（爆裂筋 A<sub>s</sub>=3,443 mm²）</td></tr>
 <tr><td>剝落力 F<sub>spall</sub></td><td>356 kN → 剝落筋 A<sub>s</sub>=1,484 mm² → 4-D22</td></tr>
+<tr><td>局部承壓（螺旋 D16@50）</td><td>P<sub>ult</sub>=5,644 kN ≥ P<sub>u</sub>=4,453（餘裕 1.27）<span class="ok">✓ OK</span></td></tr>
 </table><p class="note">配置隨 P<sub>i</sub>=36… P<sub>i</sub>≈29,686 kN（8組×19股、HS20-44）。</p></section><section><h2>十四、溫度梯度自平衡應力（T1，已接引擎服務性）</h2><p>非線性溫度剖面強迫斷面維持平面 → 斷面自我約束生自平衡應力 σ_SE。靜定梁 T<sub>u</sub>/T<sub>L</sub> 不生應力，故 σ_TG=σ_SE。</p>
 <table class="props">
 <tr><td colspan="4"><b>配置 A 斷面（h=2,100、頂板 250mm）＋ 引擎實際服務性（含預力）</b></td></tr>

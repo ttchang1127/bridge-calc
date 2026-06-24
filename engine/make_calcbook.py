@@ -18,7 +18,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         taiwan_truck_moment, taiwan_lane_moment, taiwan_impact,
                         hl93_per_lane_moment, fatigue_check, stirrup_fatigue,
                         torsion_check, slab_flexure, bearing_check, expansion_joint,
-                        anchorage_check, ThermalBand,
+                        anchorage_check, spiral_local_bearing, ThermalBand,
                         self_equilibrating_stress, thermal_service_check, allowables)
 
 # ── 40m 參考橋（台灣 HS20-44、8組×19股最小設計）──
@@ -43,9 +43,10 @@ sl_c = slab_flexure(105.8, 1571, 200, 40, 420)   # 懸臂 D20@200
 sl_p = slab_flexure(133.8, 2172, 200, 40, 420)   # 跨中 D22@175
 sl_s = slab_flexure(150.3, 2534, 200, 40, 420)   # 墩面 D22@150
 R_LL_E1 = 290 * taiwan_per_lane_shear(40) / 588    # HS20 支承活載反力 ≈179
-br = bearing_check(1440 + R_LL_E1, 1440, R_LL_E1, 40, 100, 550 * 450)
+br = bearing_check(1440 + R_LL_E1, 1440, R_LL_E1, 40, 100, 550, 450, te=10, G_kgf=8)
 ej = expansion_joint(8.8, 12.6, 8.0, 20)
 an = anchorage_check(ten.Pi / 1e3, 8, 260, 2100, 4)
+sp = spiral_local_bearing(an.Pu, 2919, 8.47, 104044, 50, 380)   # 螺旋圍束 D16@50
 tband = [ThermalBand(0, 300, 3_000_000, 11.5), ThermalBand(300, 400, 80_000, 2.5),
          ThermalBand(400, 1750, 1_080_000, 0), ThermalBand(1750, 2000, 1_375_000, 0)]
 tg = self_equilibrating_stress(tband, 1.26e12, 870, 2000,
@@ -175,8 +176,9 @@ r_e1 = row("剪切應變", r"\gamma_S=\Delta_S/h_{rt}", "40/100", f"{br.gamma_s:
 sec11 = f"""<p>疊層橡膠支承 550×450×100 mm；HS20-44 反力 R<sub>max</sub>={1440+R_LL_E1:,.0f} / R<sub>min</sub>=1,440 kN（DL）/ R<sub>LL</sub>={R_LL_E1:,.0f} kN。</p>
 {r_e1}
 <table class="props">
-<tr><td>壓應力 σ<sub>TL</sub></td><td>{br.sigma_TL:.2f} MPa（≈{br.sigma_TL*10.197:.0f} kgf/cm² ≤ 112）</td></tr>
-<tr><td>上拔確認</td><td>R<sub>min</sub>−R<sub>LL</sub> = 1,440−{R_LL_E1:,.0f} = {1440-R_LL_E1:,.0f} kN &gt; 0 → 無上拔 {chk(br.no_uplift)}</td></tr>
+<tr><td>形狀係數 S</td><td>{br.shape_S:.1f}（= LbWb/2te(Lb+Wb)）</td><td>壓應力 σ<sub>TL</sub></td><td>{br.sigma_TL:.2f} ≤ {br.sigma_TL_limit:.2f} MPa（min(112kgf, 1.66GS)）{chk(br.sigma_ok)}</td></tr>
+<tr><td>穩定 h<sub>rt</sub></td><td>100 ≤ min(Lb,Wb)/3=150 mm {chk(br.stability_ok)}</td><td>水平力 H<sub>m</sub></td><td>{br.H_m:.0f} ≤ R<sub>min</sub>/5={1440/5:.0f} kN {chk(br.H_ok)}</td></tr>
+<tr><td>上拔確認</td><td colspan="3">R<sub>min</sub>−R<sub>LL</sub> = 1,440−{R_LL_E1:,.0f} = {1440-R_LL_E1:,.0f} kN &gt; 0 → 無上拔 {chk(br.no_uplift)}</td></tr>
 </table>"""
 sections.append(("十一、支承設計（E1）", sec11))
 
@@ -193,6 +195,7 @@ sec13 = f"""<p>端橫隔版錨碇區（逐束法，8 束、單腹版群 4 束）
 <table class="props">
 <tr><td>群爆裂力 ΣT<sub>burst</sub></td><td>{an.sum_Tburst:,.0f} kN（爆裂筋 A<sub>s</sub>={an.As_burst:,.0f} mm²）</td></tr>
 <tr><td>剝落力 F<sub>spall</sub></td><td>{an.Fspall:.0f} kN → 剝落筋 A<sub>s</sub>={an.As_spall:,.0f} mm² → 4-D22</td></tr>
+<tr><td>局部承壓（螺旋 D16@50）</td><td>P<sub>ult</sub>={sp[0]:,.0f} kN ≥ P<sub>u</sub>={an.Pu:,.0f}（餘裕 {sp[1]:.2f}）{chk(sp[2])}</td></tr>
 </table><p class="note">配置隨 P<sub>i</sub>={an.Pu*8/1.2/1e3*1.2:,.0f}… P<sub>i</sub>≈29,686 kN（8組×19股、HS20-44）。</p>"""
 sections.append(("十三、錨碇區爆裂力（F1）", sec13))
 

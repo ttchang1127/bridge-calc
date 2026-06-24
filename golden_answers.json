@@ -75,14 +75,24 @@
   "bearing_E1": {
     "R_max_kN": 1619,
     "gamma_s": 0.4,
+    "shape_S": 12.4,
     "sigma_TL_MPa": 6.54,
+    "sigma_TL_limit_MPa": 10.99,
+    "H_m_kN": 77.7,
+    "gamma_ok": true,
+    "sigma_ok": true,
+    "stability_ok": true,
+    "H_ok": true,
     "no_uplift": true
   },
   "anchorage_F1": {
     "Pu_kN": 4453,
     "sum_Tburst_kN": 3902,
     "Fspall_kN": 356,
-    "As_spall_mm2": 1484
+    "As_spall_mm2": 1484,
+    "spiral_Pult_kN": 5644,
+    "bearing_margin": 1.27,
+    "bearing_ok": true
   },
   "expansion_E2": {
     "shortening_mm": 29.4,

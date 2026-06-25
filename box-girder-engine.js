@@ -212,6 +212,19 @@
     return bands;
   };
 
+  // ── 連續梁中墩（次彎矩 M2 + T 斷面極限彎曲）──────────────
+  BC.secondaryMoment = function (M_total, M1) { return M_total - M1; };
+  BC.primaryMoment = function (layers) { return layers.reduce(function (s, L) { return s + L[0] * L[1]; }, 0); };
+  BC.flexuralStrengthT = function (Aps, fpu, fc, b, hf, bw, dp, Mu, dt) {
+    var fpy = 0.90 * fpu, k = 2 * (1.04 - fpy / fpu), b1 = BC.beta1(fc);
+    var c_rect = Aps * fpu / (0.85 * fc * b1 * b + k * Aps * fpu / dp), flanged, c, a, fps, Mn;
+    if (c_rect <= hf) { flanged = false; c = c_rect; a = b1 * c; fps = fpu * (1 - k * c / dp); Mn = Aps * fps * (dp - a / 2) / 1e6; }
+    else { flanged = true; c = (Aps * fpu - 0.85 * fc * (b - bw) * hf) / (0.85 * fc * b1 * bw + k * Aps * fpu / dp); a = b1 * c; fps = fpu * (1 - k * c / dp); Mn = (Aps * fps * (dp - a / 2) + 0.85 * fc * (b - bw) * hf * (a / 2 - hf / 2)) / 1e6; }
+    dt = dt == null ? dp : dt;
+    var eps_t = (dt - c) / c * 0.003, phi = eps_t >= 0.005 ? 1.0 : eps_t <= 0.002 ? 0.75 : 0.75 + 0.25 * (eps_t - 0.002) / 0.003;
+    return { c: c, flanged: flanged, a: a, fps: fps, Mn: Mn, eps_t: eps_t, phi: phi, phiMn: phi * Mn, CR: phi * Mn / Mu, ok: phi * Mn >= Mu };
+  };
+
   if (typeof module !== 'undefined' && module.exports) module.exports = BC;
   global.BC = BC;
 })(typeof window !== 'undefined' ? window : globalThis);

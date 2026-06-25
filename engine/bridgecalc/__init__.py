@@ -27,6 +27,8 @@ from .temperature import (temp_gradient_AASHTO, ThermalBand, ThermalResult,
 from .bearing import bearing_check, BearingResult
 from .anchorage import anchorage_check, AnchorageResult, spiral_local_bearing
 from .expansion import expansion_joint, JointResult
+from .continuous import (secondary_moment, primary_moment, flexural_strength_T,
+                        TFlexureResult, pier_service_stress)
 from . import allowables
 
 __all__ = [
@@ -44,5 +46,6 @@ __all__ = [
     "taiwan_truck_moment", "taiwan_moment_envelope",
     "fatigue_check", "FatigueResult", "stirrup_fatigue",
     "torsion_check", "TorsionResult",
-    "slab_flexure", "SlabResult", "As_min_slab", "temp_gradient_AASHTO", "ThermalBand", "ThermalResult", "self_equilibrating_stress", "thermal_service_check", "bearing_check", "BearingResult", "anchorage_check", "AnchorageResult", "spiral_local_bearing", "expansion_joint", "JointResult", "allowables",
+    "slab_flexure", "SlabResult", "As_min_slab", "temp_gradient_AASHTO", "ThermalBand", "ThermalResult", "self_equilibrating_stress", "thermal_service_check", "bearing_check", "BearingResult", "anchorage_check", "AnchorageResult", "spiral_local_bearing", "expansion_joint", "JointResult",
+    "secondary_moment", "primary_moment", "flexural_strength_T", "TFlexureResult", "pier_service_stress", "allowables",
 ]

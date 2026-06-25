@@ -18,7 +18,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         fatigue_check, stirrup_fatigue, torsion_check,
                         slab_flexure, As_min_slab, temp_gradient_AASHTO,
                         bearing_check, anchorage_check, spiral_local_bearing, expansion_joint,
-                        ThermalBand, self_equilibrating_stress, thermal_service_check)
+                        ThermalBand, self_equilibrating_stress, thermal_service_check,
+                        secondary_moment, primary_moment, flexural_strength_T)
 
 sec = Section(5.065e6, 3.287e12, 1329, 2100)
 ten = Tendon(8, 19, 1109)                       # 台灣 HS20-44 最小設計（HL-93 才需增配 21 股）
@@ -107,6 +108,13 @@ golden = {
              ThermalBand(400,1750,1_080_000,0),ThermalBand(1750,2000,1_375_000,0)],
             1.26e12,870,2000,[("頂板頂",0,18.0),("底板底",2000,0.0)])),
     # ★ 接線：config A 斷面 + 引擎實際服務性底緣（含預力）→ 真實參考橋的 T1 整合檢核
+    "continuous_pier": (lambda ft: {
+        "M2_mid_kNm": round(secondary_moment(8320, primary_moment([(23700,0.950),(12557,-0.300)]))),
+        "M2_pier_kNm": round(secondary_moment(-10594, primary_moment([(23700,-0.080),(12557,0.900)]))),
+        "pier_c_mm": round(ft.c), "pier_flanged": ft.flanged, "pier_fps_MPa": round(ft.fps),
+        "pier_Mn_kNm": round(ft.Mn), "pier_CR": round(ft.CR,2), "pier_inadequate": not ft.ok,
+        "_note": "40+40連續梁中墩負彎矩T斷面(NA進腹板c=766);CR<<1為彙整最大控制工況,需大幅增頂板PT或補強"})
+        (flexural_strength_T(11292,1860,40,1400,200,700,1950,75337)),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

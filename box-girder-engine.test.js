@@ -64,5 +64,15 @@ chk('T1 TL', tg.TL, g.temperature_integrated_T1.TL_C, 0.2);
 chk('T1 負梯度底σ_SE', tg.sigma_neg['底'], g.temperature_integrated_T1.sigSE_bot_neg_MPa, 0.03);
 chk('T1 Service(含預力)', BC.thermalServiceCheck(tg.sigma_neg['底'], s.sb, 0.5).total, g.temperature_integrated_T1.service_total_MPa, 0.05);
 
-console.log('\n' + pass + '/' + (pass + fail) + ' 對齊 golden' + (fail ? ' ❌ ' + fail + ' 項不符' : ' ✓ JS 引擎 = Python 引擎（核心 + 次檢核）'));
+// ── 連續梁中墩（次彎矩 M2 + T 斷面）──
+var cp = g.continuous_pier;
+chk('連續 M2 跨中', BC.secondaryMoment(8320, BC.primaryMoment([[23700, 0.950], [12557, -0.300]])), cp.M2_mid_kNm, 5);
+chk('連續 M2 B墩', BC.secondaryMoment(-10594, BC.primaryMoment([[23700, -0.080], [12557, 0.900]])), cp.M2_pier_kNm, 5);
+var ft = BC.flexuralStrengthT(11292, 1860, 40, 1400, 200, 700, 1950, 75337);
+chk('中墩 T斷面 c', ft.c, cp.pier_c_mm, 2);
+chk('中墩 fps', ft.fps, cp.pier_fps_MPa, 5);
+chk('中墩 Mn', ft.Mn, cp.pier_Mn_kNm, 100);
+chk('中墩 CR(不足)', ft.CR, cp.pier_CR, 0.02);
+
+console.log('\n' + pass + '/' + (pass + fail) + ' 對齊 golden' + (fail ? ' ❌ ' + fail + ' 項不符' : ' ✓ JS 引擎 = Python 引擎（核心 + 次檢核 + 連續梁）'));
 process.exit(fail ? 1 : 0);

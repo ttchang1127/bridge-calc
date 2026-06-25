@@ -117,6 +117,17 @@
     "service_ok": false,
     "_note": "自含斷面 h=2000、σ_base=1.2（無預力）孤島 illustration；實際橋見 temperature_integrated_T1"
   },
+  "continuous_pier": {
+    "M2_mid_kNm": -10428,
+    "M2_pier_kNm": -19999,
+    "pier_c_mm": 766,
+    "pier_flanged": true,
+    "pier_fps_MPa": 1655,
+    "pier_Mn_kNm": 31897,
+    "pier_CR": 0.41,
+    "pier_inadequate": true,
+    "_note": "40+40連續梁中墩負彎矩T斷面(NA進腹板c=766);CR<<1為彙整最大控制工況,需大幅增頂板PT或補強"
+  },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",
     "Tu_C": 6.91,

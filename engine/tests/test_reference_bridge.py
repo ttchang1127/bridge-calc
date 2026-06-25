@@ -19,7 +19,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         fatigue_check, stirrup_fatigue,
                         torsion_check, slab_flexure, As_min_slab, temp_gradient_AASHTO,
                         bearing_check, anchorage_check, spiral_local_bearing, expansion_joint,
-                        ThermalBand, self_equilibrating_stress, thermal_service_check)
+                        ThermalBand, self_equilibrating_stress, thermal_service_check,
+                        secondary_moment, primary_moment, flexural_strength_T)
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -253,6 +254,24 @@ def test_temperature_integrated_T1():
     total, ok = thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)
     _close(total, -0.80, 0.05)
     assert ok                                       # 接真實預力(底緣-0.91)後 → 全壓通過
+
+
+def test_continuous_pier():
+    """★ 連續梁中墩：次彎矩 M2、中墩 T 斷面 M1（NA 進腹板 c>hf → CR≈0.42 嚴重不足）。
+    彙整最大缺口/真實控制工況（簡支不會出現）。"""
+    M2_mid = secondary_moment(8320, primary_moment([(23700, 0.950), (12557, -0.300)]))
+    M2_pier = secondary_moment(-10594, primary_moment([(23700, -0.080), (12557, 0.900)]))
+    _close(M2_mid, -10428, 5)
+    _close(M2_pier, -20000, 5)
+    ft = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1950, 75337)
+    assert ft.flanged                          # NA 進腹板 → T 斷面
+    _close(ft.c, 766, 2)
+    _close(ft.fps, 1655, 5)
+    _close(ft.Mn, 31888, 100)
+    assert ft.CR < 0.5 and not ft.ok           # 嚴重不足（CR≈0.42）
+    # 對照：簡支跨中正彎矩同公式 → 矩形(翼板內)、CR>1
+    fr = flexural_strength_T(21280, 1860, 40, 8000, 250, 700, 1880, 48965)
+    assert not fr.flanged and fr.CR > 1
 
 
 def test_moment_envelope():

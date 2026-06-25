@@ -96,6 +96,24 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 </div>
 
 <div class="card">
+  <h2>連續梁中墩（延伸・40+40 兩跨・負彎矩控制斷面）　<span class="gold" style="background:#fef2f2;color:#dc2626">★ 簡支不會出現的控制工況</span></h2>
+  <div class="grid no-print" style="margin-bottom:8px">
+    <label>中墩 Mu (kN·m)<input type="number" x-model.number="contMuP" step="1000"></label>
+    <label>頂板 PT Aps (mm²)<input type="number" x-model.number="contApsTop" step="100"></label>
+  </div>
+  <table>
+    <thead><tr><th>項目</th><th>計算值</th><th>說明</th><th style="text-align:center">判定</th></tr></thead>
+    <tbody>
+      <tr><td>次彎矩 M2（跨中 / B墩）</td><td x-text="R.cont.f(R.cont.M2mid)+' / '+R.cont.f(R.cont.M2pier)+' kN·m'"></td><td style="color:#888">M2=M_total−M1（超靜定約束；漏算→低估底拉）</td><td class="mut" style="text-align:center">—</td></tr>
+      <tr><td>中墩 NA 位置</td><td x-text="'c = '+R.cont.ftP.c.toFixed(0)+' mm'"></td><td style="color:#888" x-text="R.cont.ftP.flanged?'＞翼板厚200 → 進腹板，需 T 斷面公式':'翼板內'"></td><td class="mut" style="text-align:center">—</td></tr>
+      <tr><td>中墩 φMn / CR</td><td x-text="R.cont.f(R.cont.ftP.phiMn)+' kN·m（CR '+R.cont.ftP.CR.toFixed(2)+'）'"></td><td style="color:#888" x-text="'≥ Mu '+R.cont.f(contMuP)+'？fps '+R.cont.ftP.fps.toFixed(0)+' MPa'"></td>
+        <td style="text-align:center" :class="R.cont.ftP.ok?'ok':'ng'" x-text="R.cont.ftP.ok?'✓':'✗ 不足'"></td></tr>
+    </tbody>
+  </table>
+  <div class="cite">中墩負彎矩使受壓區落在窄底板 → NA 進腹板（T 斷面）→ Mn 縮水，<b>CR≪1 嚴重不足</b>，須大幅增頂板 PT 或配非預力鋼筋（彙整 §十三/§十四.2 最大控制工況）。公式＝ bridgecalc continuous 模組，對 golden 驗證。</div>
+</div>
+
+<div class="card">
   <h2>參數化斷面（鋼腱隨偏心移動）</h2>
   <svg :viewBox="'0 0 '+(R.sec.h*0.16+80)+' '+(R.sec.h*0.16+40)" style="width:280px;height:auto" x-html="R.svg"></svg>
 </div>
@@ -109,6 +127,7 @@ function calc(){
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, Av:397.4, sv:250, Vu:2069,
     Tu:1900, dMfat:3222, deltaS:40, jointSh:29.4,
+    contMuP:75337, contApsTop:11292,
     get R(){
       var B=window.BC;
       var sec=B.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
@@ -171,8 +190,13 @@ function calc(){
         '<rect x="'+(ox+(this.topW-this.botW)/2*sc)+'" y="'+(oy+hh-this.botT*sc)+'" width="'+(this.botW*sc)+'" height="'+(this.botT*sc)+'" fill="#c7d2fe"/>'+
         '<circle cx="'+cx+'" cy="'+tendY+'" r="3.5" fill="#dc2626"/>'+
         '<text x="'+cx+'" y="'+(tendY+12)+'" font-size="8" fill="#dc2626" text-anchor="middle">鋼腱 e='+this.e+'</text>';
+      // 連續梁中墩（延伸：40+40 兩跨，負彎矩控制斷面）
+      var ftP=B.flexuralStrengthT(this.contApsTop,1860,this.fc,1400,200,700,1950,this.contMuP);
+      var M2mid=B.secondaryMoment(8320,B.primaryMoment([[23700,0.950],[12557,-0.300]]));
+      var M2pier=B.secondaryMoment(-10594,B.primaryMoment([[23700,-0.080],[12557,0.900]]));
+      var cont={ftP:ftP,M2mid:M2mid,M2pier:M2pier,f:f};
       return {sec:sec,wsw:wsw,Mdc:Mdc,Mdw:Mdw,IM:IM,perLane:perLane,Mll:Mll,loss:loss,
-              rows:rows,npass:np,ntot:nt,matchGolden:mg,svg:svg};
+              rows:rows,npass:np,ntot:nt,matchGolden:mg,svg:svg,cont:cont};
     }
   };
 }

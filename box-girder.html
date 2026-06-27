@@ -114,8 +114,16 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 </div>
 
 <div class="card">
-  <h2>參數化斷面（鋼腱隨偏心移動）</h2>
-  <svg :viewBox="'0 0 '+(R.sec.h*0.16+80)+' '+(R.sec.h*0.16+40)" style="width:280px;height:auto" x-html="R.svg"></svg>
+  <h2>參數化工程圖（隨輸入即時重畫・向量可列印）</h2>
+  <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start">
+    <div><div style="font-size:12px;color:#555;margin-bottom:2px">① 箱型斷面＋鋼腱偏心</div>
+      <svg viewBox="0 0 270 80" style="width:270px;height:auto" x-html="R.svgSec"></svg></div>
+    <div><div style="font-size:12px;color:#555;margin-bottom:2px">② C1 服務性應力分布</div>
+      <svg viewBox="0 0 150 145" style="width:150px;height:auto" x-html="R.svgStr"></svg></div>
+    <div><div style="font-size:12px;color:#555;margin-bottom:2px">③ D1 莫耳圓（主拉 σ1）</div>
+      <svg viewBox="0 0 225 135" style="width:225px;height:auto" x-html="R.svgMohr"></svg></div>
+  </div>
+  <div class="cite">① 斷面隨尺寸重畫、鋼腱隨偏心 e 移動。② 應力梯形：σb 越過 σ=0 線（往右）即底緣受拉→超限（紅）。③ 莫耳圓：σ1（圓最右點）超過台灣容許虛線即近支承主拉超限（靠箍筋）。皆為向量，列印清晰。</div>
 </div>
 
 <div class="sub no-print">輸入改變→全部即時重算（Alpine 反應式）。預設＝40m 參考橋（HS20-44/8組×19股）重現 golden。Ctrl+P 列印計算書。</div>
@@ -183,20 +191,40 @@ function calc(){
       var np=rows.filter(function(r){return r[3]===true}).length, nt=rows.filter(function(r){return r[3]!==null}).length;
       // 對齊 golden? (40m 參考輸入)
       var mg=(this.L===40&&this.ntd===8&&this.strands===19&&this.fc===40&&Math.abs(serv.sb+0.91)<0.05);
-      // 參數化 SVG 斷面
-      var sc=0.16, W=this.topW*sc, ox=40, oy=20, hh=this.h*sc;
-      var cx=ox+W/2, tendY=oy+(sec.yt+this.e)*sc;
-      var svg='<rect x="'+ox+'" y="'+oy+'" width="'+W+'" height="'+hh+'" fill="#eef2ff" stroke="#1d4ed8" stroke-width="1.2"/>'+
-        '<rect x="'+(ox+(this.topW-this.botW)/2*sc)+'" y="'+(oy+hh-this.botT*sc)+'" width="'+(this.botW*sc)+'" height="'+(this.botT*sc)+'" fill="#c7d2fe"/>'+
-        '<circle cx="'+cx+'" cy="'+tendY+'" r="3.5" fill="#dc2626"/>'+
-        '<text x="'+cx+'" y="'+(tendY+12)+'" font-size="8" fill="#dc2626" text-anchor="middle">鋼腱 e='+this.e+'</text>';
+      // ── 參數化工程圖（SVG，向量・可列印・綁 computed 值）──
+      var f1=function(n){return (+n).toFixed(1)};
+      // ① 箱型斷面（頂板/2腹板/底板 + 形心 + 鋼腱偏心）
+      var ss=0.022, oxs=20, oys=14, Tw=this.topW*ss, Bw=this.botW*ss, H=this.h*ss, wt=this.webT*ss;
+      var lwx=oxs+(this.topW-this.botW)/2*ss, rwx=oxs+(this.topW+this.botW)/2*ss-wt;
+      var yC=oys+(this.h-sec.yb)*ss, yTen=oys+(sec.yt+this.e)*ss, cxs=oxs+Tw/2, cellTop=oys+this.topT*ss, cellH=H-this.topT*ss-this.botT*ss;
+      var svgSec='<rect x="'+oxs+'" y="'+oys+'" width="'+Tw+'" height="'+(this.topT*ss)+'" fill="#dbeafe" stroke="#1d4ed8"/>'+
+        '<rect x="'+lwx+'" y="'+cellTop+'" width="'+wt+'" height="'+cellH+'" fill="#dbeafe" stroke="#1d4ed8"/>'+
+        '<rect x="'+rwx+'" y="'+cellTop+'" width="'+wt+'" height="'+cellH+'" fill="#dbeafe" stroke="#1d4ed8"/>'+
+        '<rect x="'+lwx+'" y="'+(oys+H-this.botT*ss)+'" width="'+Bw+'" height="'+(this.botT*ss)+'" fill="#dbeafe" stroke="#1d4ed8"/>'+
+        '<line x1="'+(oxs-5)+'" y1="'+yC+'" x2="'+(oxs+Tw+5)+'" y2="'+yC+'" stroke="#16a34a" stroke-dasharray="3 2"/><text x="'+(oxs+Tw+7)+'" y="'+(yC+3)+'" font-size="7" fill="#16a34a">形心</text>'+
+        '<line x1="'+cxs+'" y1="'+yC+'" x2="'+cxs+'" y2="'+yTen+'" stroke="#dc2626"/><circle cx="'+cxs+'" cy="'+yTen+'" r="3" fill="#dc2626"/><text x="'+(cxs+6)+'" y="'+(yTen+3)+'" font-size="7" fill="#dc2626">鋼腱 e='+this.e+'</text>';
+      // ② C1 服務性應力分布（壓左拉右；σb 越過零線=拉=超限）
+      var sH=110, sox=34, soy=14, zx=sox+72, pps=6, ptx=zx+serv.st*pps, pbx=zx+serv.sb*pps;
+      var svgStr='<line x1="'+sox+'" y1="'+soy+'" x2="'+sox+'" y2="'+(soy+sH)+'" stroke="#999"/><text x="'+(sox-3)+'" y="'+(soy+4)+'" font-size="7" fill="#999" text-anchor="end">頂</text><text x="'+(sox-3)+'" y="'+(soy+sH)+'" font-size="7" fill="#999" text-anchor="end">底</text>'+
+        '<line x1="'+zx+'" y1="'+(soy-4)+'" x2="'+zx+'" y2="'+(soy+sH+4)+'" stroke="#888" stroke-dasharray="2 2"/><text x="'+zx+'" y="'+(soy+sH+15)+'" font-size="7" fill="#888" text-anchor="middle">σ=0（拉→）</text>'+
+        '<path d="M'+zx+','+soy+' L'+ptx+','+soy+' L'+pbx+','+(soy+sH)+' L'+zx+','+(soy+sH)+'Z" fill="#3b82f6" fill-opacity="0.22" stroke="#1d4ed8" stroke-width="1.2"/>'+
+        '<text x="'+ptx+'" y="'+(soy-2)+'" font-size="8" fill="#1d4ed8" text-anchor="middle">σt '+f1(serv.st)+'</text>'+
+        '<text x="'+pbx+'" y="'+(soy+sH+15)+'" font-size="8" fill="'+(serv.sb<=0?'#1d4ed8':'#dc2626')+'" text-anchor="middle">σb '+f1(serv.sb)+(serv.sb<=0?'壓✓':'拉✗')+'</text>';
+      // ③ D1 莫耳圓（主拉 σ1 vs 台灣容許）
+      var mcx=120, mcy=72, ms=7, mc=-sh.fpc/2, mr=Math.sqrt(Math.pow(sh.fpc/2,2)+sh.tau*sh.tau);
+      var svgMohr='<line x1="28" y1="'+mcy+'" x2="212" y2="'+mcy+'" stroke="#999"/><text x="213" y="'+(mcy-3)+'" font-size="7" fill="#999">σ</text>'+
+        '<line x1="'+mcx+'" y1="18" x2="'+mcx+'" y2="126" stroke="#999"/><text x="'+(mcx+3)+'" y="22" font-size="7" fill="#999">τ</text>'+
+        '<circle cx="'+(mcx+mc*ms)+'" cy="'+mcy+'" r="'+(mr*ms)+'" fill="#1d4ed8" fill-opacity="0.06" stroke="#1d4ed8" stroke-width="1.4"/>'+
+        '<line x1="'+(mcx+sh.sigma1_limit*ms)+'" y1="'+(mcy-30)+'" x2="'+(mcx+sh.sigma1_limit*ms)+'" y2="'+(mcy+30)+'" stroke="#dc2626" stroke-dasharray="3 2"/><text x="'+(mcx+sh.sigma1_limit*ms)+'" y="'+(mcy+40)+'" font-size="7" fill="#dc2626" text-anchor="middle">限 '+f1(sh.sigma1_limit)+'</text>'+
+        '<circle cx="'+(mcx+sh.sigma1*ms)+'" cy="'+mcy+'" r="3" fill="#dc2626"/><text x="'+(mcx+sh.sigma1*ms)+'" y="'+(mcy-7)+'" font-size="8" fill="#dc2626" text-anchor="middle">σ1='+f1(sh.sigma1)+'</text>';
       // 連續梁中墩（延伸：40+40 兩跨，負彎矩控制斷面）
       var ftP=B.flexuralStrengthT(this.contApsTop,1860,this.fc,1400,200,700,1950,this.contMuP);
       var M2mid=B.secondaryMoment(8320,B.primaryMoment([[23700,0.950],[12557,-0.300]]));
       var M2pier=B.secondaryMoment(-10594,B.primaryMoment([[23700,-0.080],[12557,0.900]]));
       var cont={ftP:ftP,M2mid:M2mid,M2pier:M2pier,f:f};
       return {sec:sec,wsw:wsw,Mdc:Mdc,Mdw:Mdw,IM:IM,perLane:perLane,Mll:Mll,loss:loss,
-              rows:rows,npass:np,ntot:nt,matchGolden:mg,svg:svg,cont:cont};
+              rows:rows,npass:np,ntot:nt,matchGolden:mg,cont:cont,
+              svgSec:svgSec,svgStr:svgStr,svgMohr:svgMohr};
     }
   };
 }

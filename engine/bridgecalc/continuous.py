@@ -75,10 +75,12 @@ def flexural_strength_T(Aps: float, fpu: float, fc: float,
 
 
 def pier_service_stress(Pe: float, section: Section, e: float, M_ext_kNm: float):
-    """連續梁墩斷面服務性應力（壓為負）。e 形心上為正（負彎矩區頂板 PT）。
+    """連續梁墩斷面服務性應力（壓為負）。
 
-    σ_t = −Pe/A + Pe·e/St − M_ext/St ；σ_b = −Pe/A − Pe·e/Sb + M_ext/Sb。
-    M_ext 含 M2（= M_DL+M_LL+M2）。回傳 (σ_t, σ_b)。
+    e 慣例同 service.stresses()：**形心下為正**；負彎矩區頂板 PT 在形心上 → e 取負。
+    M_ext 為外力彎矩（含 M2 = M_DL+M_LL+M2），負彎矩（hogging）取負值。
+    σ_t = −Pe/A + Pe·e/St − M_ext/St ；σ_b = −Pe/A − Pe·e/Sb + M_ext/Sb。回傳 (σ_t, σ_b)。
+    例：B 墩 Pe=36,257kN、e=−259（頂板PT合力形心上）、M_ext=−41,080 → σ_b=−19.97 MPa（壓，超18）。
     """
     M = M_ext_kNm * 1e6
     st = -Pe / section.A + Pe * e / section.St - M / section.St

@@ -20,7 +20,17 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         torsion_check, slab_flexure, As_min_slab, temp_gradient_AASHTO,
                         bearing_check, anchorage_check, spiral_local_bearing, expansion_joint,
                         ThermalBand, self_equilibrating_stress, thermal_service_check,
-                        secondary_moment, primary_moment, flexural_strength_T)
+                        secondary_moment, primary_moment, flexural_strength_T, pier_service_stress,
+                        tendon_profile, general_zone_burst, node_capacity, f_cu,
+                        grout_qc_check, rebar_stress_limit, pc_fatigue_limit,
+                        design_life, GROUT, batched_transfer, stage_stress,
+                        transfer_tension_limit, variable_depth, cantilever_moment,
+                        long_term_deflection, launching_cantilever_moment,
+                        launching_span_moment, centric_prestress_required,
+                        launching_bottom_stress, n_tendons, jacking_force, bearing_stress,
+                        segment_weight, joint_min_prestress, joint_compression,
+                        shear_key_design_capacity, shear_key_utilization, bonded_pt_ratio,
+                        min_tendon_groups, required_drape, min_section_modulus_Sb)
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -272,6 +282,10 @@ def test_continuous_pier():
     # 對照：簡支跨中正彎矩同公式 → 矩形(翼板內)、CR>1
     fr = flexural_strength_T(21280, 1860, 40, 8000, 250, 700, 1880, 48965)
     assert not fr.flanged and fr.CR > 1
+    # B 墩服務性底緣（雙控之二）：Pe=36,257(底+頂)、e=-259(頂板PT形心上)、M_ext=-41,080
+    _, sb_pier = pier_service_stress(36257e3, sec, -259, -41080)
+    _close(sb_pier, -19.97, 0.05)              # 壓 19.97 > 0.45f'c=18（1.11 倍）
+    assert sb_pier < -18.0                      # 超限 → B 墩底緣為控制斷面
 
 
 def test_moment_envelope():
@@ -310,6 +324,139 @@ def test_load_standard_drives_strand_count():
     assert L19.Pe < Pe_min_zero_tension(sec, ten.e, M_HL93)       # → HL-93 需 21 股
     _, sb_hs20 = stresses(L19.Pe, sec, ten.e, combinations(M_DC, M_DW, M_LL_IM)["Service_I"])
     assert sb_hs20 <= 0                                           # HS20-44 下底緣全壓（19 股足夠）
+
+
+def test_tendon_profile_G1():
+    """G1 鋼腱線形（8組×21股 HL-93 KB敘述軌，對齊算例_鋼腱線形設計）：
+    w_eq=8Pa/L²、LBR、θ_end=4a/L、R=L²/8a、單/雙端摩擦損失。
+    w_DL=8(M_DC+M_DW)/L²=144 kN/m 與參考橋自洽。"""
+    ten21 = Tendon(8, 21, 1109)                          # HL-93 增配股數
+    Pe21 = compute_losses(ten21, sec, M_DC, M_DW).Pe
+    w_DL = 8 * (M_DC + M_DW) * 1e6 / 40000 ** 2          # N/mm = 144
+    g = tendon_profile(ten21.Pi, Pe21, a=1109, L=40000, w_DL=w_DL)
+    _close(g.theta_end, 0.111, 0.001)
+    _close(g.R / 1000, 180.3, 0.5)                       # m
+    _close(g.w_eq_transfer, 181.9, 0.5)                  # kN/m
+    _close(g.w_eq_service, 141.8, 0.5)
+    _close(w_DL, 144.0, 0.1)
+    _close(g.LBR_transfer, 1.263, 0.01)
+    _close(g.LBR_service, 0.985, 0.01)
+    _close(g.fric_single_end, 0.161, 0.002)             # 單端、遠端
+    _close(g.fric_dual_mid, 0.084, 0.002)               # 雙端、跨中
+    assert g.R_ok                                        # R 180m >> R_min 3m
+
+
+def test_stm_F2():
+    """F2 STM 端橫隔版 General Zone（參考橋 8組×19股，對齊算例_STM端橫隔版設計）：
+    T_burst=0.25ΣP(1−a/h)、d_burst、爆裂鋼筋 As、主壓桿 β 等級、CCT 節點承壓。"""
+    Pe = compute_losses(ten, sec, M_DC, M_DW).Pe       # ≈23,720 kN
+    P_web = 14850e3                                     # 單腹板 4 組 × 3,713 kN
+    r = general_zone_burst(P_web=P_web, a=1050, h=2100, e_anc=150,
+                           Pe=Pe, Ac=sec.A, A_cs_strut=540000,
+                           strut_force=12830e3, fc=40, fy=420)
+    _close(r.sigma_pe, 4.68, 0.02)                      # Pe/Ac MPa
+    _close(r.T_burst / 1e3, 1856, 5)                    # kN（單腹板）
+    _close(r.d_burst, 900, 1)                           # mm
+    _close(r.As_burst, 4911, 5)                         # mm²
+    assert r.beta_strut_required == "confined"          # 主壓桿需 β=1.0 橫向束制
+    assert r.strut_ok
+    _close(f_cu(40, 0.80), 27.2, 0.1)                   # CCT 節點 f_cu
+    _close(node_capacity(40, "CCT", 90000) / 1e3, 1714, 5)  # 節點 A φF_nn kN
+
+
+def test_durability_N1():
+    """N1 耐久性：灌漿驗收門檻（道示 17.6.6）、100年鋼筋應力限值（6.2.2/6.3.2）、
+    PC疲勞 min(0.6Pu,0.75Py)、設計年限。standalone 卡，golden 取卡片 codified 限值。"""
+    assert GROUT["w_c_max"] == 0.45 and GROUT["f28_min"] == 30.0
+    assert GROUT["bleed_max_pct"] == 0.0 and GROUT["chloride_max_pct"] == 0.08
+    assert grout_qc_check(0.40, 35, 0.0, 0.3, 0.05).all_ok            # 合格灌漿
+    bad = grout_qc_check(0.50, 28, 1.0, 0.8, 0.10)
+    assert (not bad.all_ok) and len(bad.failed) == 5                  # 全 5 項不合格
+    assert rebar_stress_limit("常時") == 100.0
+    assert rebar_stress_limit("疲勞_一般") == 180.0
+    assert rebar_stress_limit("疲勞_床版翼緣") == 120.0
+    _close(pc_fatigue_limit(1860, 1674), 1116.0, 0.1)                 # min(1116, 1255.5)
+    assert design_life("AASHTO") == 75 and design_life("日本") == 100
+    assert design_life("台灣") == (50, 100)
+
+
+def test_construction_stage_H1H2():
+    """H1/H2 施工階段（參考橋 8組×19股，對齊算例_40m參考橋施工階段應力歷程）：
+    支架上施拉 M_sw=0 → 過平衡頂緣引張；全PT 超限、分批4組通過；脫架自重活化回壓。"""
+    _close(transfer_tension_limit(32), 1.41, 0.01)
+    s8 = batched_transfer(29700e3, 8, 8, sec, 1109, 32)        # S2 全 PT
+    _close(s8.sigma_top, 1.86, 0.02)
+    _close(s8.sigma_bot, -19.18, 0.05)
+    assert (not s8.top_ok) and s8.bot_ok                       # 頂超限、底剛好過 fci32
+    s4 = batched_transfer(29700e3, 4, 8, sec, 1109, 32)        # S2 分批 4 組
+    _close(s4.sigma_top, 0.93, 0.02)
+    _close(s4.sigma_bot, -9.59, 0.05)
+    assert s4.top_ok and s4.bot_ok                             # 分批解決
+    s3 = stage_stress(29700e3, sec, 1109, 24800, 32)           # S3 脫架（自重活化）
+    _close(s3.sigma_top, -3.96, 0.03)
+    _close(s3.sigma_bot, -9.15, 0.03)
+    assert s3.sigma_top < 0 and s3.sigma_bot < 0               # 全斷面回壓
+
+
+def test_cantilever_H3():
+    """H3 平衡懸臂（80+80m 變深連續梁，對齊算例_懸臂工法施工階段設計）：
+    變深 h(x)、逐步懸臂彎矩 Σ(G·arm)+掛籃、長期下撓 δ(1+φ)。"""
+    # 變深 h(x)=2.2+2.3(x/40)²，端點驗證
+    _close(variable_depth(0, 4.5, 2.2, 40), 2.20, 0.001)    # 跨中 = h_mid
+    _close(variable_depth(40, 4.5, 2.2, 40), 4.50, 0.001)   # 墩 = h_pier
+    _close(variable_depth(20, 4.5, 2.2, 40), 2.775, 0.001)
+    # 逐步懸臂彎矩（例中力臂：自重對 x=4、掛籃對墩 CL 40.5）
+    w = [643, 599, 550, 497, 439, 385, 353, 341]
+    a = [x - 4 for x in [6.75, 11.25, 15.75, 20.25, 24.75, 29.25, 33.75, 38.25]]
+    _close(cantilever_moment(w, a), 61661, 40)              # 自重項（算例 61,625，累積捨入）
+    _close(cantilever_moment(w, a, 800, 40.5), 94061, 40)   # +掛籃（算例公布 94,025）
+    # 長期下撓 δ(1+φ)
+    _close(long_term_deflection(147, 2.0), 441, 1)
+
+
+def test_launching_H4():
+    """H4 推進 ILM（40m等跨等深，對齊算例_推進工法施工設計）：推進彎矩包絡、
+    臨時置中預力(e=0)、底緣殘餘壓、束數、頂推力、滑動支承支壓。"""
+    w, L, Lc = 120.0, 40.0, 14.0
+    A, Zb = 4.870e6, 3.093e9
+    _close(launching_cantilever_moment(w, Lc), -11760, 5)      # M⁻ 懸臂
+    _close(launching_span_moment(w, L), 24000, 5)              # M⁺ 跨中
+    Mpos = launching_span_moment(w, L)
+    Pc = centric_prestress_required(Mpos, Zb, A, sigma_res=1.5)
+    _close(Pc, 45094, 10)                                      # 算例公布 45,100
+    assert n_tendons(Pc, 2510) == 18                           # ⌈45,094/2,510⌉
+    _close(launching_bottom_stress(45100, A, Mpos, Zb), -1.50, 0.02)  # 底緣恰餘 1.5 壓
+    _close(jacking_force(0.10, 120 * 200), 2400, 1)            # μ_s·W_total
+    _close(bearing_stress(7200, 960000), 7.50, 0.02)           # 擴大後 < 8.38 ✓
+
+
+def test_segmental_H5H6():
+    """H5 預鑄節塊 + H6 接縫（對齊算例_預鑄節塊工法施工設計 / 算例_節塊接縫設計）：
+    節塊重、拼裝期接縫壓、剪力鍵設計承載與 LS3 驗核、黏結 PT 比例。"""
+    # H5（40m SBS，Ac=4.20m²）
+    _close(segment_weight(4.20, 2.5, 25), 262.5, 0.5)              # 26.3t ≤ 30t
+    _close(joint_min_prestress(4.20e6), 882, 1)                   # 0.21×Ac
+    _close(joint_compression(4 * 480, 4.20e6), 0.457, 0.003)      # 4 束置中 PT
+    # H6（80m BCM，Ac=2.85m²，道示 V_fuk·ξ 法）
+    _close(joint_min_prestress(2.85e6), 598.5, 1)
+    Vkey = shear_key_design_capacity(350, 0.439)                  # 台形鍵
+    _close(Vkey, 153.65, 0.2)
+    _close(shear_key_utilization(2850, 20, Vkey), 0.93, 0.01)     # (V_sd/20鍵)/V_key
+    _close(bonded_pt_ratio(14000, 42500), 0.329, 0.003)          # ≥0.30 ✓
+
+
+def test_design_inverse():
+    """階段 4 反解設計庫：設計=驗算之逆，閉環對齊 40m 參考橋（純 Python 零相依）。"""
+    Pe_min = Pe_min_zero_tension(sec, ten.e, combinations(M_DC, M_DW, M_LL_IM)["Service_I"])
+    L = compute_losses(ten, sec, M_DC, M_DW)
+    assert min_tendon_groups(Pe_min, 19, L.fpe) == 8          # 反解組數 = 實際 8 組（閉環）
+    Pe21 = compute_losses(Tendon(8, 21, 1109), sec, M_DC, M_DW).Pe
+    w_DL = 8 * (M_DC + M_DW) * 1e6 / 40000 ** 2
+    _close(required_drape(0.985, w_DL, 40000, Pe21), 1109, 2)  # 反解垂度 = e_m（閉環）
+    M_serv = combinations(M_DC, M_DW, M_LL_IM)["Service_I"]
+    Sb_min = min_section_modulus_Sb(L.Pe, sec.A, ten.e, M_serv, 0.0)
+    assert sec.Sb >= Sb_min                                    # 實際斷面足夠（Sb ≥ Sb_min）
+    _close(Sb_min / 1e9, 1.992, 0.01)                          # 與 Pe_min 為 σ_b=0 同式對偶
 
 
 if __name__ == "__main__":

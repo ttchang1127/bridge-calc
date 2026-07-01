@@ -19,7 +19,14 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         hl93_per_lane_moment, fatigue_check, stirrup_fatigue,
                         torsion_check, slab_flexure, bearing_check, expansion_joint,
                         anchorage_check, spiral_local_bearing, ThermalBand,
-                        self_equilibrating_stress, thermal_service_check, allowables)
+                        self_equilibrating_stress, thermal_service_check, allowables,
+                        batched_transfer, stage_stress, transfer_tension_limit,
+                        variable_depth, cantilever_moment, long_term_deflection,
+                        launching_cantilever_moment, launching_span_moment,
+                        centric_prestress_required, launching_bottom_stress, n_tendons,
+                        jacking_force, bearing_stress, segment_weight, joint_min_prestress,
+                        joint_compression, shear_key_design_capacity, shear_key_utilization,
+                        bonded_pt_ratio)
 
 # ── 40m 參考橋（台灣 HS20-44、8組×19股最小設計）──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -59,6 +66,26 @@ tbandA = [ThermalBand(0, 250, 11000*250, 12.58), ThermalBand(250, 300, 700*50, 6
 tgA = self_equilibrating_stress(tbandA, sec.I, sec.h - sec.yb, sec.h,
                                 [("底板底", 2100, 0.0)], Ec=29700)
 tgA_serv, tgA_ok = thermal_service_check(tgA.sigma_neg["底板底"], sb, 0.5)
+
+# ── 施工階段 H1/H2（支架上施拉，40m 參考橋，fci=32）──
+h_full = batched_transfer(ten.Pi, 8, 8, sec, ten.e, 32)      # S2 全 PT（M_sw=0）
+h_batch = batched_transfer(ten.Pi, 4, 8, sec, ten.e, 32)     # S2 分批 4 組
+h_strike = stage_stress(ten.Pi, sec, ten.e, M_DC, 32)        # S3 脫架（自重活化）
+tt_lim = transfer_tension_limit(32)                          # 0.25√fci
+# ── 其他施工工法概要（各自參考橋，非 40m 簡支橋）──
+h3_Mmax = cantilever_moment([643, 599, 550, 497, 439, 385, 353, 341],
+                            [x - 4 for x in [6.75, 11.25, 15.75, 20.25, 24.75, 29.25, 33.75, 38.25]],
+                            800, 40.5)                        # 80+80m 懸臂
+h3_dLT = long_term_deflection(147, 2.0)
+h4_Mpos = launching_span_moment(120.0, 40.0)                 # 40m ILM
+h4_Mneg = launching_cantilever_moment(120.0, 14.0)
+h4_Pc = centric_prestress_required(h4_Mpos, 3.093e9, 4.870e6, 1.5)
+h4_sb = launching_bottom_stress(45100, 4.870e6, h4_Mpos, 3.093e9)
+h5_Wseg = segment_weight(4.20, 2.5, 25)                       # 40m SBS
+h5_sig = joint_compression(4 * 480, 4.20e6)
+h6_Vkey = shear_key_design_capacity(350, 0.439)              # 80m BCM
+h6_util = shear_key_utilization(2850, 20, h6_Vkey)
+h6_bond = bonded_pt_ratio(14000, 42500)
 
 
 def chk(ok):
@@ -215,6 +242,33 @@ sec14 = f"""<p>非線性溫度剖面強迫斷面維持平面 → 斷面自我約
 <br>對照標準算例 T1（<b>自含斷面 h=2,000、σ_base 取無預力 +1.2</b>）得 +2.00 MPa 拉「控制工況」——該值為自含斷面 + 無預力假設下的<b>保守 illustration</b>；配置 A 頂板較薄使 T<sub>L</sub> 由 39.6→{tgA.TL:.1f}°C，且真實底緣全壓，故實際參考橋不控制。連續梁中墩另案（次彎矩 M₂T）。</p>"""
 sections.append(("十四、溫度梯度自平衡應力（T1，已接引擎服務性）", sec14))
 
+r_h2 = row("S2 分批 4 組頂緣（支架上施拉，自重未活化）", r"\sigma_t=-\frac{P}{A}+\frac{P\,e}{S_t}",
+           "-2.93+3.86", f"{h_batch.sigma_top:+.2f}{MPa}",
+           f"≤ {tt_lim:.2f}（0.25√f'ci 施拉容許拉）", h_batch.top_ok, "H1/H2")
+sec15 = f"""<p>梁在支架／托架上施拉時自重彎矩尚未活化（M<sub>sw</sub>=0），預力大偏心 e={ten.e:,.0f} mm 使頂緣淨受拉（過平衡 LBR&gt;1）。同 40m 參考橋（8組×19股、P<sub>i</sub>={ten.Pi/1e3:,.0f} kN、f'ci=32）。</p>
+<table class="props">
+<tr><td>S2 全 PT 頂緣</td><td>{h_full.sigma_top:+.2f} MPa &gt; {tt_lim:.2f} <b>超限</b> {chk(h_full.top_ok)}</td><td>S2 全 PT 底緣</td><td>{h_full.sigma_bot:+.2f} MPa（≥ −19.2）{chk(h_full.bot_ok)}</td></tr>
+<tr><td>S2 分批 4 組頂緣</td><td>{h_batch.sigma_top:+.2f} MPa {chk(h_batch.top_ok)}</td><td>S2 分批 4 組底緣</td><td>{h_batch.sigma_bot:+.2f} MPa {chk(h_batch.bot_ok)}</td></tr>
+<tr><td>S3 脫架頂緣（自重活化）</td><td>{h_strike.sigma_top:+.2f} MPa（回壓）</td><td>S3 脫架底緣</td><td>{h_strike.sigma_bot:+.2f} MPa</td></tr>
+</table>
+{r_h2}
+<p class="note">全 PT 一次張拉頂緣超限（{h_full.sigma_top:+.2f} &gt; {tt_lim:.2f}）→ <b>分批 4 組</b>降瞬時預力、其餘待脫架後再張；脫架自重 M<sub>DC</sub>={M_DC:,.0f} kN·m 活化 → 頂緣翻為 {h_strike.sigma_top:+.2f} 全壓。對齊算例_40m參考橋施工階段應力歷程。</p>"""
+sections.append(("十五、施工階段應力 — 全支撐／移動模架（H1／H2）", sec15))
+
+sec16 = f"""<p class="note">⚠️ 下列工法各採<b>自身參考橋</b>（非本 40m 簡支橋），僅摘要引擎驗算之關鍵結果供工法對照；完整驗算見各對應算例。</p>
+<table class="props">
+<tr><td colspan="4"><b>H3 平衡懸臂（80+80m 變深連續梁 h<sub>pier</sub>4.5／h<sub>mid</sub>2.2 m）</b></td></tr>
+<tr><td>最大懸臂彎矩</td><td>{h3_Mmax:,.0f} kN·m（Σ節塊+掛籃，墩面）</td><td>長期下撓</td><td>δ(1+φ)=147×3={h3_dLT:.0f} mm</td></tr>
+<tr><td colspan="4"><b>H4 推進 ILM（40m 等跨等深 A=4.870 m²）</b></td></tr>
+<tr><td>推進彎矩包絡</td><td>M⁻={h4_Mneg:,.0f}／M⁺={h4_Mpos:,.0f} kN·m</td><td>臨時置中預力（e=0）</td><td>P<sub>c</sub>={h4_Pc:,.0f} kN → 底緣 {h4_sb:+.2f} MPa</td></tr>
+<tr><td colspan="4"><b>H5 預鑄節塊 SBS（40m Ac=4.20 m²）</b></td></tr>
+<tr><td>節塊自重</td><td>{h5_Wseg:.1f} kN（26.3 t ≤ 30 t）{chk(h5_Wseg<=294)}</td><td>拼裝期接縫壓</td><td>{h5_sig:.3f} MPa ≥ 0.21 {chk(h5_sig>=0.21)}</td></tr>
+<tr><td colspan="4"><b>H6 節塊接縫 BCM（80m 主跨，道示 V<sub>fuk</sub>·ξ 法）</b></td></tr>
+<tr><td>剪力鍵設計承載</td><td>{h6_Vkey:.1f} kN/鍵（台形鍵）</td><td>LS3 驗核比／黏結PT</td><td>{h6_util:.2f} ≤ 1 {chk(h6_util<=1)}／{h6_bond*100:.0f}% ≥ 30% {chk(h6_bond>=0.30)}</td></tr>
+</table>
+<p class="note">六種施工工法（H1–H6）皆已納入 bridgecalc 引擎（construction／launching／segmental 模組），各對齊對應 verified 算例。</p>"""
+sections.append(("十六、其他施工工法概要（H3–H6，各自參考橋）", sec16))
+
 body = "".join(f'<section><h2>{t}</h2>{html}</section>' for t, html in sections)
 allpass = (sb <= 0 and st >= allowables.comp_service(40) and L.Pe >= pem
            and sh.sigma1_ok is False and fx.ok and df.d_LL_ok)
@@ -243,7 +297,7 @@ table.props td{{padding:4px 8px;border:0.5px solid #e5e7eb}} table.props td:nth-
 </style></head><body>
 <div class="hdr"><h1>40m 後張預力混凝土箱梁　設計計算書</h1>
 <div class="meta">單跨簡支 L=40m｜f'c=40 MPa｜鋼腱 8組×19股（HS20-44 最小設計）｜2 設計車道 台灣 HS20-44｜
-由 bridgecalc 計算引擎自動產生・回歸驗證 23/23・14 檢核章節</div></div>
+由 bridgecalc 計算引擎自動產生・回歸驗證 32/32・16 章節（含施工 H1–H6）</div></div>
 {body}
 <div class="summary">設計結論：服務性底緣全壓（{sb:+.2f} MPa）、強度 CR={fx.CR:.2f}、剪力 φVn>Vu、撓度<L/800 ——
 跨中各項通過（主拉超限為近支承常態、由箍筋承力）。連續梁中墩另案。</div>

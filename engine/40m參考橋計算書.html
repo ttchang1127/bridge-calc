@@ -22,7 +22,7 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
 </style></head><body>
 <div class="hdr"><h1>40m 後張預力混凝土箱梁　設計計算書</h1>
 <div class="meta">單跨簡支 L=40m｜f'c=40 MPa｜鋼腱 8組×19股（HS20-44 最小設計）｜2 設計車道 台灣 HS20-44｜
-由 bridgecalc 計算引擎自動產生・回歸驗證 23/23・14 檢核章節</div></div>
+由 bridgecalc 計算引擎自動產生・回歸驗證 32/32・16 章節（含施工 H1–H6）</div></div>
 <section><h2>一、斷面性質（A1）</h2><table class="props">
 <tr><td>斷面積 A</td><td>5,065,000 mm²</td><td>慣性矩 I</td><td>3.287e+12 mm⁴</td></tr>
 <tr><td>形心距底 ȳ_b</td><td>1,329 mm</td><td>形心距頂 ȳ_t</td><td>771 mm</td></tr>
@@ -155,7 +155,30 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
 <tr><td>負梯度 Service（底板底，含預力）</td><td>σ<sub>服務,底</sub>(-0.91) + 0.5×0.21 = <b>-0.81 MPa</b>　<span class="ok">✓ OK</span>（台灣 ≤ 0）</td></tr>
 </table>
 <p class="note">★ <b>接引擎服務性後通過（-0.81 MPa 壓）</b>：底緣 -0.91 的預力餘裕吸收負梯度熱應力。
-<br>對照標準算例 T1（<b>自含斷面 h=2,000、σ_base 取無預力 +1.2</b>）得 +2.00 MPa 拉「控制工況」——該值為自含斷面 + 無預力假設下的<b>保守 illustration</b>；配置 A 頂板較薄使 T<sub>L</sub> 由 39.6→14.4°C，且真實底緣全壓，故實際參考橋不控制。連續梁中墩另案（次彎矩 M₂T）。</p></section>
+<br>對照標準算例 T1（<b>自含斷面 h=2,000、σ_base 取無預力 +1.2</b>）得 +2.00 MPa 拉「控制工況」——該值為自含斷面 + 無預力假設下的<b>保守 illustration</b>；配置 A 頂板較薄使 T<sub>L</sub> 由 39.6→14.4°C，且真實底緣全壓，故實際參考橋不控制。連續梁中墩另案（次彎矩 M₂T）。</p></section><section><h2>十五、施工階段應力 — 全支撐／移動模架（H1／H2）</h2><p>梁在支架／托架上施拉時自重彎矩尚未活化（M<sub>sw</sub>=0），預力大偏心 e=1,109 mm 使頂緣淨受拉（過平衡 LBR&gt;1）。同 40m 參考橋（8組×19股、P<sub>i</sub>=29,686 kN、f'ci=32）。</p>
+<table class="props">
+<tr><td>S2 全 PT 頂緣</td><td>+1.86 MPa &gt; 1.41 <b>超限</b> <span class="ng">✗ NG</span></td><td>S2 全 PT 底緣</td><td>-19.17 MPa（≥ −19.2）<span class="ok">✓ OK</span></td></tr>
+<tr><td>S2 分批 4 組頂緣</td><td>+0.93 MPa <span class="ok">✓ OK</span></td><td>S2 分批 4 組底緣</td><td>-9.59 MPa <span class="ok">✓ OK</span></td></tr>
+<tr><td>S3 脫架頂緣（自重活化）</td><td>-3.96 MPa（回壓）</td><td>S3 脫架底緣</td><td>-9.14 MPa</td></tr>
+</table>
+<div class="row">
+  <div class="rt">S2 分批 4 組頂緣（支架上施拉，自重未活化） <span class="cite">H1/H2</span></div>
+  <div class="eq">$$ \sigma_t=-\frac{P}{A}+\frac{P\,e}{S_t} $$</div>
+  <div class="eq sub">$$ = -2.93+3.86 = \boxed{+0.93\ MPa} $$</div>
+  <div class="chk">容許：≤ 1.41（0.25√f'ci 施拉容許拉）　<span class="ok">✓ OK</span></div>
+</div>
+<p class="note">全 PT 一次張拉頂緣超限（+1.86 &gt; 1.41）→ <b>分批 4 組</b>降瞬時預力、其餘待脫架後再張；脫架自重 M<sub>DC</sub>=24,800 kN·m 活化 → 頂緣翻為 -3.96 全壓。對齊算例_40m參考橋施工階段應力歷程。</p></section><section><h2>十六、其他施工工法概要（H3–H6，各自參考橋）</h2><p class="note">⚠️ 下列工法各採<b>自身參考橋</b>（非本 40m 簡支橋），僅摘要引擎驗算之關鍵結果供工法對照；完整驗算見各對應算例。</p>
+<table class="props">
+<tr><td colspan="4"><b>H3 平衡懸臂（80+80m 變深連續梁 h<sub>pier</sub>4.5／h<sub>mid</sub>2.2 m）</b></td></tr>
+<tr><td>最大懸臂彎矩</td><td>94,061 kN·m（Σ節塊+掛籃，墩面）</td><td>長期下撓</td><td>δ(1+φ)=147×3=441 mm</td></tr>
+<tr><td colspan="4"><b>H4 推進 ILM（40m 等跨等深 A=4.870 m²）</b></td></tr>
+<tr><td>推進彎矩包絡</td><td>M⁻=-11,760／M⁺=24,000 kN·m</td><td>臨時置中預力（e=0）</td><td>P<sub>c</sub>=45,094 kN → 底緣 -1.50 MPa</td></tr>
+<tr><td colspan="4"><b>H5 預鑄節塊 SBS（40m Ac=4.20 m²）</b></td></tr>
+<tr><td>節塊自重</td><td>262.5 kN（26.3 t ≤ 30 t）<span class="ok">✓ OK</span></td><td>拼裝期接縫壓</td><td>0.457 MPa ≥ 0.21 <span class="ok">✓ OK</span></td></tr>
+<tr><td colspan="4"><b>H6 節塊接縫 BCM（80m 主跨，道示 V<sub>fuk</sub>·ξ 法）</b></td></tr>
+<tr><td>剪力鍵設計承載</td><td>153.7 kN/鍵（台形鍵）</td><td>LS3 驗核比／黏結PT</td><td>0.93 ≤ 1 <span class="ok">✓ OK</span>／33% ≥ 30% <span class="ok">✓ OK</span></td></tr>
+</table>
+<p class="note">六種施工工法（H1–H6）皆已納入 bridgecalc 引擎（construction／launching／segmental 模組），各對齊對應 verified 算例。</p></section>
 <div class="summary">設計結論：服務性底緣全壓（-0.91 MPa）、強度 CR=1.42、剪力 φVn>Vu、撓度<L/800 ——
 跨中各項通過（主拉超限為近支承常態、由箍筋承力）。連續梁中墩另案。</div>
 <p class="note">本計算書數值由單一真理源 bridgecalc 產生，與知識庫算例 golden_answers.json 一致。</p>

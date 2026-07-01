@@ -19,7 +19,17 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         slab_flexure, As_min_slab, temp_gradient_AASHTO,
                         bearing_check, anchorage_check, spiral_local_bearing, expansion_joint,
                         ThermalBand, self_equilibrating_stress, thermal_service_check,
-                        secondary_moment, primary_moment, flexural_strength_T)
+                        secondary_moment, primary_moment, flexural_strength_T, pier_service_stress,
+                        tendon_profile, general_zone_burst, node_capacity, f_cu,
+                        grout_qc_check, rebar_stress_limit, pc_fatigue_limit, design_life, GROUT,
+                        batched_transfer, stage_stress, transfer_tension_limit,
+                        variable_depth, cantilever_moment, long_term_deflection,
+                        launching_cantilever_moment, launching_span_moment,
+                        centric_prestress_required, launching_bottom_stress,
+                        n_tendons, jacking_force, bearing_stress,
+                        segment_weight, joint_min_prestress, joint_compression,
+                        shear_key_design_capacity, shear_key_utilization, bonded_pt_ratio,
+                        min_tendon_groups, required_drape, min_section_modulus_Sb)
 
 sec = Section(5.065e6, 3.287e12, 1329, 2100)
 ten = Tendon(8, 19, 1109)                       # 台灣 HS20-44 最小設計（HL-93 才需增配 21 股）
@@ -36,6 +46,25 @@ df = deflection_analysis(40000, 29700, sec, 144, L.Pe, ten.e, w_LL_HS20)
 R_LL_HS20 = 290 * taiwan_per_lane_shear(40) / 588          # 支承活載反力 HS20/HL-93 縮放 ≈ 179
 an = anchorage_check(ten.Pi / 1e3, 8, 260, 2100, 4)
 sp = spiral_local_bearing(an.Pu, 2919, 8.47, 104044, 50, 380)   # 螺旋圍束 D16@50
+
+# ── 線形/STM/耐久/施工 擴充（本批，對齊各 verified 算例）──
+ten21 = Tendon(8, 21, 1109)                                     # G1 HL-93 敘述軌
+w_DL_g1 = 8 * (M_DC + M_DW) * 1e6 / 40000 ** 2                  # = 144 kN/m
+g1 = tendon_profile(ten21.Pi, compute_losses(ten21, sec, M_DC, M_DW).Pe, 1109, 40000, w_DL_g1)
+f2 = general_zone_burst(14850e3, 1050, 2100, 150, L.Pe, sec.A, 540000, 12830e3, 40, 420)
+h8 = batched_transfer(29700e3, 8, 8, sec, 1109, 32)            # S2 全 PT
+h4 = batched_transfer(29700e3, 4, 8, sec, 1109, 32)            # S2 分批 4 組
+h3s = stage_stress(29700e3, sec, 1109, 24800, 32)             # S3 脫架
+w_h3 = [643, 599, 550, 497, 439, 385, 353, 341]
+a_h3 = [x - 4 for x in [6.75, 11.25, 15.75, 20.25, 24.75, 29.25, 33.75, 38.25]]
+Mpos_h4 = launching_span_moment(120.0, 40.0)
+Pc_h4 = centric_prestress_required(Mpos_h4, 3.093e9, 4.870e6, 1.5)
+Vkey_h6 = shear_key_design_capacity(350, 0.439)
+# 反解設計庫（階段 4）：設計=驗算之逆，閉環對齊參考橋
+Pe_min_ref = Pe_min_zero_tension(sec, ten.e, c["Service_I"])
+d_ngroups = min_tendon_groups(Pe_min_ref, 19, L.fpe)
+d_drape = required_drape(0.985, w_DL_g1, 40000, compute_losses(ten21, sec, M_DC, M_DW).Pe)
+d_Sbmin = min_section_modulus_Sb(L.Pe, sec.A, ten.e, c["Service_I"], 0.0)
 
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
@@ -113,7 +142,10 @@ golden = {
         "M2_pier_kNm": round(secondary_moment(-10594, primary_moment([(23700,-0.080),(12557,0.900)]))),
         "pier_c_mm": round(ft.c), "pier_flanged": ft.flanged, "pier_fps_MPa": round(ft.fps),
         "pier_Mn_kNm": round(ft.Mn), "pier_CR": round(ft.CR,2), "pier_inadequate": not ft.ok,
-        "_note": "40+40連續梁中墩負彎矩T斷面(NA進腹板c=766);CR<<1為彙整最大控制工況,需大幅增頂板PT或補強"})
+        "pier_service_sigma_bot_MPa": round(pier_service_stress(36257e3, sec, -259, -41080)[1], 2),
+        "pier_service_limit_MPa": -18.0,
+        "pier_service_exceeds": pier_service_stress(36257e3, sec, -259, -41080)[1] < -18.0,
+        "_note": "40+40連續梁中墩負彎矩T斷面(NA進腹板c=766);CR<<1嚴重不足。B墩服務性:Pe=36,257(底23,700+頂12,557)、e=-259(頂板PT形心上)、M_ext=-41,080→σ_bot=-19.97>18(1.11倍)✗。中墩雙控(強度+服務),需大幅增頂板PT或加深斷面"})
         (flexural_strength_T(11292,1860,40,1400,200,700,1950,75337)),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
@@ -125,6 +157,75 @@ golden = {
              ThermalBand(300,400,700*100,2.5),ThermalBand(400,1900,700*1500,0),
              ThermalBand(1900,2100,5800*200,0)],
             sec.I, sec.h-sec.yb, sec.h, [("底板底",2100,0.0)], Ec=29700)),
+    "tendon_profile_G1": {
+        "config": "8組×21股 (HL-93 KB敘述軌)", "a_mm": 1109,
+        "theta_end_rad": round(g1.theta_end, 3), "R_m": round(g1.R / 1000, 1),
+        "w_eq_transfer_kNpm": round(g1.w_eq_transfer, 1), "w_eq_service_kNpm": round(g1.w_eq_service, 1),
+        "w_DL_kNpm": round(w_DL_g1, 1), "LBR_transfer": round(g1.LBR_transfer, 3),
+        "LBR_service": round(g1.LBR_service, 3), "friction_single_end": round(g1.fric_single_end, 3),
+        "friction_dual_mid": round(g1.fric_dual_mid, 3), "R_ok": g1.R_ok,
+        "_note": "拋物線等效荷載法 w_eq=8Pa/L²；對齊算例_鋼腱線形設計(8組×21股HL-93軌)；w_DL=8(M_DC+M_DW)/L²=144與參考橋自洽"},
+    "stm_F2": {
+        "config": "8組×19股 (參考橋, 端橫隔版 General Zone)",
+        "sigma_pe_MPa": round(f2.sigma_pe, 2), "T_burst_kN": round(f2.T_burst / 1e3),
+        "d_burst_mm": round(f2.d_burst), "As_burst_mm2": round(f2.As_burst),
+        "beta_strut_required": f2.beta_strut_required, "fcu_node_CCT_MPa": round(f_cu(40, 0.80), 1),
+        "node_A_CCT_phiFnn_kN": round(node_capacity(40, "CCT", 90000) / 1e3),
+        "_note": "AASHTO 5.9.5.6.3 General Zone T_burst=0.25ΣP(1−a/h)；對齊算例_STM端橫隔版設計(參考橋8組×19股)"},
+    "durability_N1": {
+        "config": "standalone 卡；codified 驗收門檻/限值",
+        "grout_w_c_max": GROUT["w_c_max"], "grout_f28_min_MPa": GROUT["f28_min"],
+        "grout_bleed_max_pct": GROUT["bleed_max_pct"], "grout_chloride_max_pct": GROUT["chloride_max_pct"],
+        "rebar_permanent_max_MPa": rebar_stress_limit("常時"),
+        "rebar_fatigue_general_max_MPa": rebar_stress_limit("疲勞_一般"),
+        "rebar_fatigue_deck_max_MPa": rebar_stress_limit("疲勞_床版翼緣"),
+        "pc_fatigue_rule": "min(0.60Pu, 0.75Py)", "design_life_TW": list(design_life("台灣")),
+        "design_life_AASHTO": design_life("AASHTO"), "design_life_JP": design_life("日本"),
+        "_note": "灌漿驗收 道示Ⅲ17.6.6(2)；100年應力限制 道示Ⅲ6.2.2/6.3.2；混凝土疲勞壓應力(表-6.3.5)canonical在C1(2026-07-01 NLM查證:箱形60→18.0/80→26.0,N1原誤已校正)"},
+    "construction_stage_H1H2": {
+        "config": "40m參考橋 8組×19股，支架/托架上施拉 fci=32",
+        "transfer_tension_limit_MPa": round(transfer_tension_limit(32), 2),
+        "S2_fullPT_top_MPa": round(h8.sigma_top, 2), "S2_fullPT_top_ok": h8.top_ok,
+        "S2_fullPT_bot_MPa": round(h8.sigma_bot, 2),
+        "S2_batch4_top_MPa": round(h4.sigma_top, 2), "S2_batch4_top_ok": h4.top_ok,
+        "S2_batch4_bot_MPa": round(h4.sigma_bot, 2),
+        "S3_strike_top_MPa": round(h3s.sigma_top, 2), "S3_strike_bot_MPa": round(h3s.sigma_bot, 2),
+        "_note": "H1/H2 支架上施拉自重未活化(M_sw=0)→過平衡頂緣引張；全PT超限→分批4組通過；脫架自重活化回壓。對齊算例_40m參考橋施工階段應力歷程"},
+    "cantilever_H3": {
+        "config": "80+80m 變深連續梁 h_pier4.5/h_mid2.2，8節塊/側",
+        "h_mid_m": round(variable_depth(0, 4.5, 2.2, 40), 2), "h_pier_m": round(variable_depth(40, 4.5, 2.2, 40), 2),
+        "h_at_x20_m": round(variable_depth(20, 4.5, 2.2, 40), 3),
+        "M_selfweight_about_x4_kNm": round(cantilever_moment(w_h3, a_h3)),
+        "M_cant_max_kNm": round(cantilever_moment(w_h3, a_h3, 800, 40.5)), "M_cant_max_published_kNm": 94025,
+        "delta_elastic_mm": 147, "delta_long_term_mm": round(long_term_deflection(147, 2.0)),
+        "_note": "變深h(x)端點2.2/4.5；懸臂彎矩Σ(G·arm)+掛籃；⚠️公布94,025掛籃項以墩CL、自重項以x=4(混用偏保守~4%)；長期下撓δ(1+φ)。對齊算例_懸臂工法施工階段設計"},
+    "launching_H4": {
+        "config": "40m等跨 ILM 推進，等深 h=2.2m A=4.870m² Zb=3.093e9mm³",
+        "M_cantilever_neg_kNm": round(launching_cantilever_moment(120.0, 14.0)),
+        "M_span_pos_kNm": round(Mpos_h4), "Pc_required_kN": round(Pc_h4), "Pc_published_kN": 45100,
+        "n_tendons": n_tendons(Pc_h4, 2510),
+        "sigma_bot_min_MPa": round(launching_bottom_stress(45100, 4.870e6, Mpos_h4, 3.093e9), 2),
+        "jacking_force_kN": round(jacking_force(0.10, 120 * 200)),
+        "bearing_stress_widened_MPa": round(bearing_stress(7200, 960000), 2),
+        "_note": "ILM 推進包絡 M⁻/M⁺；臨時置中預力(e=0)Pc=(M⁺/Zb+σ_res)·A→底緣恰餘1.5壓；頂推F=μ·W；支壓R/A。對齊算例_推進工法施工設計"},
+    "segmental_H5H6": {
+        "config": "H5 預鑄SBS 40m Ac=4.20m² + H6 接縫BCM 80m Ac=2.85m²",
+        "H5_segment_weight_kN": round(segment_weight(4.20, 2.5, 25), 1),
+        "H5_joint_min_prestress_kN": round(joint_min_prestress(4.20e6), 1),
+        "H5_joint_compression_4tendon_MPa": round(joint_compression(4 * 480, 4.20e6), 3),
+        "H6_joint_min_compression_kN": round(joint_min_prestress(2.85e6), 1),
+        "H6_shear_key_design_capacity_kN": round(Vkey_h6, 1),
+        "H6_LS3_utilization": round(shear_key_utilization(2850, 20, Vkey_h6), 2),
+        "H6_bonded_pt_ratio": round(bonded_pt_ratio(14000, 42500), 3),
+        "_note": "H5 節塊重Ac·L·γ/拼裝期接縫壓0.21；H6(道示法)剪力鍵V_fuk·ξ/LS3驗核比/黏結PT≥30%。對齊算例_預鑄節塊工法施工設計+算例_節塊接縫設計"},
+    "design_inverse": {
+        "config": "40m參考橋反解設計庫閉環（設計=驗算之逆）",
+        "Pe_min_zero_tension_kN": round(Pe_min_ref / 1e3),
+        "min_tendon_groups": d_ngroups,
+        "required_drape_LBR0985_mm": round(d_drape),
+        "min_Sb_zero_tension_e9mm3": round(d_Sbmin / 1e9, 3),
+        "actual_Sb_e9mm3": round(sec.Sb / 1e9, 3),
+        "_note": "階段4反解設計庫(純Python零相依,SymPy為推導輔助)：min_tendon_groups(Pe_min)=8=實際8組；required_drape(LBR0.985)=1109=e_m；min_Sb=1.992e9≤實際2.473e9(斷面足夠)。Pe_min與min_Sb為σ_b=0同式對偶。pint單位QA/SymPy驗證工具未安裝,屬開發期另檔,不進零相依runtime"},
 }
 
 if __name__ == "__main__":

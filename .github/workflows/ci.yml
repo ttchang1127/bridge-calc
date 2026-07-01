@@ -41,3 +41,12 @@ jobs:
         run: |
           git -c core.quotepath=false diff --exit-code -- 'engine/40m參考橋計算書.html' \
             || (echo "::error::40m參考橋計算書.html 過時，請本機跑 engine/make_calcbook.py 後再 commit" && exit 1)
+
+      - name: 重新產生連續梁計算書
+        working-directory: engine
+        run: python 連續梁中墩計算書.py
+
+      - name: 連續梁計算書新鮮度檢查（忘記重產則紅燈）
+        run: |
+          git -c core.quotepath=false diff --exit-code -- 'engine/連續梁中墩計算書.html' \
+            || (echo "::error::連續梁中墩計算書.html 過時，請本機跑 engine/連續梁中墩計算書.py 後再 commit" && exit 1)

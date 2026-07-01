@@ -126,7 +126,10 @@
     "pier_Mn_kNm": 31897,
     "pier_CR": 0.41,
     "pier_inadequate": true,
-    "_note": "40+40連續梁中墩負彎矩T斷面(NA進腹板c=766);CR<<1為彙整最大控制工況,需大幅增頂板PT或補強"
+    "pier_service_sigma_bot_MPa": -19.97,
+    "pier_service_limit_MPa": -18.0,
+    "pier_service_exceeds": true,
+    "_note": "40+40連續梁中墩負彎矩T斷面(NA進腹板c=766);CR<<1嚴重不足。B墩服務性:Pe=36,257(底23,700+頂12,557)、e=-259(頂板PT形心上)、M_ext=-41,080→σ_bot=-19.97>18(1.11倍)✗。中墩雙控(強度+服務),需大幅增頂板PT或加深斷面"
   },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",
@@ -137,5 +140,106 @@
     "service_total_MPa": -0.81,
     "service_ok": true,
     "_note": "σ_base=引擎服務性底緣(含預力,HS20)；預力餘裕吸收熱應力→通過(孤島illustration的+2.00為自含斷面/無預力假象)"
+  },
+  "tendon_profile_G1": {
+    "config": "8組×21股 (HL-93 KB敘述軌)",
+    "a_mm": 1109,
+    "theta_end_rad": 0.111,
+    "R_m": 180.3,
+    "w_eq_transfer_kNpm": 181.9,
+    "w_eq_service_kNpm": 141.8,
+    "w_DL_kNpm": 144.0,
+    "LBR_transfer": 1.263,
+    "LBR_service": 0.985,
+    "friction_single_end": 0.161,
+    "friction_dual_mid": 0.084,
+    "R_ok": true,
+    "_note": "拋物線等效荷載法 w_eq=8Pa/L²；對齊算例_鋼腱線形設計(8組×21股HL-93軌)；w_DL=8(M_DC+M_DW)/L²=144與參考橋自洽"
+  },
+  "stm_F2": {
+    "config": "8組×19股 (參考橋, 端橫隔版 General Zone)",
+    "sigma_pe_MPa": 4.68,
+    "T_burst_kN": 1856,
+    "d_burst_mm": 900,
+    "As_burst_mm2": 4911,
+    "beta_strut_required": "confined",
+    "fcu_node_CCT_MPa": 27.2,
+    "node_A_CCT_phiFnn_kN": 1714,
+    "_note": "AASHTO 5.9.5.6.3 General Zone T_burst=0.25ΣP(1−a/h)；對齊算例_STM端橫隔版設計(參考橋8組×19股)"
+  },
+  "durability_N1": {
+    "config": "standalone 卡；codified 驗收門檻/限值",
+    "grout_w_c_max": 0.45,
+    "grout_f28_min_MPa": 30.0,
+    "grout_bleed_max_pct": 0.0,
+    "grout_chloride_max_pct": 0.08,
+    "rebar_permanent_max_MPa": 100.0,
+    "rebar_fatigue_general_max_MPa": 180.0,
+    "rebar_fatigue_deck_max_MPa": 120.0,
+    "pc_fatigue_rule": "min(0.60Pu, 0.75Py)",
+    "design_life_TW": [
+      50,
+      100
+    ],
+    "design_life_AASHTO": 75,
+    "design_life_JP": 100,
+    "_note": "灌漿驗收 道示Ⅲ17.6.6(2)；100年應力限制 道示Ⅲ6.2.2/6.3.2；混凝土疲勞壓應力(表-6.3.5)canonical在C1(2026-07-01 NLM查證:箱形60→18.0/80→26.0,N1原誤已校正)"
+  },
+  "construction_stage_H1H2": {
+    "config": "40m參考橋 8組×19股，支架/托架上施拉 fci=32",
+    "transfer_tension_limit_MPa": 1.41,
+    "S2_fullPT_top_MPa": 1.86,
+    "S2_fullPT_top_ok": false,
+    "S2_fullPT_bot_MPa": -19.18,
+    "S2_batch4_top_MPa": 0.93,
+    "S2_batch4_top_ok": true,
+    "S2_batch4_bot_MPa": -9.59,
+    "S3_strike_top_MPa": -3.96,
+    "S3_strike_bot_MPa": -9.15,
+    "_note": "H1/H2 支架上施拉自重未活化(M_sw=0)→過平衡頂緣引張；全PT超限→分批4組通過；脫架自重活化回壓。對齊算例_40m參考橋施工階段應力歷程"
+  },
+  "cantilever_H3": {
+    "config": "80+80m 變深連續梁 h_pier4.5/h_mid2.2，8節塊/側",
+    "h_mid_m": 2.2,
+    "h_pier_m": 4.5,
+    "h_at_x20_m": 2.775,
+    "M_selfweight_about_x4_kNm": 61661,
+    "M_cant_max_kNm": 94061,
+    "M_cant_max_published_kNm": 94025,
+    "delta_elastic_mm": 147,
+    "delta_long_term_mm": 441,
+    "_note": "變深h(x)端點2.2/4.5；懸臂彎矩Σ(G·arm)+掛籃；⚠️公布94,025掛籃項以墩CL、自重項以x=4(混用偏保守~4%)；長期下撓δ(1+φ)。對齊算例_懸臂工法施工階段設計"
+  },
+  "launching_H4": {
+    "config": "40m等跨 ILM 推進，等深 h=2.2m A=4.870m² Zb=3.093e9mm³",
+    "M_cantilever_neg_kNm": -11760,
+    "M_span_pos_kNm": 24000,
+    "Pc_required_kN": 45094,
+    "Pc_published_kN": 45100,
+    "n_tendons": 18,
+    "sigma_bot_min_MPa": -1.5,
+    "jacking_force_kN": 2400,
+    "bearing_stress_widened_MPa": 7.5,
+    "_note": "ILM 推進包絡 M⁻/M⁺；臨時置中預力(e=0)Pc=(M⁺/Zb+σ_res)·A→底緣恰餘1.5壓；頂推F=μ·W；支壓R/A。對齊算例_推進工法施工設計"
+  },
+  "segmental_H5H6": {
+    "config": "H5 預鑄SBS 40m Ac=4.20m² + H6 接縫BCM 80m Ac=2.85m²",
+    "H5_segment_weight_kN": 262.5,
+    "H5_joint_min_prestress_kN": 882.0,
+    "H5_joint_compression_4tendon_MPa": 0.457,
+    "H6_joint_min_compression_kN": 598.5,
+    "H6_shear_key_design_capacity_kN": 153.7,
+    "H6_LS3_utilization": 0.93,
+    "H6_bonded_pt_ratio": 0.329,
+    "_note": "H5 節塊重Ac·L·γ/拼裝期接縫壓0.21；H6(道示法)剪力鍵V_fuk·ξ/LS3驗核比/黏結PT≥30%。對齊算例_預鑄節塊工法施工設計+算例_節塊接縫設計"
+  },
+  "design_inverse": {
+    "config": "40m參考橋反解設計庫閉環（設計=驗算之逆）",
+    "Pe_min_zero_tension_kN": 22311,
+    "min_tendon_groups": 8,
+    "required_drape_LBR0985_mm": 1109,
+    "min_Sb_zero_tension_e9mm3": 1.992,
+    "actual_Sb_e9mm3": 2.473,
+    "_note": "階段4反解設計庫(純Python零相依,SymPy為推導輔助)：min_tendon_groups(Pe_min)=8=實際8組；required_drape(LBR0.985)=1109=e_m；min_Sb=1.992e9≤實際2.473e9(斷面足夠)。Pe_min與min_Sb為σ_b=0同式對偶。pint單位QA/SymPy驗證工具未安裝,屬開發期另檔,不進零相依runtime"
   }
 }

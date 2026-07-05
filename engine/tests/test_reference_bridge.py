@@ -31,6 +31,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         segment_weight, joint_min_prestress, joint_compression,
                         shear_key_design_capacity, shear_key_utilization, bonded_pt_ratio,
                         min_tendon_groups, required_drape, min_section_modulus_Sb)
+from bridgecalc import seismic as seis
+from bridgecalc import retrofit as retro
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -387,11 +389,11 @@ def test_construction_stage_H1H2():
     s8 = batched_transfer(29700e3, 8, 8, sec, 1109, 32)        # S2 全 PT
     _close(s8.sigma_top, 1.86, 0.02)
     _close(s8.sigma_bot, -19.18, 0.05)
-    assert (not s8.top_ok) and s8.bot_ok                       # 頂超限、底剛好過 fci32
+    assert (not s8.top_ok) and (not s8.bot_ok)                 # 頂拉超限、底壓亦超限 0.55f'ci=17.6（裁示0.55）
     s4 = batched_transfer(29700e3, 4, 8, sec, 1109, 32)        # S2 分批 4 組
     _close(s4.sigma_top, 0.93, 0.02)
     _close(s4.sigma_bot, -9.59, 0.05)
-    assert s4.top_ok and s4.bot_ok                             # 分批解決
+    assert s4.top_ok and s4.bot_ok                             # 分批解決（底 −9.59 < 17.6 ✓）
     s3 = stage_stress(29700e3, sec, 1109, 24800, 32)           # S3 脫架（自重活化）
     _close(s3.sigma_top, -3.96, 0.03)
     _close(s3.sigma_bot, -9.15, 0.03)
@@ -457,6 +459,107 @@ def test_design_inverse():
     Sb_min = min_section_modulus_Sb(L.Pe, sec.A, ten.e, M_serv, 0.0)
     assert sec.Sb >= Sb_min                                    # 實際斷面足夠（Sb ≥ Sb_min）
     _close(Sb_min / 1e9, 1.992, 0.01)                          # 與 Pe_min 為 σ_b=0 同式對偶
+
+
+def test_seismic_S1_falloff():
+    """S1 落橋防止：min N_L(式8-10)、u_G、L_N 需求。對齊算例_落橋防止系統設計。"""
+    _close(seis.min_falloff_length(40, 10, 0), 70.0, 0.01)      # (50+10+10)·1 = 70cm
+    _close(seis.min_falloff_length(40, 10, 30), 77.88, 0.01)    # 斜角修正 (1+30²/8000)
+    _close(seis.ground_relative_displacement("第二類", 5000, 1.2), 22.5, 0.01)  # ε_G·Le·ratio
+    _close(seis.required_falloff_length(70, 15, 22.5), 70.0, 0.01)  # max(70,37.5)=min N_L 控制
+    _close(seis.restrainer_yield_strength(1800), 2700.0, 0.1)   # F_y=1.5·R_d
+
+
+def test_seismic_S2_isolation():
+    """S2 隔震等效線性化迭代收斂 + 表3-1 阻尼修正內插。對齊算例_隔震與消能設計。"""
+    _close(seis.damping_correction_B1(0.15), 1.375, 1e-4)       # 表3-1 線性內插
+    _close(seis.damping_correction_BS(0.15), 1.465, 1e-4)
+    r = seis.isolation_design(8000, 400, 6000, 0.60)            # 剛性墩、一般工址
+    _close(r.D_d * 1000, 221.2, 0.5)                            # 收斂設計位移
+    _close(r.T_e, 2.030, 0.005)                                 # 有效週期
+    _close(r.xi_e * 100, 14.75, 0.1)                            # 系統等效阻尼
+    _close(r.V_b_secant, 1727, 2)                               # 式C7-3 = 式C7-4（剛性墩）
+    _close(r.V_b_secant, r.V_b_bilinear, 1)
+    assert r.iterations <= 10                                   # 快速收斂
+
+
+def test_seismic_S3_ductility():
+    """S3 橋墩韌性容量設計：M_p、V_u、圍束 ρ_s(式5-5/5-6)、間距/塑鉸長度。對齊算例_橋墩韌性耐震設計。"""
+    _close(seis.overstrength_moment(3000), 3900, 0.1)           # M_p=1.3Mn
+    _close(seis.capacity_shear(3900, 8), 487.5, 0.1)            # V_u=M_p/H
+    _close(seis.rho_s_circular(280, 2800, 17671, 15394, 800000) * 100, 0.843, 0.005)  # 式5-6控制
+    # 式5-6（軸力式）> 式5-5（幾何式）
+    assert 0.12 * (280/2800) * (0.5 + 1.25*800000/(280*17671)) > 0.45 * (280/2800) * (17671/15394 - 1)
+    _close(seis.confinement_spacing_limit(150, 3.6), 15.0, 0.01)   # min(15,37.5,21.6)
+    _close(seis.plastic_hinge_length(150, 800), 150.0, 0.01)      # max(150,133,45)
+
+
+def test_seismic_S5_liquefaction():
+    """S5 液狀化土壤參數折減 D_E（表8-1 三級距×深度×R_s）。對齊公式卡_液狀化與基礎耐震。"""
+    _close(seis.liquefaction_reduction_DE(0.3, 5, 0.2), 0.0, 1e-9)     # 第一級淺層鬆砂→參數設零
+    _close(seis.liquefaction_reduction_DE(0.3, 5, 0.4), 1/6, 1e-6)     # 密砂折減較輕
+    _close(seis.liquefaction_reduction_DE(0.3, 15, 0.2), 1/3, 1e-6)    # 深層(>10m)
+    _close(seis.liquefaction_reduction_DE(0.5, 5, 0.2), 1/3, 1e-6)     # 第二級
+    _close(seis.liquefaction_reduction_DE(0.8, 5, 0.4), 1.0, 1e-9)     # 第三級密砂不折減
+    _close(seis.liquefaction_reduction_DE(1.2, 5, 0.2), 1.0, 1e-9)     # F_L≥1 不液化
+
+
+def test_retrofit_shared_cracked():
+    """R2/R4 同原梁 → 共用彈性開裂換算斷面 x₁（非極限應力塊）。JTG 二次受力核心。"""
+    a = 6.667
+    x1 = retro.cracked_na_depth(400, 750, 1964, a)
+    _close(x1, 191.3, 0.2)                                     # √(A1²+B1)−A1
+    Icr = retro.cracked_inertia(400, x1, 1964, 750, a)
+    _close(Icr / 1e9, 5.021, 0.02)
+    _close(retro.initial_concrete_strain(200, x1, 3.0e4, Icr), 2.54e-4, 2e-6)
+
+
+def test_retrofit_R1_cfrp():
+    """R1 碳纖維CFRP 抗彎（案②，式6-42）。對齊算例_碳纖維CFRP抗彎補強設計。"""
+    epsf = retro.cfrp_allowable_strain(2, 2.4e5, 0.167, 0.0155)
+    _close(epsf, 0.007, 1e-6)                                  # 0.007 絕對上限控制
+    _close(retro.cfrp_km1(2, 2.4e5, 0.167), 0.8127, 1e-3)
+    r1 = retro.cfrp_moment_capacity(400, 800, 750, 13.8, 0.0033, 1964, 330,
+                                    100.2, 2.4e5, epsf, 0.0003)
+    _close(r1.xi_fb, 0.249, 0.001)
+    _close(r1.x, 147.9, 0.3)
+    assert r1.case2                                            # x ≤ ξ_fb·h → 案②
+    _close(r1.Mu_kNm, 539.4, 0.5)                              # +20%
+    # n_f=1 不足（<520 需求）→ 須 2 層
+    epsf1 = retro.cfrp_allowable_strain(1, 2.4e5, 0.167, 0.0155)
+    r1a = retro.cfrp_moment_capacity(400, 800, 750, 13.8, 0.0033, 1964, 330,
+                                     50.1, 2.4e5, epsf1, 0.0003)
+    assert r1a.Mu_kNm < 520
+
+
+def test_retrofit_R2_plate():
+    """R2 外貼鋼板 抗彎（式6-26，鋼板降伏）。對齊算例_外貼鋼板抗彎補強設計。"""
+    a = 6.667
+    x1 = retro.cracked_na_depth(400, 750, 1964, a)
+    Icr = retro.cracked_inertia(400, x1, 1964, 750, a)
+    ec1 = retro.initial_concrete_strain(200, x1, 3.0e4, Icr)
+    r2 = retro.plate_moment_capacity(400, 800, 750, 13.8, 0.0033, 1964, 330,
+                                     800, 305, 2.06e5, x1, ec1)
+    assert r2.plate_yields                                     # ε_sp 需求 ≫ f_sp
+    _close(r2.sigma_sp, 305, 0.5)
+    _close(r2.x, 161.6, 0.3)
+    _close(r2.Mu_kNm, 609, 1)                                  # +36%（近 40% 上限）
+    _close(retro.plate_dev_length(305, 800, 2.5, 200), 788, 1)  # l_p 式6-37
+
+
+def test_retrofit_R4_enlargement():
+    """R4 增大截面 抗彎（式6-2/6-3）。對齊算例_增大斷面補強設計。"""
+    a = 6.667
+    x1 = retro.cracked_na_depth(400, 750, 1964, a)
+    Icr = retro.cracked_inertia(400, x1, 1964, 750, a)
+    ec1 = retro.initial_concrete_strain(200, x1, 3.0e4, Icr)
+    h0 = (1964 * 750 + 982 * 860) / 2946
+    _close(h0, 786.7, 0.2)
+    r4 = retro.enlargement_moment_capacity(400, 860, h0, 13.8, 0.0033, 1964, 330,
+                                           982, 330, 2.0e5, x1, ec1)
+    assert r4.added_bar_yields
+    _close(r4.x, 176.1, 0.3)
+    _close(r4.Mu_kNm, 679, 1)                                  # +52%（超鋼板 40% 上限）
 
 
 if __name__ == "__main__":

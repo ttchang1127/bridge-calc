@@ -196,7 +196,7 @@
     "S2_batch4_bot_MPa": -9.59,
     "S3_strike_top_MPa": -3.96,
     "S3_strike_bot_MPa": -9.15,
-    "_note": "H1/H2 支架上施拉自重未活化(M_sw=0)→過平衡頂緣引張；全PT超限→分批4組通過；脫架自重活化回壓。對齊算例_40m參考橋施工階段應力歷程"
+    "_note": "H1/H2 支架上施拉自重未活化(M_sw=0)→過平衡頂緣引張；全PT頂拉+底壓(0.55f'ci=17.6,一般橋梁裁示)皆超限→分批4組通過(頂0.93/底-9.59)；脫架自重活化回壓。對齊算例_40m參考橋施工階段應力歷程"
   },
   "cantilever_H3": {
     "config": "80+80m 變深連續梁 h_pier4.5/h_mid2.2，8節塊/側",
@@ -241,5 +241,80 @@
     "min_Sb_zero_tension_e9mm3": 1.992,
     "actual_Sb_e9mm3": 2.473,
     "_note": "階段4反解設計庫(純Python零相依,SymPy為推導輔助)：min_tendon_groups(Pe_min)=8=實際8組；required_drape(LBR0.985)=1109=e_m；min_Sb=1.992e9≤實際2.473e9(斷面足夠)。Pe_min與min_Sb為σ_b=0同式對偶。pint單位QA/SymPy驗證工具未安裝,屬開發期另檔,不進零相依runtime"
+  },
+  "seismic_S1": {
+    "config": "落橋防止(台灣耐震§8.5) 40m跨/基面起H=10m/第二類地盤 Le=50m",
+    "min_NL_cm": 70.0,
+    "min_NL_skew30_cm": 77.88,
+    "u_G_cm": 22.5,
+    "L_N_required_cm": 70,
+    "restrainer_Fy_kN": 2700.0,
+    "_note": "min N_L=(50+0.25L+H)(1+S²/8000)=70cm；u_G=ε_G·Le·(S_III/S_II)=0.00375·5000·1.2=22.5cm；活動支承L_N=max(70,15+22.5)=70cm(min N_L控制)；裝置F_y=1.5R_d。對齊算例_落橋防止系統設計"
+  },
+  "seismic_S2": {
+    "config": "隔震LRB等效線性化迭代(台灣耐震第7章) W=8000kN/Q_d=400kN/K_d=6kN/mm/剛性墩/S_II,1=0.60",
+    "D_d_mm": 221.2,
+    "T_e_s": 2.03,
+    "K_eff_kN_per_m": 7808.9,
+    "xi_e_pct": 14.75,
+    "B1": 1.3687,
+    "V_b_kN": 1727.2,
+    "iterations": 6,
+    "B1_15pct_table3_1": 1.375,
+    "_note": "等效線性化迭代:s_D→D_d→K_eff/ξ_eq→T_e→B_1(表3-1內插)→S_a→新s_D。收斂D_d=221mm/T_e=2.03s/ξ_e=14.75%/V_b=1727kN(6次)。B_1(15%)=1.375為表3-1線性內插(算例舊用1.4近似)。對齊算例_隔震與消能設計"
+  },
+  "seismic_S3": {
+    "config": "橋墩韌性容量設計(台灣耐震§4.2/5.3) 圓D150/fc280/fyh2800/Ag17671/Ac15394/Pe800000kgf/Mn3000tfm",
+    "M_p_tfm": 3900.0,
+    "V_u_tf": 487.5,
+    "rho_s_pct": 0.843,
+    "spacing_limit_cm": 15.0,
+    "plastic_hinge_L_cm": 150,
+    "_note": "M_p=1.3Mn=3900；V_u=ΣM_p/L_c=487.5；圓柱ρ_s=max(式5-5=0.67%,式5-6=0.84%)=0.84%(軸力式控制)；間距≤min(15,D/4,6db)=15；ℓ0=max(柱深150,ℓc/6=133,45)=150。對齊算例_橋墩韌性耐震設計"
+  },
+  "seismic_S5": {
+    "config": "液狀化土壤參數折減D_E(台灣耐震表8-1) 三級距×深度×R_s",
+    "DE_L1_shallow_loose": 0.0,
+    "DE_L1_shallow_dense": 0.1667,
+    "DE_L1_deep": 0.3333,
+    "DE_L2_shallow_loose": 0.3333,
+    "DE_L3_shallow_dense": 1.0,
+    "DE_noliq_FL_ge_1": 1.0,
+    "_note": "表8-1:第一級F_L≤1/3淺層鬆砂D_E=0(參數設零)/密砂1/6/深層1/3;第二級1/3~2/3;第三級2/3~1;F_L≥1不折減。深度10m為界,R_s>0.3密砂折減較輕。對齊公式卡_液狀化與基礎耐震"
+  },
+  "retrofit_shared_cracked": {
+    "config": "R2/R4 同梁 b400/h01750/As1964(4D25)/C30 開裂換算斷面(α_Es=6.667,M_d1=200)",
+    "x1_mm": 191.3,
+    "Icr_e9mm4": 5.021,
+    "eps_c1": 0.000254,
+    "_note": "彈性開裂換算 x1=√(A1²+B1)−A1=191.3(非極限應力塊117);I_cr;ε_c1=M_d1·x1/(E_c·I_cr)。R2鋼板與R4增大截面同原梁→共用同一x1(納入引擎逼出R2算例x1修正)"
+  },
+  "retrofit_R1_CFRP": {
+    "config": "R1 碳纖維CFRP抗彎(JTG/T J22) 碳布2層×寬300 t_f0.167/E_f2.4e5/ε_fu0.0155",
+    "eps_f_allow": 0.007,
+    "km1": 0.8127,
+    "xi_fb": 0.249,
+    "x_mm": 147.9,
+    "case2": true,
+    "Mu_kNm": 539.4,
+    "_note": "[ε_f]=min(κ_m·ε_fu,⅔ε_fu,0.007)=0.007絕對上限控制;κ_m=min(κ_m1=0.813,κ_m2=0.85)≤0.9;ξ_fb=0.249;x=147.9≤ξ_fb·h→案②;M_u(式6-42)=539.4(+20%)。對齊算例_碳纖維CFRP抗彎補強設計"
+  },
+  "retrofit_R2_plate": {
+    "config": "R2 外貼鋼板抗彎(JTG/T J22) 鋼板200×4 Q345 f_sp305/E_sp2.06e5",
+    "x_mm": 161.6,
+    "plate_yields": true,
+    "sigma_sp_MPa": 305,
+    "Mu_kNm": 609.2,
+    "l_p_mm": 788.0,
+    "_note": "ε_sp需求1846≫f_sp→鋼板降伏取305;軸力平衡x=161.6;M_u(式6-26)=609(+36%,近40%上限);粘貼延伸l_p(式6-37)=788。對齊算例_外貼鋼板抗彎補強設計"
+  },
+  "retrofit_R4_enlargement": {
+    "config": "R4 增大截面抗彎(JTG/T J22) 底加100mm(h800→900)+新筋2D25 h02860",
+    "h0_mm": 786.7,
+    "x_mm": 176.1,
+    "added_bar_yields": true,
+    "sigma_s2_MPa": 330,
+    "Mu_kNm": 679.2,
+    "_note": "新增筋ε_s2需求≫f_sd2→降伏取330;軸力平衡x=176.1;h0=A_s1+A_s2合力點786.7;M_u(式6-2)=679(+52%,超鋼板40%上限故選增大截面)。對齊算例_增大斷面補強設計"
   }
 }

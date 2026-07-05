@@ -6,6 +6,7 @@
 """
 from dataclasses import dataclass
 from .model import Section
+from . import allowables
 
 
 @dataclass
@@ -31,7 +32,7 @@ def fatigue_check(section: Section, Pe: float, e: float,
     sig_perm_top = -Pe / section.A + Pe * e / section.St - M_perm_kNm * 1e6 / section.St
     dsig_c_top = dM / section.I * section.yt  # 疲勞彎矩在頂緣增量（壓）
     sig_c_max = abs(sig_perm_top) + dsig_c_top
-    limit_c = 0.40 * fc
+    limit_c = allowables.concrete_fatigue(fc)   # 0.40 f'c（AASHTO 5.5.3.1）
     return FatigueResult(dsig_ps, sig_c_max,
                          dsig_ps <= 125.0, sig_c_max <= limit_c,
                          dsig_ps / 125.0, sig_c_max / limit_c)

@@ -6,9 +6,9 @@
 剪力鍵（道示：設計承載 V_fuk·ξ₁ξ₂Φ）承擔，並要求接縫全程受壓（拼裝期 ≥0.21 MPa）。
 介面工程單位：Ac[m² 或 mm²，標於介面]、力[kN]、應力[MPa]。
 """
+from .allowables import JOINT_MIN_COMPRESSION_MPa   # 拼裝期接縫最小壓應力 0.21 MPa（SSOT）
 
-# 節段橋規範門檻
-JOINT_MIN_COMPRESSION_MPa = 0.21   # 拼裝期接縫最小壓應力（AASHTO/道示 ≈30 psi）
+# 節段橋規範門檻（接縫最小壓應力見 allowables；黏結 PT 比例為模型參數，留本檔）
 BONDED_PT_MIN_RATIO = 0.30         # 內置黏結 PT 最小比例（外置為主時）
 
 

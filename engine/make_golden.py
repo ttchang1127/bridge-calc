@@ -30,6 +30,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         segment_weight, joint_min_prestress, joint_compression,
                         shear_key_design_capacity, shear_key_utilization, bonded_pt_ratio,
                         min_tendon_groups, required_drape, min_section_modulus_Sb)
+from bridgecalc import seismic as seis
+from bridgecalc import retrofit as retro
 
 sec = Section(5.065e6, 3.287e12, 1329, 2100)
 ten = Tendon(8, 19, 1109)                       # 台灣 HS20-44 最小設計（HL-93 才需增配 21 股）
@@ -65,6 +67,23 @@ Pe_min_ref = Pe_min_zero_tension(sec, ten.e, c["Service_I"])
 d_ngroups = min_tendon_groups(Pe_min_ref, 19, L.fpe)
 d_drape = required_drape(0.985, w_DL_g1, 40000, compute_losses(ten21, sec, M_DC, M_DW).Pe)
 d_Sbmin = min_section_modulus_Sb(L.Pe, sec.A, ten.e, c["Service_I"], 0.0)
+
+# 耐震閉式（台灣單軌）：S2 隔震迭代結果算一次
+seis_S2 = seis.isolation_design(8000, 400, 6000, 0.60)
+
+# 補強閉式（中國 JTG 單軌）：R1/R2/R4 同梁 b400/h800/h01750/As1964/C30
+_a = 6.667                                          # α_Es = E_s/E_c = 2.0e5/3.0e4
+retro_x1 = retro.cracked_na_depth(400, 750, 1964, _a)
+retro_Icr = retro.cracked_inertia(400, retro_x1, 1964, 750, _a)
+retro_ec1 = retro.initial_concrete_strain(200, retro_x1, 3.0e4, retro_Icr)
+retro_epsf = retro.cfrp_allowable_strain(2, 2.4e5, 0.167, 0.0155)
+retro_R1 = retro.cfrp_moment_capacity(400, 800, 750, 13.8, 0.0033, 1964, 330,
+                                      100.2, 2.4e5, retro_epsf, 0.0003)
+retro_R2 = retro.plate_moment_capacity(400, 800, 750, 13.8, 0.0033, 1964, 330,
+                                       800, 305, 2.06e5, retro_x1, retro_ec1)
+retro_R4 = retro.enlargement_moment_capacity(400, 860, (1964*750+982*860)/2946,
+                                             13.8, 0.0033, 1964, 330, 982, 330,
+                                             2.0e5, retro_x1, retro_ec1)
 
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
@@ -190,7 +209,7 @@ golden = {
         "S2_batch4_top_MPa": round(h4.sigma_top, 2), "S2_batch4_top_ok": h4.top_ok,
         "S2_batch4_bot_MPa": round(h4.sigma_bot, 2),
         "S3_strike_top_MPa": round(h3s.sigma_top, 2), "S3_strike_bot_MPa": round(h3s.sigma_bot, 2),
-        "_note": "H1/H2 支架上施拉自重未活化(M_sw=0)→過平衡頂緣引張；全PT超限→分批4組通過；脫架自重活化回壓。對齊算例_40m參考橋施工階段應力歷程"},
+        "_note": "H1/H2 支架上施拉自重未活化(M_sw=0)→過平衡頂緣引張；全PT頂拉+底壓(0.55f'ci=17.6,一般橋梁裁示)皆超限→分批4組通過(頂0.93/底-9.59)；脫架自重活化回壓。對齊算例_40m參考橋施工階段應力歷程"},
     "cantilever_H3": {
         "config": "80+80m 變深連續梁 h_pier4.5/h_mid2.2，8節塊/側",
         "h_mid_m": round(variable_depth(0, 4.5, 2.2, 40), 2), "h_pier_m": round(variable_depth(40, 4.5, 2.2, 40), 2),
@@ -226,6 +245,65 @@ golden = {
         "min_Sb_zero_tension_e9mm3": round(d_Sbmin / 1e9, 3),
         "actual_Sb_e9mm3": round(sec.Sb / 1e9, 3),
         "_note": "階段4反解設計庫(純Python零相依,SymPy為推導輔助)：min_tendon_groups(Pe_min)=8=實際8組；required_drape(LBR0.985)=1109=e_m；min_Sb=1.992e9≤實際2.473e9(斷面足夠)。Pe_min與min_Sb為σ_b=0同式對偶。pint單位QA/SymPy驗證工具未安裝,屬開發期另檔,不進零相依runtime"},
+    "seismic_S1": {
+        "config": "落橋防止(台灣耐震§8.5) 40m跨/基面起H=10m/第二類地盤 Le=50m",
+        "min_NL_cm": round(seis.min_falloff_length(40, 10, 0), 1),
+        "min_NL_skew30_cm": round(seis.min_falloff_length(40, 10, 30), 2),
+        "u_G_cm": round(seis.ground_relative_displacement("第二類", 5000, 1.2), 2),
+        "L_N_required_cm": round(seis.required_falloff_length(70, 15, 22.5), 1),
+        "restrainer_Fy_kN": round(seis.restrainer_yield_strength(1800), 1),
+        "_note": "min N_L=(50+0.25L+H)(1+S²/8000)=70cm；u_G=ε_G·Le·(S_III/S_II)=0.00375·5000·1.2=22.5cm；活動支承L_N=max(70,15+22.5)=70cm(min N_L控制)；裝置F_y=1.5R_d。對齊算例_落橋防止系統設計"},
+    "seismic_S2": {
+        "config": "隔震LRB等效線性化迭代(台灣耐震第7章) W=8000kN/Q_d=400kN/K_d=6kN/mm/剛性墩/S_II,1=0.60",
+        "D_d_mm": round(seis_S2.D_d * 1000, 1),
+        "T_e_s": round(seis_S2.T_e, 3),
+        "K_eff_kN_per_m": round(seis_S2.K_eff, 1),
+        "xi_e_pct": round(seis_S2.xi_e * 100, 2),
+        "B1": round(seis_S2.B1, 4),
+        "V_b_kN": round(seis_S2.V_b_secant, 1),
+        "iterations": seis_S2.iterations,
+        "B1_15pct_table3_1": round(seis.damping_correction_B1(0.15), 4),
+        "_note": "等效線性化迭代:s_D→D_d→K_eff/ξ_eq→T_e→B_1(表3-1內插)→S_a→新s_D。收斂D_d=221mm/T_e=2.03s/ξ_e=14.75%/V_b=1727kN(6次)。B_1(15%)=1.375為表3-1線性內插(算例舊用1.4近似)。對齊算例_隔震與消能設計"},
+    "seismic_S3": {
+        "config": "橋墩韌性容量設計(台灣耐震§4.2/5.3) 圓D150/fc280/fyh2800/Ag17671/Ac15394/Pe800000kgf/Mn3000tfm",
+        "M_p_tfm": round(seis.overstrength_moment(3000), 1),
+        "V_u_tf": round(seis.capacity_shear(3900, 8), 1),
+        "rho_s_pct": round(seis.rho_s_circular(280, 2800, 17671, 15394, 800000) * 100, 3),
+        "spacing_limit_cm": round(seis.confinement_spacing_limit(150, 3.6), 1),
+        "plastic_hinge_L_cm": round(seis.plastic_hinge_length(150, 800), 1),
+        "_note": "M_p=1.3Mn=3900；V_u=ΣM_p/L_c=487.5；圓柱ρ_s=max(式5-5=0.67%,式5-6=0.84%)=0.84%(軸力式控制)；間距≤min(15,D/4,6db)=15；ℓ0=max(柱深150,ℓc/6=133,45)=150。對齊算例_橋墩韌性耐震設計"},
+    "seismic_S5": {
+        "config": "液狀化土壤參數折減D_E(台灣耐震表8-1) 三級距×深度×R_s",
+        "DE_L1_shallow_loose": round(seis.liquefaction_reduction_DE(0.3, 5, 0.2), 4),
+        "DE_L1_shallow_dense": round(seis.liquefaction_reduction_DE(0.3, 5, 0.4), 4),
+        "DE_L1_deep": round(seis.liquefaction_reduction_DE(0.3, 15, 0.2), 4),
+        "DE_L2_shallow_loose": round(seis.liquefaction_reduction_DE(0.5, 5, 0.2), 4),
+        "DE_L3_shallow_dense": round(seis.liquefaction_reduction_DE(0.8, 5, 0.4), 4),
+        "DE_noliq_FL_ge_1": round(seis.liquefaction_reduction_DE(1.2, 5, 0.2), 4),
+        "_note": "表8-1:第一級F_L≤1/3淺層鬆砂D_E=0(參數設零)/密砂1/6/深層1/3;第二級1/3~2/3;第三級2/3~1;F_L≥1不折減。深度10m為界,R_s>0.3密砂折減較輕。對齊公式卡_液狀化與基礎耐震"},
+    "retrofit_shared_cracked": {
+        "config": "R2/R4 同梁 b400/h01750/As1964(4D25)/C30 開裂換算斷面(α_Es=6.667,M_d1=200)",
+        "x1_mm": round(retro_x1, 1), "Icr_e9mm4": round(retro_Icr / 1e9, 3),
+        "eps_c1": round(retro_ec1, 6),
+        "_note": "彈性開裂換算 x1=√(A1²+B1)−A1=191.3(非極限應力塊117);I_cr;ε_c1=M_d1·x1/(E_c·I_cr)。R2鋼板與R4增大截面同原梁→共用同一x1(納入引擎逼出R2算例x1修正)"},
+    "retrofit_R1_CFRP": {
+        "config": "R1 碳纖維CFRP抗彎(JTG/T J22) 碳布2層×寬300 t_f0.167/E_f2.4e5/ε_fu0.0155",
+        "eps_f_allow": round(retro_epsf, 4), "km1": round(retro.cfrp_km1(2, 2.4e5, 0.167), 4),
+        "xi_fb": round(retro_R1.xi_fb, 3), "x_mm": round(retro_R1.x, 1),
+        "case2": retro_R1.case2, "Mu_kNm": round(retro_R1.Mu_kNm, 1),
+        "_note": "[ε_f]=min(κ_m·ε_fu,⅔ε_fu,0.007)=0.007絕對上限控制;κ_m=min(κ_m1=0.813,κ_m2=0.85)≤0.9;ξ_fb=0.249;x=147.9≤ξ_fb·h→案②;M_u(式6-42)=539.4(+20%)。對齊算例_碳纖維CFRP抗彎補強設計"},
+    "retrofit_R2_plate": {
+        "config": "R2 外貼鋼板抗彎(JTG/T J22) 鋼板200×4 Q345 f_sp305/E_sp2.06e5",
+        "x_mm": round(retro_R2.x, 1), "plate_yields": retro_R2.plate_yields,
+        "sigma_sp_MPa": round(retro_R2.sigma_sp, 1), "Mu_kNm": round(retro_R2.Mu_kNm, 1),
+        "l_p_mm": round(retro.plate_dev_length(305, 800, 2.5, 200), 1),
+        "_note": "ε_sp需求1846≫f_sp→鋼板降伏取305;軸力平衡x=161.6;M_u(式6-26)=609(+36%,近40%上限);粘貼延伸l_p(式6-37)=788。對齊算例_外貼鋼板抗彎補強設計"},
+    "retrofit_R4_enlargement": {
+        "config": "R4 增大截面抗彎(JTG/T J22) 底加100mm(h800→900)+新筋2D25 h02860",
+        "h0_mm": round((1964*750+982*860)/2946, 1), "x_mm": round(retro_R4.x, 1),
+        "added_bar_yields": retro_R4.added_bar_yields, "sigma_s2_MPa": round(retro_R4.sigma_s2, 1),
+        "Mu_kNm": round(retro_R4.Mu_kNm, 1),
+        "_note": "新增筋ε_s2需求≫f_sd2→降伏取330;軸力平衡x=176.1;h0=A_s1+A_s2合力點786.7;M_u(式6-2)=679(+52%,超鋼板40%上限故選增大截面)。對齊算例_增大斷面補強設計"},
 }
 
 if __name__ == "__main__":

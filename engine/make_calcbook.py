@@ -21,6 +21,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         anchorage_check, spiral_local_bearing, ThermalBand,
                         self_equilibrating_stress, thermal_service_check, allowables,
                         batched_transfer, stage_stress, transfer_tension_limit,
+                        transfer_comp_limit,
                         variable_depth, cantilever_moment, long_term_deflection,
                         launching_cantilever_moment, launching_span_moment,
                         centric_prestress_required, launching_bottom_stress, n_tendons,
@@ -72,6 +73,7 @@ h_full = batched_transfer(ten.Pi, 8, 8, sec, ten.e, 32)      # S2 全 PT（M_sw=
 h_batch = batched_transfer(ten.Pi, 4, 8, sec, ten.e, 32)     # S2 分批 4 組
 h_strike = stage_stress(ten.Pi, sec, ten.e, M_DC, 32)        # S3 脫架（自重活化）
 tt_lim = transfer_tension_limit(32)                          # 0.25√fci
+tc_lim = transfer_comp_limit(32)                             # 0.55 f'ci（一般橋梁）= −17.6
 # ── 其他施工工法概要（各自參考橋，非 40m 簡支橋）──
 h3_Mmax = cantilever_moment([643, 599, 550, 497, 439, 385, 353, 341],
                             [x - 4 for x in [6.75, 11.25, 15.75, 20.25, 24.75, 29.25, 33.75, 38.25]],
@@ -247,7 +249,7 @@ r_h2 = row("S2 分批 4 組頂緣（支架上施拉，自重未活化）", r"\si
            f"≤ {tt_lim:.2f}（0.25√f'ci 施拉容許拉）", h_batch.top_ok, "H1/H2")
 sec15 = f"""<p>梁在支架／托架上施拉時自重彎矩尚未活化（M<sub>sw</sub>=0），預力大偏心 e={ten.e:,.0f} mm 使頂緣淨受拉（過平衡 LBR&gt;1）。同 40m 參考橋（8組×19股、P<sub>i</sub>={ten.Pi/1e3:,.0f} kN、f'ci=32）。</p>
 <table class="props">
-<tr><td>S2 全 PT 頂緣</td><td>{h_full.sigma_top:+.2f} MPa &gt; {tt_lim:.2f} <b>超限</b> {chk(h_full.top_ok)}</td><td>S2 全 PT 底緣</td><td>{h_full.sigma_bot:+.2f} MPa（≥ −19.2）{chk(h_full.bot_ok)}</td></tr>
+<tr><td>S2 全 PT 頂緣</td><td>{h_full.sigma_top:+.2f} MPa &gt; {tt_lim:.2f} <b>超限</b> {chk(h_full.top_ok)}</td><td>S2 全 PT 底緣</td><td>{h_full.sigma_bot:+.2f} MPa（≥ {tc_lim:.1f}，0.55 f'ci）{chk(h_full.bot_ok)}</td></tr>
 <tr><td>S2 分批 4 組頂緣</td><td>{h_batch.sigma_top:+.2f} MPa {chk(h_batch.top_ok)}</td><td>S2 分批 4 組底緣</td><td>{h_batch.sigma_bot:+.2f} MPa {chk(h_batch.bot_ok)}</td></tr>
 <tr><td>S3 脫架頂緣（自重活化）</td><td>{h_strike.sigma_top:+.2f} MPa（回壓）</td><td>S3 脫架底緣</td><td>{h_strike.sigma_bot:+.2f} MPa</td></tr>
 </table>

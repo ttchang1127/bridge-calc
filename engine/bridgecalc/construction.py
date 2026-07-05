@@ -5,11 +5,11 @@
 使頂緣淨受拉（過平衡 LBR>1）→ 須分批張拉降低瞬時預力；脫架後自重活化 → 斷面回壓。
 複用 service.stresses()（同符號慣例，壓為負）。單位：力 N、彎矩 kN·m、應力 MPa。
 """
-import math
 from dataclasses import dataclass
 
 from .model import Section
 from .service import stresses
+from . import allowables
 
 
 @dataclass
@@ -21,13 +21,18 @@ class StageStress:
 
 
 def transfer_tension_limit(fci: float) -> float:
-    """施拉階段容許拉應力 ≈ 0.25·√f'ci（MPa；AASHTO 5.9.2.3.1b 有黏結近似）。"""
-    return 0.25 * math.sqrt(fci)
+    """施拉階段容許拉應力（→ allowables.transfer_tension，0.25√f'ci）。"""
+    return allowables.transfer_tension(fci)
 
 
-def transfer_comp_limit(fci: float) -> float:
-    """施拉階段容許壓應力 −0.60·f'ci（MPa，壓為負）。"""
-    return -0.60 * fci
+def transfer_comp_limit(fci: float, bridge_type: str = "一般") -> float:
+    """施拉階段容許壓應力（→ allowables.transfer_comp，壓為負）。
+
+    預設 bridge_type='一般'（0.55 f'ci，C1 定場鑄一般橋梁值；使用者 2026-07-05 裁示）。
+    40m 參考橋 S2 全 PT 一次張拉底板 −19.18 > 0.55·32=17.6 → 超限（須分批；分批 4 組
+    後底板 −9.59 < 17.6 通過）。節塊橋梁請傳 bridge_type='節塊'（0.60 f'ci）。
+    """
+    return allowables.transfer_comp(fci, bridge_type)
 
 
 def stage_stress(P: float, sec: Section, e: float, M_sw_kNm: float,

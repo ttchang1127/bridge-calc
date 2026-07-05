@@ -6,6 +6,7 @@
 from dataclasses import dataclass
 from math import sqrt
 from .model import Section
+from . import allowables
 
 
 @dataclass
@@ -23,8 +24,8 @@ class ShearResult:
 
 
 def principal_tension_limit_TW(fc: float) -> float:
-    """台灣主拉應力容許 = 0.3√f'c(kgf/cm²)，換算 MPa = 0.094·√f'c。"""
-    return 0.094 * sqrt(fc)
+    """台灣主拉應力容許（→ allowables.principal_tension_TW，0.094√f'c）。"""
+    return allowables.principal_tension_TW(fc)
 
 
 def shear_web(Pe: float, section: Section, e: float, fc: float,

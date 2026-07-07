@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>橋梁設計計算器平台（分頁式・全引擎）</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script src="box-girder-engine.js"></script>
+<script src="retrofit-engine.js"></script>
+<script src="seismic-engine.js"></script>
+<script src="construction-engine.js"></script>
+<style>
+:root{--blue:#1d4ed8;--ink:#1a1a1a;--mut:#555;--line:#e5e7eb;--ok:#16a34a;--ng:#dc2626;--bg:#f8f9fa}
+*{box-sizing:border-box}
+body{font-family:"Noto Sans TC",system-ui,-apple-system,sans-serif;color:var(--ink);max-width:940px;margin:0 auto;padding:0 20px 40px;line-height:1.6;background:#fff}
+h1{font-size:20px;margin:0 0 2px}.sub{color:var(--mut);font-size:13px}
+/* 總覽列（sticky） */
+.bar{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--line);padding:12px 0 8px;margin-bottom:4px}
+.bar-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pass{font-size:14px;font-weight:600}.pass b{font-size:17px}
+.gold{display:inline-block;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:600}
+.btn{margin-left:auto;border:0.5px solid #cbd5e1;background:#fff;border-radius:6px;padding:5px 12px;font-size:13px;cursor:pointer}
+.btn:hover{background:var(--bg)}
+/* 分頁標籤 */
+.tabs{display:flex;flex-wrap:wrap;gap:4px 3px;margin-top:8px;align-items:center}
+.tgrp{font-size:11px;color:#aaa;margin:0 3px 0 8px}.tgrp:first-child{margin-left:0}
+.tab{border:0.5px solid var(--line);background:#fff;border-radius:7px;padding:4px 10px;font-size:12.5px;cursor:pointer;color:var(--mut);white-space:nowrap}
+.tab:hover{background:var(--bg)}
+.tab.on{background:var(--blue);color:#fff;border-color:var(--blue)}
+.tab.todo{color:#bbb;border-style:dashed}
+/* 面板 */
+.card{border:0.5px solid var(--line);border-radius:10px;padding:14px 16px;margin:13px 0}
+.card h2{font-size:15px;margin:0 0 10px;border-left:3px solid var(--blue);padding-left:8px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+label{font-size:12px;color:var(--mut);display:block}
+input{width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;padding:0 7px;font-size:14px;font-variant-numeric:tabular-nums}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{padding:5px 6px;text-align:right;border-bottom:0.5px solid var(--line)}
+th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:left}
+.ok{color:var(--ok);font-weight:600}.ng{color:var(--ng);font-weight:600}.mut{color:#999}
+.metric{background:var(--bg);border-radius:8px;padding:8px 10px}.metric .l{font-size:11px;color:var(--mut)}.metric .v{font-size:17px;font-weight:500;font-variant-numeric:tabular-nums}
+.cite{font-size:11px;color:#888;margin-top:8px}
+.hint{font-size:12px;color:#888;margin:10px 0 4px}
+.todobox{border:1px dashed var(--line);border-radius:10px;padding:22px;text-align:center;color:#999;font-size:13px;margin:13px 0}
+[x-cloak]{display:none}
+.chk{border-bottom:0.5px solid var(--line)}
+.chk-h{display:flex;align-items:center;gap:10px;padding:7px 2px}
+.chk-n{flex:1;font-size:13px}.caret{color:#aaa;font-size:11px;display:inline-block;width:12px}
+.chk-v{font-variant-numeric:tabular-nums;font-size:13px;color:#333}
+.chk-j{width:22px;text-align:center;font-weight:600}
+.chk-d{padding:8px 4px 13px 22px;font-size:12.5px;color:#555;background:#fafafa;border-radius:0 0 6px 6px}
+.chk-d .katex{font-size:1.02em}
+.chk-line{margin-top:6px}.chk-cite{margin-top:6px;font-size:11px;color:#999}
+.print-only{display:none}
+.phdr h1{margin:0;font-size:19px}.phdr .m{font-size:12px;color:#555}.phdr{border-bottom:2px solid var(--blue);padding-bottom:8px;margin-bottom:10px}
+@media print{.bar,.tabs,.no-print{display:none!important}.card{break-inside:avoid;border-color:#ccc}body{max-width:none;padding:0}
+  [x-show]{display:block!important}.print-only{display:block!important}}
+</style>
+</head>
+<body x-data="calc()">
+
+<div class="print-only phdr">
+  <h1 x-text="pjName+'　設計計算書'"></h1>
+  <div class="m" x-text="'台灣 HS20-44・單室後張箱梁　｜　公司：'+(pjFirm||'—')+'　工程師：'+(pjEng||'—')+'　日期：'+pjDate+'　｜　箱梁檢核 '+R.npass+'/'+R.ntot+' 通過'+(R.matchGolden?'（＝40m 黃金範例）':'')"></div>
+</div>
+
+<div class="bar no-print">
+  <div class="bar-row">
+    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎（P1 分頁殼）｜核心 = <code>box-girder-engine.js</code>（對 golden 驗證）</div></div>
+  </div>
+  <div class="bar-row" style="margin-top:8px">
+    <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
+    <span class="gold" :style="R.matchGolden?'background:#dcfce7;color:#16a34a':'background:#f1f5f9;color:#888'"
+      x-text="R.matchGolden?'＝40m HS20-44 黃金範例（對齊 golden ✓）':'自訂斷面'"></span>
+    <button class="btn" @click="window.print()">🖨 列印計算書</button>
+  </div>
+  <div class="tabs">
+    <template x-for="(t,i) in tabs" :key="t.id">
+      <span>
+        <span class="tgrp" x-show="i===0||tabs[i-1].grp!==t.grp" x-text="t.grp"></span>
+        <span class="tab" :class="{'on':tab===t.id,'todo':t.todo}" @click="tab=t.id"
+          x-text="t.id+' '+t.name"></span>
+      </span>
+    </template>
+  </div>
+</div>
+
+<!-- ① 斷面・材料 -->
+<div x-show="tab==='①'">
+  <div class="card no-print"><h2>斷面・材料 輸入</h2>
+    <div class="grid">
+      <label>f'c (MPa)<input type="number" x-model.number="fc" step="1"></label>
+      <label>頂板寬<input type="number" x-model.number="topW" step="100"></label>
+      <label>頂板厚<input type="number" x-model.number="topT" step="10"></label>
+      <label>底板寬<input type="number" x-model.number="botW" step="100"></label>
+      <label>底板厚<input type="number" x-model.number="botT" step="10"></label>
+      <label>腹板厚(單片)<input type="number" x-model.number="webT" step="10"></label>
+      <label>腹板數<input type="number" x-model.number="nWeb" step="1"></label>
+      <label>全高 h<input type="number" x-model.number="h" step="10"></label>
+    </div>
+  </div>
+  <div class="card"><h2>斷面性質（A1・自動）</h2>
+    <div class="grid">
+      <div class="metric"><div class="l">斷面積 A</div><div class="v" x-text="(R.sec.A/1e6).toFixed(3)+' m²'"></div></div>
+      <div class="metric"><div class="l">慣性矩 I</div><div class="v" x-text="R.sec.I.toExponential(3)"></div></div>
+      <div class="metric"><div class="l">形心距底 ȳb</div><div class="v" x-text="R.sec.yb.toFixed(0)+' mm'"></div></div>
+      <div class="metric"><div class="l">自重 w_sw</div><div class="v" x-text="R.wsw.toFixed(0)+' kN/m'"></div></div>
+    </div>
+    <div style="margin-top:12px"><div class="hint">箱型斷面＋鋼腱偏心（隨輸入重畫）</div>
+      <svg viewBox="0 0 270 80" style="width:270px;height:auto" x-html="R.svgSec"></svg></div>
+  </div>
+</div>
+
+<!-- ② 載重 -->
+<div x-show="tab==='②'">
+  <div class="card no-print"><h2>載重 輸入（L0）</h2>
+    <div class="grid">
+      <label>跨度 L (m)<input type="number" x-model.number="L" step="1"></label>
+      <label>設計車道數<input type="number" x-model.number="lanes" step="1"></label>
+      <label>SDL 附加靜載 (kN/m)<input type="number" x-model.number="wDW" step="1"></label>
+    </div>
+  </div>
+  <div class="card"><h2>載重與組合（自動）</h2>
+    <div class="grid">
+      <div class="metric"><div class="l">M_DC / M_DW</div><div class="v" x-text="R.Mdc.toFixed(0)+' / '+R.Mdw.toFixed(0)"></div></div>
+      <div class="metric"><div class="l">每車道 M_LL+IM</div><div class="v" x-text="R.perLane.toFixed(0)+' kN·m'"></div></div>
+      <div class="metric"><div class="l">M_LL (×車道)</div><div class="v" x-text="R.Mll.toFixed(0)+' kN·m'"></div></div>
+      <div class="metric"><div class="l">衝擊係數 I</div><div class="v" x-text="(R.IM*100).toFixed(1)+' %'"></div></div>
+    </div>
+    <div class="cite">自重 = A×24.5 kN/m³；M = wL²/8；活載 = 台灣 HS20-44「卡車或車道取大」×衝擊×車道數。</div>
+  </div>
+</div>
+
+<!-- ③ 預力 -->
+<div x-show="tab==='③'">
+  <div class="card no-print"><h2>預力 輸入（G1+B）</h2>
+    <div class="grid">
+      <label>鋼腱組數<input type="number" x-model.number="ntd" step="1"></label>
+      <label>每組股數<input type="number" x-model.number="strands" step="1"></label>
+      <label>偏心 e (mm)<input type="number" x-model.number="e" step="5"></label>
+    </div>
+  </div>
+  <div class="card"><h2>有效預力與損失</h2>
+    <div class="grid" style="margin-bottom:10px">
+      <div class="metric"><div class="l">有效預力 Pe</div><div class="v" x-text="(R.loss.Pe/1e3).toFixed(0)+' kN'"></div></div>
+      <div class="metric"><div class="l">總損失</div><div class="v" x-text="(R.loss.loss_pct*100).toFixed(1)+' %'"></div></div>
+    </div>
+    <template x-for="r in R.rows.filter(x=>x[4]==='③')" :key="r[0]">
+      <div class="chk">
+        <div class="chk-h" @click="r[5]&&(open=open===r[0]?null:r[0])" :style="r[5]?'cursor:pointer':''">
+          <span class="chk-n"><span class="caret" x-text="r[5]?(open===r[0]?'▼':'▶'):''"></span> <span x-text="r[0]"></span></span>
+          <span class="chk-v" x-text="r[1]"></span>
+          <span class="chk-j" :class="r[3]==null?'mut':(r[3]?'ok':'ng')" x-text="r[3]==null?'—':(r[3]?'✓':'✗')"></span>
+        </div>
+        <div class="chk-d" x-show="open===r[0]" x-cloak>
+          <div x-html="katexHTML(r[5]&&r[5].tex)"></div>
+          <div class="chk-line">容許/比較：<span x-text="r[2]"></span>　→　計算 <b x-text="r[1]"></b></div>
+          <div class="chk-cite" x-text="r[5]?('依據 '+r[5].cite):''"></div>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- ④ 服務性・強度 -->
+<div x-show="tab==='④'">
+  <div class="card"><h2>服務性・極限強度（C1+M1）</h2>
+    <template x-for="r in R.rows.filter(x=>x[4]==='④')" :key="r[0]">
+      <div class="chk">
+        <div class="chk-h" @click="r[5]&&(open=open===r[0]?null:r[0])" :style="r[5]?'cursor:pointer':''">
+          <span class="chk-n"><span class="caret" x-text="r[5]?(open===r[0]?'▼':'▶'):''"></span> <span x-text="r[0]"></span></span>
+          <span class="chk-v" x-text="r[1]"></span>
+          <span class="chk-j" :class="r[3]==null?'mut':(r[3]?'ok':'ng')" x-text="r[3]==null?'—':(r[3]?'✓':'✗')"></span>
+        </div>
+        <div class="chk-d" x-show="open===r[0]" x-cloak>
+          <div x-html="katexHTML(r[5]&&r[5].tex)"></div>
+          <div class="chk-line">容許/比較：<span x-text="r[2]"></span>　→　計算 <b x-text="r[1]"></b></div>
+          <div class="chk-cite" x-text="r[5]?('依據 '+r[5].cite):''"></div>
+        </div>
+      </div>
+    </template>
+    <div style="margin-top:12px"><div class="hint">C1 服務性應力分布（σb 越過零線＝底緣受拉超限）</div>
+      <svg viewBox="0 0 150 145" style="width:150px;height:auto" x-html="R.svgStr"></svg></div>
+  </div>
+</div>
+
+<!-- ⑤ 剪力・撓度 -->
+<div x-show="tab==='⑤'">
+  <div class="card no-print"><h2>剪力・撓度 輸入（D1+C2/C3）</h2>
+    <div class="grid">
+      <label>箍筋 Av (mm²,雙腳)<input type="number" x-model.number="Av" step="1"></label>
+      <label>箍筋間距 s (mm)<input type="number" x-model.number="sv" step="25"></label>
+      <label>控制斷面 Vu/腹板 (kN)<input type="number" x-model.number="Vu" step="10"></label>
+    </div>
+  </div>
+  <div class="card"><h2>腹板抗剪・撓度</h2>
+    <template x-for="r in R.rows.filter(x=>x[4]==='⑤')" :key="r[0]">
+      <div class="chk">
+        <div class="chk-h" @click="r[5]&&(open=open===r[0]?null:r[0])" :style="r[5]?'cursor:pointer':''">
+          <span class="chk-n"><span class="caret" x-text="r[5]?(open===r[0]?'▼':'▶'):''"></span> <span x-text="r[0]"></span></span>
+          <span class="chk-v" x-text="r[1]"></span>
+          <span class="chk-j" :class="r[3]==null?'mut':(r[3]?'ok':'ng')" x-text="r[3]==null?'—':(r[3]?'✓':'✗')"></span>
+        </div>
+        <div class="chk-d" x-show="open===r[0]" x-cloak>
+          <div x-html="katexHTML(r[5]&&r[5].tex)"></div>
+          <div class="chk-line">容許/比較：<span x-text="r[2]"></span>　→　計算 <b x-text="r[1]"></b></div>
+          <div class="chk-cite" x-text="r[5]?('依據 '+r[5].cite):''"></div>
+        </div>
+      </div>
+    </template>
+    <div style="margin-top:12px"><div class="hint">D1 莫耳圓（主拉 σ1 vs 台灣容許）</div>
+      <svg viewBox="0 0 225 135" style="width:225px;height:auto" x-html="R.svgMohr"></svg></div>
+  </div>
+</div>
+
+<!-- ⑥ 細部檢核 -->
+<div x-show="tab==='⑥'">
+  <div class="card no-print"><h2>細部 進階輸入（其餘由斷面/鋼腱自動推導）</h2>
+    <div class="grid">
+      <label>設計扭矩 Tu (kN·m)<input type="number" x-model.number="Tu" step="50"></label>
+      <label>疲勞彎矩幅 ΔM (kN·m)<input type="number" x-model.number="dMfat" step="50"></label>
+      <label>支承位移 Δ_S (mm)<input type="number" x-model.number="deltaS" step="1"></label>
+      <label>縫口縮短Σ (mm)<input type="number" x-model.number="jointSh" step="1"></label>
+    </div>
+  </div>
+  <div class="card"><h2>細部檢核（D2/D3/E1/E2/F1/P1/T1）</h2>
+    <template x-for="r in R.rows.filter(x=>x[4]==='⑥')" :key="r[0]">
+      <div class="chk">
+        <div class="chk-h" @click="r[5]&&(open=open===r[0]?null:r[0])" :style="r[5]?'cursor:pointer':''">
+          <span class="chk-n"><span class="caret" x-text="r[5]?(open===r[0]?'▼':'▶'):''"></span> <span x-text="r[0]"></span></span>
+          <span class="chk-v" x-text="r[1]"></span>
+          <span class="chk-j" :class="r[3]==null?'mut':(r[3]?'ok':'ng')" x-text="r[3]==null?'—':(r[3]?'✓':'✗')"></span>
+        </div>
+        <div class="chk-d" x-show="open===r[0]" x-cloak>
+          <div x-html="katexHTML(r[5]&&r[5].tex)"></div>
+          <div class="chk-line">容許/比較：<span x-text="r[2]"></span>　→　計算 <b x-text="r[1]"></b></div>
+          <div class="chk-cite" x-text="r[5]?('依據 '+r[5].cite):''"></div>
+        </div>
+      </div>
+    </template>
+  </div>
+</div>
+
+<!-- ⑦ 連續梁 -->
+<div x-show="tab==='⑦'">
+  <div class="card no-print"><h2>連續梁中墩 輸入（40+40 兩跨）</h2>
+    <div class="grid">
+      <label>中墩 Mu (kN·m)<input type="number" x-model.number="contMuP" step="1000"></label>
+      <label>頂板 PT Aps (mm²)<input type="number" x-model.number="contApsTop" step="100"></label>
+    </div>
+  </div>
+  <div class="card"><h2>中墩負彎矩控制斷面 <span class="gold" style="background:#fef2f2;color:#dc2626">★ 簡支不會出現</span></h2>
+    <table><thead><tr><th>項目</th><th>計算值</th><th>說明</th><th style="text-align:center">判定</th></tr></thead>
+    <tbody>
+      <tr><td>次彎矩 M2（跨中 / B墩）</td><td x-text="R.cont.f(R.cont.M2mid)+' / '+R.cont.f(R.cont.M2pier)+' kN·m'"></td><td style="color:#888">M2=M_total−M1</td><td class="mut" style="text-align:center">—</td></tr>
+      <tr><td>中墩 NA 位置</td><td x-text="'c = '+R.cont.ftP.c.toFixed(0)+' mm'"></td><td style="color:#888" x-text="R.cont.ftP.flanged?'＞翼板厚200 → 進腹板，T 斷面':'翼板內'"></td><td class="mut" style="text-align:center">—</td></tr>
+      <tr><td>中墩 φMn / CR</td><td x-text="R.cont.f(R.cont.ftP.phiMn)+' kN·m（CR '+R.cont.ftP.CR.toFixed(2)+'）'"></td><td style="color:#888" x-text="'≥ Mu '+R.cont.f(contMuP)+'？'"></td>
+        <td style="text-align:center" :class="R.cont.ftP.ok?'ok':'ng'" x-text="R.cont.ftP.ok?'✓':'✗ 不足'"></td></tr>
+    </tbody></table>
+    <div class="cite">中墩負彎矩使受壓區落窄底板 → NA 進腹板（T 斷面）→ Mn 縮水，CR≪1 嚴重不足。公式＝ bridgecalc continuous 模組。</div>
+  </div>
+</div>
+
+<!-- ⑧ 施工 -->
+<div x-show="tab==='⑧'">
+  <div class="hint no-print" style="margin:10px 0 0">施工階段應力歷程與工法設計。核心 = <code>construction-engine.js</code>（construction/launching/segmental 移植，對 <code>construction_stage_H1H2</code>/<code>cantilever_H3</code>/<code>launching_H4</code>/<code>segmental_H5H6</code> golden）。<b>H1/H2 串接①斷面/③預力/②自重</b>；H3/H4/H5H6 各自算例。</div>
+
+  <!-- H1/H2 支架施拉 -->
+  <div class="card"><h2>H1/H2 支架施拉應力歷程 <span class="gold" style="background:#eef2ff;color:#1d4ed8">★串接 ①③②</span></h2>
+    <div class="grid no-print" style="margin-bottom:8px">
+      <label>施拉強度 f'ci (MPa)<input type="number" x-model.number="cFci" step="1"></label>
+      <label>橋型（施壓限）<select x-model="cBridge" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px"><option>一般</option><option>節塊</option></select></label>
+      <label>分批張拉組數<input type="number" x-model.number="cNBatch" step="1"></label>
+    </div>
+    <div class="hint">串接讀入：初拉力 P_i = <b x-text="CC.f(CC.h12.Pi/1e3)"></b> kN（③預力 <span x-text="ntd"></span>組×<span x-text="strands"></span>股）・偏心 e = <b x-text="e"></b> mm・脫架自重 M_DC = <b x-text="CC.f(CC.h12.Mdc)"></b> kN·m（②載重）｜施拉容許 拉 <b x-text="CC.f(CC.h12.tl,2)"></b> / 壓 <b x-text="CC.f(CC.h12.cl,1)"></b> MPa</div>
+    <table style="margin-top:6px"><thead><tr><th>階段</th><th>頂緣 σ_t</th><th>底緣 σ_b</th><th style="text-align:center">判定</th></tr></thead>
+    <tbody>
+      <tr><td x-text="'全 PT 一次張拉（'+CC.h12.nt+'組）'"></td><td x-text="CC.f(CC.h12.full.st,2)+' MPa'"></td><td x-text="CC.f(CC.h12.full.sb,2)+' MPa'"></td>
+        <td style="text-align:center" :class="(CC.h12.full.top_ok&&CC.h12.full.bot_ok)?'ok':'ng'" x-text="(CC.h12.full.top_ok&&CC.h12.full.bot_ok)?'✓':'✗ 超限'"></td></tr>
+      <tr><td x-text="'分批張拉（'+cNBatch+'/'+CC.h12.nt+'組）'"></td><td x-text="CC.f(CC.h12.batch.st,2)+' MPa'"></td><td x-text="CC.f(CC.h12.batch.sb,2)+' MPa'"></td>
+        <td style="text-align:center" :class="(CC.h12.batch.top_ok&&CC.h12.batch.bot_ok)?'ok':'ng'" x-text="(CC.h12.batch.top_ok&&CC.h12.batch.bot_ok)?'✓':'✗ 超限'"></td></tr>
+      <tr><td>脫架（自重活化 M_DC）</td><td x-text="CC.f(CC.h12.strike.st,2)+' MPa'"></td><td x-text="CC.f(CC.h12.strike.sb,2)+' MPa'"></td>
+        <td style="text-align:center" :class="(CC.h12.strike.top_ok&&CC.h12.strike.bot_ok)?'ok':'ng'" x-text="(CC.h12.strike.top_ok&&CC.h12.strike.bot_ok)?'✓':'✗'"></td></tr>
+    </tbody></table>
+    <div style="margin-top:8px" x-html="katexHTML('\\sigma_t=-\\tfrac{P}{A}+\\tfrac{Pe}{S_t}-\\tfrac{M_{sw}}{S_t}\\le 0.25\\sqrt{f\'_{ci}},\\quad \\sigma_b=-\\tfrac{P}{A}-\\tfrac{Pe}{S_b}+\\tfrac{M_{sw}}{S_b}\\ge -0.55f\'_{ci}')"></div>
+    <table style="margin-top:8px"><tbody>
+      <tr><td><b>判定</b></td><td :class="CC.h12.solved?'ok':'ng'" style="text-align:left" x-text="CC.h12.solved?('✓ 全 PT 過平衡超限 → 分批 '+cNBatch+'/'+CC.h12.nt+' 組壓回容許內、脫架回壓'):(CC.h12.full.top_ok&&CC.h12.full.bot_ok?'✓ 全 PT 即通過（無需分批）':'✗ 分批 '+cNBatch+' 組仍超限，需再降批或調偏心')"></td></tr>
+    </tbody></table>
+    <div class="cite">支架/托架上施拉時自重未活化（M_sw≈0）→ 大偏心預力使頂緣淨受拉（過平衡）→ 分批張拉降瞬時預力；脫架自重活化 → 斷面回壓。σ_b 用 sectionFromDims（與基準斷面差 ~0.01 MPa）。</div>
+  </div>
+
+  <!-- H3 平衡懸臂 -->
+  <div class="card"><h2>H3 平衡懸臂工法（變深連續梁）</h2>
+    <div class="grid no-print" style="margin-bottom:8px">
+      <label>墩頂高 h_pier (m)<input type="number" x-model.number="cHpier" step="0.1"></label>
+      <label>跨中高 h_mid (m)<input type="number" x-model.number="cHmid" step="0.1"></label>
+      <label>半跨 (m)<input type="number" x-model.number="cHalf" step="1"></label>
+      <label>查詢 x (m)<input type="number" x-model.number="cXq" step="1"></label>
+      <label>掛籃重 (kN)<input type="number" x-model.number="cFtLoad" step="50"></label>
+      <label>掛籃力臂 (m)<input type="number" x-model.number="cFtArm" step="0.5"></label>
+      <label>彈性下撓 δ_e (mm)<input type="number" x-model.number="cDelas" step="1"></label>
+      <label>潛變係數 φ<input type="number" x-model.number="cPhi" step="0.1"></label>
+    </div>
+    <div class="grid" style="margin-bottom:8px">
+      <div class="metric"><div class="l">斷面高 h(x)</div><div class="v" x-text="CC.f(CC.h3.hx,3)+' m'"></div></div>
+      <div class="metric"><div class="l">自重彎矩 ΣG·arm</div><div class="v" x-text="CC.f(CC.h3.Msw)+' kN·m'"></div></div>
+      <div class="metric"><div class="l">懸臂最大彎矩</div><div class="v" x-text="CC.f(CC.h3.Mcant)+' kN·m'"></div></div>
+      <div class="metric"><div class="l">長期下撓 δ(1+φ)</div><div class="v" x-text="CC.f(CC.h3.dLong)+' mm'"></div></div>
+    </div>
+    <div x-html="katexHTML('h(x)=h_{mid}+(h_{pier}-h_{mid})\\left(\\tfrac{x}{L/2}\\right)^2,\\quad M=\\textstyle\\sum G_i\\,a_i+G_{FT}a_{FT},\\quad \\delta_{lt}=\\delta_e(1+\\varphi)')"></div>
+    <div class="cite" x-text="'端點 h_mid '+CC.f(CC.h3.hMid,2)+' / h_pier '+CC.f(CC.h3.hPier,2)+' m。自重項為算例 8 節塊（643…341 kN，力臂對 x=4）；⚠️公布 94,025 掛籃項以墩CL、自重以 x=4 混用偏保守~4%。長期 φ≈2.0。'"></div>
+  </div>
+
+  <!-- H4 推進 ILM -->
+  <div class="card"><h2>H4 推進工法（ILM）</h2>
+    <div class="grid no-print" style="margin-bottom:8px">
+      <label>自重 w (kN/m)<input type="number" x-model.number="cW" step="5"></label>
+      <label>最大懸臂 Lc (m)<input type="number" x-model.number="cLc" step="1"></label>
+      <label>跨徑 L (m)<input type="number" x-model.number="cL4" step="1"></label>
+      <label>斷面積 A (m²)<input type="number" x-model.number="cA4" step="0.01"></label>
+      <label>底模數 Zb (×10⁹mm³)<input type="number" x-model.number="cZb4" step="0.001"></label>
+      <label>殘餘壓 σ_res (MPa)<input type="number" x-model.number="cSigRes" step="0.1"></label>
+      <label>每束施拉力 (kN)<input type="number" x-model.number="cPper" step="10"></label>
+      <label>摩擦係數 μ<input type="number" x-model.number="cMu" step="0.01"></label>
+      <label>梁體總重 W (kN)<input type="number" x-model.number="cWtot" step="500"></label>
+      <label>支反 R (kN)<input type="number" x-model.number="cRbrg" step="100"></label>
+      <label>支承面積 (mm²)<input type="number" x-model.number="cAbrg" step="10000"></label>
+    </div>
+    <div class="grid" style="margin-bottom:8px">
+      <div class="metric"><div class="l">懸臂負彎矩 M⁻</div><div class="v" x-text="CC.f(CC.h4.Mneg)+' kN·m'"></div></div>
+      <div class="metric"><div class="l">跨中正彎矩 M⁺</div><div class="v" x-text="CC.f(CC.h4.Mpos)+' kN·m'"></div></div>
+      <div class="metric"><div class="l">置中預力 Pc</div><div class="v" x-text="CC.f(CC.h4.Pc)+' kN（'+CC.h4.nT+'束）'"></div></div>
+      <div class="metric"><div class="l">底緣 σ_b</div><div class="v" x-text="CC.f(CC.h4.sigBot,2)+' MPa'"></div></div>
+      <div class="metric"><div class="l">頂推力 F</div><div class="v" x-text="CC.f(CC.h4.Fjack)+' kN'"></div></div>
+      <div class="metric"><div class="l">支承支壓 σ_ba</div><div class="v" x-text="CC.f(CC.h4.sigBrg,2)+' MPa'"></div></div>
+    </div>
+    <div x-html="katexHTML('M^-=-\\tfrac{wL_c^2}{2},\\;M^+=\\tfrac{wL^2}{8},\\;P_c=\\left(\\tfrac{M^+}{Z_b}+\\sigma_{res}\\right)A,\\;\\sigma_b=-\\tfrac{P_c}{A}+\\tfrac{M^+}{Z_b},\\;F=\\mu W')"></div>
+    <table style="margin-top:8px"><tbody>
+      <tr><td><b>判定</b></td><td :class="CC.h4.sigBot<=0?'ok':'ng'" style="text-align:left" x-text="CC.h4.sigBot<=0?('✓ 置中預力 e=0 使底緣仍餘 '+CC.f(-CC.h4.sigBot,2)+' MPa 壓（無拉）'):('✗ 底緣出現拉應力 '+CC.f(CC.h4.sigBot,2)+' MPa，增 Pc')"></td></tr>
+    </tbody></table>
+    <div class="cite">ILM 每斷面推進中交替承受 M⁻/M⁺（包絡）→ 臨時置中預力（e=0）提供均勻壓，使最不利彎矩下全斷面受壓；頂推 F=μW；滑動支承局部支壓 R/A。</div>
+  </div>
+
+  <!-- H5/H6 預鑄節塊 -->
+  <div class="card"><h2>H5/H6 預鑄節塊工法與接縫設計</h2>
+    <div class="grid no-print" style="margin-bottom:8px">
+      <label>H5 斷面 Ac (m²)<input type="number" x-model.number="cH5Ac" step="0.05"></label>
+      <label>節塊長 (m)<input type="number" x-model.number="cH5L" step="0.5"></label>
+      <label>單位重 γ (kN/m³)<input type="number" x-model.number="cGam" step="1"></label>
+      <label>拼裝臨時腱數<input type="number" x-model.number="cH5nT" step="1"></label>
+      <label>每腱力 (kN)<input type="number" x-model.number="cH5Pt" step="20"></label>
+      <label>H6 接縫 Ac (m²)<input type="number" x-model.number="cH6Ac" step="0.05"></label>
+      <label>剪力鍵 V_fuk (kN)<input type="number" x-model.number="cVfuk" step="10"></label>
+      <label>折減 ξ₁ξ₂Φ<input type="number" x-model.number="cXi" step="0.01"></label>
+      <label>設計剪力 V_sd (kN)<input type="number" x-model.number="cVsd" step="50"></label>
+      <label>剪力鍵數<input type="number" x-model.number="cNkeys" step="1"></label>
+      <label>黏結 PT (kN)<input type="number" x-model.number="cPb" step="500"></label>
+      <label>總 PT (kN)<input type="number" x-model.number="cPtot" step="500"></label>
+    </div>
+    <div class="grid" style="margin-bottom:8px">
+      <div class="metric"><div class="l">H5 節塊自重</div><div class="v" x-text="CC.f(CC.h56.Wseg,1)+' kN'"></div></div>
+      <div class="metric"><div class="l">H5 接縫最小預力</div><div class="v" x-text="CC.f(CC.h56.Jmin5,1)+' kN'"></div></div>
+      <div class="metric"><div class="l">H5 接縫壓（4腱）</div><div class="v" x-text="CC.f(CC.h56.Jcomp,3)+' MPa'"></div></div>
+      <div class="metric"><div class="l">H6 剪力鍵承載</div><div class="v" x-text="CC.f(CC.h56.Vkey,1)+' kN/鍵'"></div></div>
+      <div class="metric"><div class="l">H6 LS3 驗核比</div><div class="v" x-text="CC.f(CC.h56.util,2)"></div></div>
+      <div class="metric"><div class="l">黏結 PT 比例</div><div class="v" x-text="CC.f(CC.h56.bratio*100,1)+' %'"></div></div>
+    </div>
+    <div x-html="katexHTML('W=A_c L\\gamma,\\;P_{min}=0.21A_c,\\;V_{key}=V_{fuk}\\xi_1\\xi_2\\Phi,\\;\\eta_{LS3}=\\tfrac{V_{sd}/n}{V_{key}},\\;\\rho_{bond}=\\tfrac{P_b}{P_t}')"></div>
+    <table style="margin-top:8px"><tbody>
+      <tr><td>剪力鍵驗核（LS3）</td><td :class="CC.h56.util<=1?'ok':'ng'" style="text-align:left" x-text="CC.h56.util<=1?('✓ 驗核比 '+CC.f(CC.h56.util,2)+' ≤ 1'):('✗ '+CC.f(CC.h56.util,2)+' > 1 超載')"></td></tr>
+      <tr><td>黏結 PT 比例</td><td :class="CC.h56.bratio>=0.30?'ok':'ng'" style="text-align:left" x-text="CC.h56.bratio>=0.30?('✓ '+CC.f(CC.h56.bratio*100,1)+'% ≥ 30% 下限'):('✗ '+CC.f(CC.h56.bratio*100,1)+'% < 30%')"></td></tr>
+    </tbody></table>
+    <div class="cite">節塊工廠配對澆置→現場拼裝；接縫無握裹鋼筋過縫，剪力由剪力鍵承擔（道示 V_fuk·ξ₁ξ₂Φ），接縫全程受壓（拼裝期≥0.21 MPa）；節段橋內置黏結 PT≥30%。</div>
+  </div>
+</div>
+
+<!-- ⑨ 耐震 -->
+<div x-show="tab==='⑨'">
+  <div class="hint no-print" style="margin:10px 0 0">台灣公路橋梁耐震設計規範（<b>單軌</b>，與箱梁主引擎 HS20/HL-93 雙軌不同，各式沿用條文原生單位）。預設重現 S1/S2/S3/S5 算例（對 <code>seismic_*</code> golden）。核心 = <code>seismic-engine.js</code>。</div>
+
+  <!-- S1 落橋防止 -->
+  <div class="card"><h2>S1 落橋防止系統（§8.5）</h2>
+    <div class="grid no-print" style="margin-bottom:10px">
+      <label>跨徑 L (m)　<span class="mut">←②載重</span><input type="number" :value="L" disabled></label>
+      <label>下部結構高 H (m)<input type="number" x-model.number="seiH" step="1"></label>
+      <label>橋墩斜角 S (度)<input type="number" x-model.number="seiS" step="5"></label>
+      <label>地盤類別<select x-model="seiSoil" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px"><option>第一類</option><option>第二類</option><option>第三類</option><option>臺北盆地</option></select></label>
+      <label>影響間距 L_e (cm)<input type="number" x-model.number="seiLe" step="100"></label>
+      <label>譜比 S_III/S_II<input type="number" x-model.number="seiRatio" step="0.05"></label>
+      <label>梁墩相對變位 u_R (cm)<input type="number" x-model.number="seiUR" step="1"></label>
+      <label>提供支承長 (cm)<input type="number" x-model.number="seiSeat" step="5"></label>
+    </div>
+    <div class="grid" style="margin-bottom:10px">
+      <div class="metric"><div class="l">最小防落長 min N_L</div><div class="v" x-text="SS.f(SS.s1.minNL)+' cm'"></div></div>
+      <div class="metric"><div class="l">地盤相對變位 u_G</div><div class="v" x-text="SS.f(SS.s1.uG,2)+' cm'"></div></div>
+      <div class="metric"><div class="l">需求 L_N（取大）</div><div class="v" x-text="SS.f(SS.s1.LN)+' cm'"></div></div>
+      <div class="metric"><div class="l">裝置降伏 F_y</div><div class="v" x-text="SS.f(SS.s1.Fy)+' kN'"></div></div>
+    </div>
+    <div x-html="katexHTML('\\text{min }N_L=(50+0.25L+H)\\left(1+\\tfrac{S^2}{8000}\\right),\\quad L_N=\\max(\\text{min }N_L,\\;u_R+u_G)')"></div>
+    <table style="margin-top:10px"><tbody>
+      <tr><td>控制條件</td><td x-text="SS.s1.ctrl+'（'+SS.f(SS.s1.LN)+' cm）'"></td></tr>
+      <tr><td><b>判定</b></td><td :class="SS.s1.ok?'ok':'ng'" style="text-align:left" x-text="SS.s1.ok?('✓ 提供 '+SS.f(SS.s1.seat)+' ≥ 需求 '+SS.f(SS.s1.LN)+' cm'):('✗ 不足：提供 '+SS.f(SS.s1.seat)+' < 需求 '+SS.f(SS.s1.LN)+' cm')"></td></tr>
+    </tbody></table>
+    <div class="cite">min N_L 式8-10；u_G=ε_G·L_e·(S_III/S_II)；活動支承取 max(min N_L, u_R+u_G)；裝置 F_y≥1.5R_d。span 串接②載重 L。</div>
+  </div>
+
+  <!-- S2 隔震與消能 -->
+  <div class="card"><h2>S2 隔震與消能（LRB 等效線性化迭代・第7章）</h2>
+    <div class="grid no-print" style="margin-bottom:10px">
+      <label>上部重 W (kN)<input type="number" x-model.number="seiW" step="500"></label>
+      <label>特徵強度 Q_d (kN)<input type="number" x-model.number="seiQd" step="50"></label>
+      <label>降伏後勁度 K_d (kN/mm)<input type="number" x-model.number="seiKd" step="1"></label>
+      <label>譜係數 S_II,1<input type="number" x-model.number="seiSII1" step="0.05"></label>
+    </div>
+    <div class="grid" style="margin-bottom:10px">
+      <div class="metric"><div class="l">設計位移 D_d</div><div class="v" x-text="SS.f(SS.iso.Dd*1000)+' mm'"></div></div>
+      <div class="metric"><div class="l">有效週期 T_e</div><div class="v" x-text="SS.f(SS.iso.Te,3)+' s'"></div></div>
+      <div class="metric"><div class="l">有效勁度 K_eff</div><div class="v" x-text="SS.f(SS.iso.Keff)+' kN/m'"></div></div>
+      <div class="metric"><div class="l">系統阻尼 ξ_e</div><div class="v" x-text="SS.f(SS.iso.xiE*100,2)+' %'"></div></div>
+      <div class="metric"><div class="l">阻尼修正 B_1</div><div class="v" x-text="SS.f(SS.iso.B1,4)"></div></div>
+      <div class="metric"><div class="l">設計剪力 V_b</div><div class="v" x-text="SS.f(SS.iso.Vb_secant)+' kN'"></div></div>
+    </div>
+    <div x-html="katexHTML('K_{eff}=\\tfrac{Q_d}{D_d}+K_d,\\;\\xi_{eq}=\\tfrac{2}{\\pi}\\tfrac{Q_d}{K_{eff}D_d},\\;T_e=2\\pi\\sqrt{\\tfrac{W}{gK_{eff}}},\\;s_D=\\tfrac{S_a T_e^2}{4\\pi^2}g')"></div>
+    <div class="cite" x-text="'剛性墩・等效線性化迭代 '+SS.iso.iterations+' 次收斂（s_D→D_d→K_eff/ξ→T_e→B_1 表3-1內插→S_a→新 s_D）。B_1 依表3-1 線性內插。V_b=K_eff·D_d（式C7-3）。'"></div>
+  </div>
+
+  <!-- S3 橋墩韌性 -->
+  <div class="card"><h2>S3 橋墩韌性容量設計（圓柱・§4.2/5.3）</h2>
+    <div class="grid no-print" style="margin-bottom:10px">
+      <label>標稱彎矩 M_n (tf·m)<input type="number" x-model.number="seiMn" step="100"></label>
+      <label>剪跨 L_c (m)<input type="number" x-model.number="seiLc" step="0.5"></label>
+      <label>f'c (kgf/cm²)<input type="number" x-model.number="seiFc" step="10"></label>
+      <label>f_yh (kgf/cm²)<input type="number" x-model.number="seiFyh" step="100"></label>
+      <label>全斷面 A_g (cm²)<input type="number" x-model.number="seiAg" step="100"></label>
+      <label>核心 A_c (cm²)<input type="number" x-model.number="seiAc" step="100"></label>
+      <label>軸力 P_e (kgf)<input type="number" x-model.number="seiPe" step="10000"></label>
+      <label>柱深 (cm)<input type="number" x-model.number="seiColD" step="10"></label>
+      <label>主筋 d_b (cm)<input type="number" x-model.number="seiDb" step="0.1"></label>
+    </div>
+    <div class="grid" style="margin-bottom:10px">
+      <div class="metric"><div class="l">超強彎矩 M_p</div><div class="v" x-text="SS.f(SS.s3.Mp)+' tf·m'"></div></div>
+      <div class="metric"><div class="l">容量剪力 V_u</div><div class="v" x-text="SS.f(SS.s3.Vu)+' tf'"></div></div>
+      <div class="metric"><div class="l">螺箍體積比 ρ_s</div><div class="v" x-text="SS.f(SS.s3.rhoS*100,3)+' %'"></div></div>
+      <div class="metric"><div class="l">間距上限</div><div class="v" x-text="SS.f(SS.s3.spacing)+' cm'"></div></div>
+      <div class="metric"><div class="l">塑鉸長 ℓ₀</div><div class="v" x-text="SS.f(SS.s3.hingeL)+' cm'"></div></div>
+    </div>
+    <div x-html="katexHTML('M_p=1.3M_n,\\;V_u=\\tfrac{\\sum M_p}{L_c},\\;\\rho_s=\\max\\!\\left[0.45\\tfrac{f_c}{f_{yh}}(\\tfrac{A_g}{A_c}\\!-\\!1),\\,0.12\\tfrac{f_c}{f_{yh}}(0.5\\!+\\!1.25\\tfrac{P_e}{f_c A_g})\\right]')"></div>
+    <div class="cite" x-text="'ρ_s 控制式＝'+SS.s3.ctrl+'（式5-5幾何 '+SS.f(SS.s3.r55*100,3)+'% vs 式5-6軸力 '+SS.f(SS.s3.r56*100,3)+'%）；間距≤min(15,D/4,6d_b)；ℓ₀=max(柱深,ℓc/6,45)。大軸力常由式5-6控制。'"></div>
+  </div>
+
+  <!-- S5 液狀化 -->
+  <div class="card"><h2>S5 液狀化土壤參數折減 D_E（§8.1・表8-1）</h2>
+    <div class="grid no-print" style="margin-bottom:10px">
+      <label>液化抵抗率 F_L<input type="number" x-model.number="seiFL" step="0.05"></label>
+      <label>距地表深度 x (m)<input type="number" x-model.number="seiX" step="1"></label>
+      <label>剪應力強度比 R_s<input type="number" x-model.number="seiRs" step="0.05"></label>
+    </div>
+    <div class="grid" style="margin-bottom:10px">
+      <div class="metric"><div class="l">折減級距</div><div class="v" x-text="SS.DElvl"></div></div>
+      <div class="metric"><div class="l">深度分區</div><div class="v" x-text="(seiX<=10?'淺層 ≤10m':(seiX<=20?'深層 10–20m':'>20m 不折減'))"></div></div>
+      <div class="metric"><div class="l">砂密實度</div><div class="v" x-text="(seiRs>0.3?'密實 R_s>0.3':'鬆散 R_s≤0.3')"></div></div>
+      <div class="metric"><div class="l">折減係數 D_E</div><div class="v" x-text="SS.f(SS.DE,4)"></div></div>
+    </div>
+    <table><thead><tr><th>級距（F_L）</th><th>淺層鬆散</th><th>淺層密實</th><th>深層</th></tr></thead>
+    <tbody>
+      <tr><td>第一級 ≤1/3</td><td>0</td><td>1/6</td><td>1/3</td></tr>
+      <tr><td>第二級 ≤2/3</td><td>1/3</td><td>2/3</td><td>2/3</td></tr>
+      <tr><td>第三級 ≤1</td><td>2/3</td><td>1</td><td>1</td></tr>
+    </tbody></table>
+    <div class="cite">表8-1：F_L≥1 或 x>20m 不折減(=1.0)；D_E=0 表參數設零（淺層鬆散第一級）。折減係數乘於側向地盤反力係數與極限反力。</div>
+  </div>
+</div>
+
+<!-- ⑩ 補強 -->
+<div x-show="tab==='⑩'">
+  <div class="card no-print"><h2>補強 輸入（既有 RC 構材・中國 JTG/T J22）</h2>
+    <div class="hint">補強對象為<b>既有 RC 矩形構材</b>（與新建箱梁為不同構材，斷面自填）。<span style="color:#1d4ed8">串接參照：① 箱梁 f'c = <span x-text="fc"></span> MPa</span></div>
+    <div class="grid">
+      <label>補強工法<select x-model="method" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px"><option>CFRP</option><option>鋼板</option><option>增大截面</option></select></label>
+      <label>寬 b (mm)<input type="number" x-model.number="rb" step="50"></label>
+      <label>高 h (mm)<input type="number" x-model.number="rh" step="50"></label>
+      <label>有效高 h₀ (mm)<input type="number" x-model.number="rh0" step="10"></label>
+      <label>受拉筋 As (mm²)<input type="number" x-model.number="rAs" step="50"></label>
+      <label>鋼筋 f_sd (MPa)<input type="number" x-model.number="rfsd" step="10"></label>
+      <label>混凝土 f_cd (MPa)<input type="number" x-model.number="rfcd" step="0.5"></label>
+      <label>補強前 M_d1 (kN·m)<input type="number" x-model.number="rMd1" step="10"></label>
+      <label>目標 M_d (kN·m)<input type="number" x-model.number="rMdTarget" step="10"></label>
+    </div>
+    <div class="hint" x-show="method==='CFRP'">CFRP 參數</div>
+    <div class="grid" x-show="method==='CFRP'">
+      <label>層數 n_f<input type="number" x-model.number="rNf" step="1"></label>
+      <label>E_f (MPa)<input type="number" x-model.number="rEf" step="10000"></label>
+      <label>單層厚 t_f (mm)<input type="number" x-model.number="rTf" step="0.01"></label>
+      <label>ε_fu<input type="number" x-model.number="rEpsfu" step="0.001"></label>
+      <label>貼寬 b_f (mm)<input type="number" x-model.number="rBf" step="10"></label>
+    </div>
+    <div class="hint" x-show="method==='鋼板'">鋼板參數</div>
+    <div class="grid" x-show="method==='鋼板'">
+      <label>A_sp (mm²)<input type="number" x-model.number="rAsp" step="50"></label>
+      <label>f_sp (MPa)<input type="number" x-model.number="rFsp" step="5"></label>
+      <label>E_sp (MPa)<input type="number" x-model.number="rEsp" step="1000"></label>
+    </div>
+    <div class="hint" x-show="method==='增大截面'">增大截面參數</div>
+    <div class="grid" x-show="method==='增大截面'">
+      <label>新增筋 h₀₂ (mm)<input type="number" x-model.number="rH02" step="10"></label>
+      <label>新增筋 As2 (mm²)<input type="number" x-model.number="rAs2" step="50"></label>
+      <label>f_sd2 (MPa)<input type="number" x-model.number="rFsd2" step="10"></label>
+      <label>E_s2 (MPa)<input type="number" x-model.number="rEs2" step="1000"></label>
+    </div>
+  </div>
+  <div class="card"><h2 x-text="'補強後抗彎（'+method+'）'"></h2>
+    <div class="grid" style="margin-bottom:10px">
+      <div class="metric"><div class="l">原承載力 M₀</div><div class="v" x-text="RR.M0.toFixed(0)+' kN·m'"></div></div>
+      <div class="metric"><div class="l">補強後 M_u</div><div class="v" x-text="RR.Mu.toFixed(0)+' kN·m'"></div></div>
+      <div class="metric"><div class="l">增幅</div><div class="v" x-text="'+'+RR.gain.toFixed(0)+' %'"></div></div>
+      <div class="metric"><div class="l">目標 M_d</div><div class="v" x-text="rMdTarget+' kN·m'"></div></div>
+    </div>
+    <table><tbody>
+      <template x-for="d in RR.det" :key="d[0]"><tr><td x-text="d[0]"></td><td x-text="d[1]"></td></tr></template>
+      <tr><td><b>判定</b></td><td :class="RR.ok?'ok':'ng'" style="text-align:left" x-text="RR.ok?('✓ M_u '+RR.Mu.toFixed(0)+' ≥ 目標 '+rMdTarget):('✗ 不足：M_u '+RR.Mu.toFixed(0)+' < 目標 '+rMdTarget+'（增層/加大/換法）')"></td></tr>
+    </tbody></table>
+    <div class="cite">中國 JTG/T J22 加固法（單軌）。CFRP 剝離控制 [ε_f]；鋼板/增大截面計二次受力應變滯後。公式＝ retrofit-engine.js（對 retrofit_* golden 驗證）。預設重現 R1/R2/R4 算例（CFRP 539／鋼板 609／增大 679 kN·m）。</div>
+  </div>
+</div>
+
+<!-- ⑪ 計算書 -->
+<div x-show="tab==='⑪'">
+  <div class="card no-print"><h2>⑪ 計算書產出</h2>
+    <div class="grid">
+      <label>案件名稱<input type="text" x-model="pjName"></label>
+      <label>公司<input type="text" x-model="pjFirm"></label>
+      <label>工程師<input type="text" x-model="pjEng"></label>
+      <label>日期<input type="text" x-model="pjDate"></label>
+    </div>
+    <button class="btn" style="margin-top:12px;background:var(--blue);color:#fff;border-color:var(--blue)" @click="window.print()">🖨 列印完整計算書（全分頁展開）</button>
+    <div class="cite">列印時：分頁列與輸入欄自動隱藏，所有檢核面板與公式（KaTeX）自動展開成線性送審計算書，專案資訊列於頁首。目前涵蓋箱梁 ①~⑦＋施工⑧＋耐震⑨＋補強⑩（全分頁上線）。</div>
+  </div>
+</div>
+
+<!-- ⑧⑨ 待建 placeholder（列印時不出現）-->
+<template x-for="t in tabs.filter(x=>x.todo)" :key="t.id">
+  <div x-show="tab===t.id" class="no-print"><div class="todobox">
+    <div style="font-size:15px;color:#666;margin-bottom:6px" x-text="t.id+' '+t.name+'　—　規劃中'"></div>
+    <div x-text="t.note"></div>
+    <div style="margin-top:8px;font-size:12px">藍圖見 <code>箱梁分析器v4_設計規劃.md</code>。功能於後續階段接上引擎。</div>
+  </div></div>
+</template>
+
+<div class="sub no-print" style="margin-top:16px">輸入改變 → 全部即時重算（Alpine 反應式，全分頁共享同一 <code>project</code> 狀態）。預設 = 40m 參考橋（HS20-44/8組×19股）重現 golden。舊版 <a href="box-girder.html">單頁儀表板 box-girder.html</a> 保留為 fallback。</div>
+
+<script>
+// 每檢核的公式（KaTeX LaTeX）＋規範條號（重用知識庫公式卡 LaTeX）
+var DET={
+  'B 預力損失':{tex:'P_e = P_i\\,(1-\\eta_{\\text{loss}}) \\;\\ge\\; P_{e,\\min}',cite:'道示Ⅲ / AASHTO 5.9.3・預力損失（含 f_cgp 非線性耦合）'},
+  'C1 服務性 底緣 σ_b':{tex:'\\sigma_b = -\\dfrac{P_e}{A} - \\dfrac{P_e\\,e}{S_b} + \\dfrac{M}{S_b} \\;\\le\\; 0',cite:'台灣公路橋梁設計規範 C1・完全預壓（底緣零拉）'},
+  'C1 服務性 頂緣 σ_t':{tex:'\\sigma_t = -\\dfrac{P_e}{A} + \\dfrac{P_e\\,e}{S_t} - \\dfrac{M}{S_t} \\;\\ge\\; -0.6\\,f\'_c',cite:'AASHTO 5.9.2.3.2a・使用階段壓應力 0.6f\'c'},
+  'M1 極限彎曲 φMn':{tex:'\\phi M_n = \\phi\\,A_{ps}f_{ps}\\left(d_p-\\dfrac{a}{2}\\right) \\;\\ge\\; M_u',cite:'AASHTO 5.6.3・下限 M_cr（0.97√f\'c[MPa]）'},
+  'D1 主拉應力 σ1':{tex:'\\sigma_1 = -\\dfrac{f_{pc}}{2}+\\sqrt{\\left(\\dfrac{f_{pc}}{2}\\right)^2+\\tau^2} \\;\\le\\; 0.3\\sqrt{f\'_c}',cite:'台灣・主拉 0.3√f\'c(kgf/cm²)=0.094√f\'c(MPa)'},
+  'D1 設計抗剪 φVn':{tex:'\\phi V_n = \\phi\\,(V_{cw}+V_s) \\;\\ge\\; V_u',cite:'AASHTO 5.7.3・V_cw 含鋼腱垂直分量 V_p'},
+  'D1 最小箍筋':{tex:'\\dfrac{A_v}{s} \\;\\ge\\; \\dfrac{0.35\\,b_w}{f_y}',cite:'台灣・最小剪力鋼筋'},
+  'C2/C3 活載撓度 δ_LL':{tex:'\\delta_{LL} \\;\\le\\; \\dfrac{L}{800}',cite:'台灣公路橋梁設計規範 §8.11・活載撓度'},
+  'D2 扭力 Tcr':{tex:'T_u \\;\\le\\; \\tfrac{1}{4}\\,T_{cr} \\;\\Rightarrow\\; 可免顯式扭設計',cite:'AASHTO 5.7.2.1・扭力門檻'},
+  'D3 橫向 墩面 φMn':{tex:'\\phi M_n \\;\\ge\\; M_u \\quad(\\text{墩面 D22@150})',cite:'台灣・橋面板橫向設計'},
+  'E1 支承 γ_S / σ_TL':{tex:'\\gamma_S \\le 0.5,\\quad \\sigma_{TL} \\le \\sigma_{\\lim},\\quad \\text{無上拔}',cite:'道示・彈性支承剪應變/壓應力/穩定'},
+  'E2 伸縮縫 最大開度':{tex:'g_{\\max} \\;\\le\\; \\text{接縫容量}',cite:'道示・伸縮縫位移量（溫度+潛變+乾縮）'},
+  'F1 錨碇 螺旋 Pult':{tex:'P_{ult} = 0.8f\'_c\\sqrt{\\tfrac{A}{A_b}}\\,A_b + 4.1\\,f_{lat}A_{core}\\left(1-\\tfrac{s}{D}\\right)^2 \\ge P_u',cite:'AASHTO 5.9.5・局部承壓＋螺旋圍束'},
+  'P1 疲勞 鋼腱Δσ_ps':{tex:'\\Delta\\sigma_{ps} \\le 125\\text{ MPa},\\quad \\sigma_{c,\\max} \\le 0.4\\,f\'_c',cite:'AASHTO 5.5.3・Fatigue I（γ=1.75）'},
+  'T1 溫度 負梯度底Service':{tex:'\\sigma_{\\text{base}} + 0.5\\,\\sigma_{TG}^{-} \\;\\le\\; 0',cite:'AASHTO 5.4.2 / T1・溫度梯度自平衡應力'}
+};
+function calc(){
+  return {
+    tab:'①', open:null,
+    katexHTML(tex){ return (window.katex&&tex)?katex.renderToString(tex,{throwOnError:false}):(tex||''); },
+    tabs:[
+      {id:'①',name:'斷面・材料',grp:'箱梁設計'},
+      {id:'②',name:'載重',grp:'箱梁設計'},
+      {id:'③',name:'預力',grp:'箱梁設計'},
+      {id:'④',name:'服務性・強度',grp:'箱梁設計'},
+      {id:'⑤',name:'剪力・撓度',grp:'箱梁設計'},
+      {id:'⑥',name:'細部檢核',grp:'箱梁設計'},
+      {id:'⑦',name:'連續梁',grp:'進階'},
+      {id:'⑧',name:'施工',grp:'進階'},
+      {id:'⑨',name:'耐震',grp:'進階'},
+      {id:'⑩',name:'補強',grp:'進階'},
+      {id:'⑪',name:'計算書',grp:'產出'},
+    ],
+    pjName:'40m 後張箱梁', pjFirm:'', pjEng:'', pjDate:new Date().toISOString().slice(0,10),
+    L:40, fc:40, lanes:2, wDW:20,
+    topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
+    ntd:8, strands:19, e:1109, Av:397.4, sv:250, Vu:2069,
+    Tu:1900, dMfat:3222, deltaS:40, jointSh:29.4,
+    contMuP:75337, contApsTop:11292,
+    // ⑩ 補強（既有 RC 構材，中國 JTG）——預設＝R1/R2/R4 算例（重現 golden）
+    method:'CFRP',
+    rb:400, rh:800, rh0:750, rAs:1964, rfsd:330, rfcd:13.8, rMd1:200, rMdTarget:520,
+    rNf:2, rEf:240000, rTf:0.167, rEpsfu:0.0155, rBf:300,
+    rAsp:800, rFsp:305, rEsp:206000,
+    rH02:860, rAs2:982, rFsd2:330, rEs2:200000,
+    // ⑨ 耐震（台灣單軌）——預設＝S1/S2/S3/S5 算例（重現 seismic_* golden）
+    seiH:10, seiS:0, seiSoil:'第二類', seiLe:5000, seiRatio:1.2, seiUR:15, seiRd:1800, seiSeat:70,
+    seiW:8000, seiQd:400, seiKd:6, seiSII1:0.60,
+    seiMn:3000, seiLc:8, seiFc:280, seiFyh:2800, seiAg:17671, seiAc:15394, seiPe:800000, seiColD:150, seiDb:3.6,
+    seiFL:0.3, seiX:5, seiRs:0.2,
+    // ⑧ 施工——H1/H2 串接①③②；H3/H4/H5H6 各自算例預設（重現 H* golden）
+    cFci:32, cBridge:'一般', cNBatch:4,
+    cHpier:4.5, cHmid:2.2, cHalf:40, cXq:20, cFtLoad:800, cFtArm:40.5, cDelas:147, cPhi:2.0,
+    cW:120, cLc:14, cL4:40, cA4:4.870, cZb4:3.093, cSigRes:1.5, cPper:2510, cMu:0.10, cWtot:24000, cRbrg:7200, cAbrg:960000,
+    cH5Ac:4.20, cH5L:2.5, cGam:25, cH5nT:4, cH5Pt:480, cH6Ac:2.85, cVfuk:350, cXi:0.439, cVsd:2850, cNkeys:20, cPb:14000, cPtot:42500,
+    get RR(){
+      var RFx=window.RF, b=this.rb,h=this.rh,h0=this.rh0,As=this.rAs,fsd=this.rfsd,fcd=this.rfcd;
+      var Ec=30000, aEs=6.667, ecu=0.0033;
+      var x1=RFx.crackedNaDepth(b,h0,As,aEs), Icr=RFx.crackedInertia(b,x1,As,h0,aEs);
+      var ec1=RFx.initialConcreteStrain(this.rMd1,x1,Ec,Icr);
+      var M0=RFx.baseMoment(b,h0,fcd,As,fsd).M0_kNm, Mu, det=[], r;
+      if(this.method==='CFRP'){
+        var Af=this.rNf*this.rBf*this.rTf, epsf=RFx.cfrpAllowableStrain(this.rNf,this.rEf,this.rTf,this.rEpsfu);
+        r=RFx.cfrpMomentCapacity(b,h,h0,fcd,ecu,As,fsd,Af,this.rEf,epsf,0.0003); Mu=r.Mu_kNm;
+        det=[['CFRP 截面積 A_f',Af.toFixed(1)+' mm²'],['允許拉應變 [ε_f]',epsf.toFixed(4)+'（剝離控制）'],['受壓區高 x',r.x.toFixed(1)+' mm（案'+(r.case2?'②':'①')+'）']];
+      } else if(this.method==='鋼板'){
+        r=RFx.plateMomentCapacity(b,h,h0,fcd,ecu,As,fsd,this.rAsp,this.rFsp,this.rEsp,x1,ec1); Mu=r.Mu_kNm;
+        det=[['鋼板應力 σ_sp',r.sigma_sp.toFixed(0)+' MPa'+(r.plate_yields?'（降伏）':'')],['受壓區高 x',r.x.toFixed(1)+' mm'],['粘貼延伸長度 l_p',RFx.plateDevLength(this.rFsp,this.rAsp,2.5,200).toFixed(0)+' mm']];
+      } else {
+        var h02=this.rH02, h0c=(As*h0+this.rAs2*h02)/(As+this.rAs2);
+        r=RFx.enlargementMomentCapacity(b,h02,h0c,fcd,ecu,As,fsd,this.rAs2,this.rFsd2,this.rEs2,x1,ec1); Mu=r.Mu_kNm;
+        det=[['新增筋應力 σ_s2',r.sigma_s2.toFixed(0)+' MPa'+(r.added_bar_yields?'（降伏）':'')],['受壓區高 x',r.x.toFixed(1)+' mm'],['加固後有效高 h₀',h0c.toFixed(1)+' mm']];
+      }
+      return {M0:M0, Mu:Mu, gain:(Mu/M0-1)*100, ok:Mu>=this.rMdTarget, det:det};
+    },
+    get SS(){
+      var S=window.SE, f=function(n,d){return (+n.toFixed(d==null?1:d)).toLocaleString('en-US')};
+      // S1 落橋防止（span 串接 ② 載重 L）
+      var minNL=S.minFalloffLength(this.L,this.seiH,this.seiS);
+      var uG=S.groundRelativeDisplacement(this.seiSoil,this.seiLe,this.seiRatio);
+      var LN=S.requiredFalloffLength(minNL,this.seiUR,uG,true);
+      var Fy=S.restrainerYieldStrength(this.seiRd);
+      var s1={minNL:minNL,uG:uG,LN:LN,Fy:Fy,seat:this.seiSeat,ok:this.seiSeat>=LN,
+              ctrl:(minNL>=this.seiUR+uG?'min N_L':'u_R+u_G')};
+      // S2 隔震 LRB 等效線性化迭代（K_d kN/mm→kN/m）
+      var iso=S.isolationDesign(this.seiW,this.seiQd,this.seiKd*1000,this.seiSII1);
+      // S3 橋墩韌性容量設計
+      var Mp=S.overstrengthMoment(this.seiMn), Vu=S.capacityShear(Mp,this.seiLc);
+      var rhoS=S.rhoSCircular(this.seiFc,this.seiFyh,this.seiAg,this.seiAc,this.seiPe);
+      var r55=0.45*(this.seiFc/this.seiFyh)*(this.seiAg/this.seiAc-1);
+      var r56=0.12*(this.seiFc/this.seiFyh)*(0.5+1.25*this.seiPe/(this.seiFc*this.seiAg));
+      var s3={Mp:Mp,Vu:Vu,rhoS:rhoS,r55:r55,r56:r56,ctrl:(r56>=r55?'式5-6軸力':'式5-5幾何'),
+              spacing:S.confinementSpacingLimit(this.seiColD,this.seiDb),
+              hingeL:S.plasticHingeLength(this.seiColD,this.seiLc*100)};
+      // S5 液狀化折減（單點＋三級速覽）
+      var DE=S.liquefactionReductionDE(this.seiFL,this.seiX,this.seiRs);
+      var lvl=this.seiFL>=1?'不液化':(this.seiFL<=1/3?'第一級':(this.seiFL<=2/3?'第二級':'第三級'));
+      return {f:f,s1:s1,iso:iso,s3:s3,DE:DE,DElvl:lvl};
+    },
+    get CC(){
+      var C=window.CE, B=window.BC, f=function(n,d){return (+n.toFixed(d==null?0:d)).toLocaleString('en-US')};
+      // H1/H2 支架施拉——串接 ①斷面 / ③預力 / ②自重
+      var R=this.R, sec=R.sec, Mdc=R.Mdc, e=this.e, nt=this.ntd;
+      var Pi=B.tendon(this.ntd,this.strands,this.e).Pi, bt=this.cBridge, fci=this.cFci;
+      var full=C.batchedTransfer(Pi,nt,nt,sec,e,fci,0,bt);
+      var batch=C.batchedTransfer(Pi,this.cNBatch,nt,sec,e,fci,0,bt);
+      var strike=C.stageStress(Pi,sec,e,Mdc,fci,bt);
+      var h12={Pi:Pi,e:e,Mdc:Mdc,nt:nt,tl:full.tLimit,cl:full.cLimit,full:full,batch:batch,strike:strike,
+               solved:(!full.top_ok||!full.bot_ok)&&batch.top_ok&&batch.bot_ok};
+      // H3 平衡懸臂（變深，算例固定 8 節塊自重/力臂）
+      var w_h3=[643,599,550,497,439,385,353,341];
+      var a_h3=[6.75,11.25,15.75,20.25,24.75,29.25,33.75,38.25].map(function(x){return x-4;});
+      var h3={hMid:C.variableDepth(0,this.cHpier,this.cHmid,this.cHalf),
+              hPier:C.variableDepth(this.cHalf,this.cHpier,this.cHmid,this.cHalf),
+              hx:C.variableDepth(this.cXq,this.cHpier,this.cHmid,this.cHalf),
+              Msw:C.cantileverMoment(w_h3,a_h3),
+              Mcant:C.cantileverMoment(w_h3,a_h3,this.cFtLoad,this.cFtArm),
+              dLong:C.longTermDeflection(this.cDelas,this.cPhi)};
+      // H4 推進 ILM（A m²→mm²、Zb 1e9mm³）
+      var A4=this.cA4*1e6, Zb4=this.cZb4*1e9;
+      var Mpos=C.launchingSpanMoment(this.cW,this.cL4), Pc=C.centricPrestressRequired(Mpos,Zb4,A4,this.cSigRes);
+      var h4={Mneg:C.launchingCantileverMoment(this.cW,this.cLc),Mpos:Mpos,Pc:Pc,
+              nT:C.nTendons(Pc,this.cPper),sigBot:C.launchingBottomStress(Pc,A4,Mpos,Zb4),
+              Fjack:C.jackingForce(this.cMu,this.cWtot),sigBrg:C.bearingStress(this.cRbrg,this.cAbrg)};
+      // H5/H6 預鑄節塊
+      var Vkey=C.shearKeyDesignCapacity(this.cVfuk,this.cXi);
+      var h56={Wseg:C.segmentWeight(this.cH5Ac,this.cH5L,this.cGam),
+               Jmin5:C.jointMinPrestress(this.cH5Ac*1e6),Jcomp:C.jointCompression(this.cH5nT*this.cH5Pt,this.cH5Ac*1e6),
+               Jmin6:C.jointMinPrestress(this.cH6Ac*1e6),Vkey:Vkey,
+               util:C.shearKeyUtilization(this.cVsd,this.cNkeys,Vkey),bratio:C.bondedPtRatio(this.cPb,this.cPtot)};
+      return {f:f,h12:h12,h3:h3,h4:h4,h56:h56};
+    },
+    get R(){
+      var B=window.BC;
+      var sec=B.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
+      var ten=B.tendon(this.ntd,this.strands,this.e);
+      var wsw=sec.A/1e6*24.5, Mdc=wsw*this.L*this.L/8, Mdw=this.wDW*this.L*this.L/8;
+      var IM=B.taiwanImpact(this.L), perLane=B.taiwanPerLaneMoment(this.L);
+      var Mll=B.laneLiveLoad(perLane,this.lanes,1.0);
+      var loss=B.computeLosses(ten,sec,Mdc,Mdw);
+      var comb=B.combinations(Mdc,Mdw,Mll);
+      var serv=B.stresses(loss.Pe,sec,this.e,comb.Service_I);
+      var peMin=B.PeMinZeroTension(sec,this.e,comb.Service_I);
+      var dp=sec.yt+this.e, dv=Math.max(0.9*dp,0.72*this.h), bwEff=this.webT-100;
+      var flex=B.flexuralStrength(ten,sec,this.fc,this.topW,this.topT,dp,comb.Strength_I,loss.Pe,this.e);
+      var sh=B.shearWeb(loss.Pe,sec,this.e,this.fc,bwEff,dv,this.Vu*1e3,dv,this.L*1000,this.nWeb);
+      var phiVn=B.phiVn(sh.Vcw,this.Av/this.sv,dv), AvsMin=B.AvSminTW(this.fc,bwEff);
+      var compAllow=-0.60*this.fc;
+      var df=B.deflection(this.L*1000,29700,sec,wsw+this.wDW,loss.Pe,this.e,perLane*0.01);
+      var f=function(n,d){return (+n.toFixed(d==null?0:d)).toLocaleString('en-US')};
+      var rows=[
+        ['B 預力損失','損失 '+(loss.loss_pct*100).toFixed(1)+'%・Pe '+f(loss.Pe/1e3)+' kN','Pe,min '+f(peMin/1e3)+' kN',loss.Pe>=peMin,'③'],
+        ['C1 服務性 底緣 σ_b',f(serv.sb,2)+' MPa',' ≤ 0（台灣零拉）',serv.sb<=0,'④'],
+        ['C1 服務性 頂緣 σ_t',f(serv.st,2)+' MPa',' ≥ '+f(compAllow,1)+'（−0.6f\'c）',serv.st>=compAllow,'④'],
+        ['M1 極限彎曲 φMn','φMn '+f(flex.phiMn)+' kN·m（CR '+f(flex.CR,2)+'）','≥ Mu '+f(comb.Strength_I)+' 且 ≥下限 '+f(flex.lower),flex.ok,'④'],
+        ['D1 主拉應力 σ1',f(sh.sigma1,2)+' MPa',' ≤ '+f(sh.sigma1_limit,2)+'（近支承超→箍筋）',sh.sigma1_ok,'⑤'],
+        ['D1 設計抗剪 φVn','φVn '+f(phiVn/1e3)+' kN（Av/s '+(this.Av/this.sv).toFixed(2)+'）','≥ Vu '+f(this.Vu)+' kN',phiVn>=this.Vu*1e3,'⑤'],
+        ['D1 最小箍筋','Av/s '+(this.Av/this.sv).toFixed(2)+' mm²/mm','≥ '+AvsMin.toFixed(2),(this.Av/this.sv)>=AvsMin,'⑤'],
+        ['C2/C3 活載撓度 δ_LL',f(df.d_LL,1)+' mm','≤ L/800 = '+f(this.L*1000/800)+' mm',df.d_LL_ok,'⑤'],
+        ['C2/C3 建議預拱',f(df.camber)+' mm（LBR '+f(df.LBR*100,1)+'%）','—',null,'⑤']
+      ];
+      var Acp=this.topW*this.h, pc=2*(this.topW+this.h);
+      var tor=B.torsionCheck(loss.Pe,sec,this.fc,Acp,pc,this.Tu);
+      var d3=B.slabFlexure(150.3,2534,200,this.fc,420);
+      var R_DL=(wsw+this.wDW)*this.L/2/this.nWeb, R_LL=B.taiwanPerLaneShear(this.L)*this.lanes/(2*this.nWeb);
+      var br=B.bearingCheck(R_DL+R_LL,R_DL,R_LL,this.deltaS,100,550,450,10,8);
+      var ej=B.expansionJoint(this.jointSh,0,0,20);
+      var anc=B.anchorageCheck(ten.Pi/1e3,this.ntd,260,this.h,Math.floor(this.ntd/2));
+      var spr=B.spiralLocalBearing(anc.Pu,2919,8.47,104044,50,380);
+      var fat=B.fatigueCheck(sec,loss.Pe,this.e,Mdc+Mdw,this.dMfat,this.fc);
+      var stf=B.stirrupFatigue(565,this.sv,this.Av,dv);
+      var tb=B.thermalBandsFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
+      var tg=B.selfEquilibratingStress(tb,sec.I,sec.yt,this.h,[['底',this.h,0]],29700,1.08e-5);
+      var tgs=B.thermalServiceCheck(tg.sigma_neg['底'],serv.sb,0.5);
+      rows.push(
+        ['D2 扭力 Tcr','Tcr '+f(tor.Tcr)+' kN·m','Tu '+f(this.Tu)+' ≪ 門檻 '+f(tor.threshold),tor.neglect,'⑥'],
+        ['D3 橫向 墩面 φMn',f(d3.phiMn,1)+' kN·m/m','≥ Mu 150.3（D22@150）',d3.ok,'⑥'],
+        ['E1 支承 γ_S / σ_TL',f(br.gamma_s,2)+' / '+f(br.sigma_TL,2)+' MPa','γ≤0.5・σ≤'+f(br.sigma_TL_limit,2)+'・無上拔',br.gamma_ok&&br.sigma_ok&&br.stability_ok&&br.H_ok&&br.no_uplift,'⑥'],
+        ['E2 伸縮縫 最大開度',f(ej.g_max,1)+' mm','容量 '+ej.capacity+' → '+ej.joint,ej.capacity<=75,'⑥'],
+        ['F1 錨碇 螺旋 Pult',f(spr.Pult)+' kN','≥ Pu '+f(anc.Pu)+'（餘裕 '+f(spr.margin,2)+'）',spr.ok,'⑥'],
+        ['P1 疲勞 鋼腱Δσ_ps',f(fat.dsig_ps,1)+' MPa','≤125；σ_c '+f(fat.sig_c_max,2)+'≤'+f(0.4*this.fc,1),fat.ps_ok&&fat.c_ok,'⑥'],
+        ['T1 溫度 負梯度底Service',f(tgs.total,2)+' MPa（含預力）','≤ 0（TL '+f(tg.TL,1)+'°C）',tgs.ok,'⑥']
+      );
+      rows.forEach(function(r){r[5]=DET[r[0]]||null;});
+      var np=rows.filter(function(r){return r[3]===true}).length, nt=rows.filter(function(r){return r[3]!==null}).length;
+      var mg=(this.L===40&&this.ntd===8&&this.strands===19&&this.fc===40&&Math.abs(serv.sb+0.91)<0.05);
+      var f1=function(n){return (+n).toFixed(1)};
+      var ss=0.022, oxs=20, oys=14, Tw=this.topW*ss, Bw=this.botW*ss, H=this.h*ss, wt=this.webT*ss;
+      var lwx=oxs+(this.topW-this.botW)/2*ss, rwx=oxs+(this.topW+this.botW)/2*ss-wt;
+      var yC=oys+(this.h-sec.yb)*ss, yTen=oys+(sec.yt+this.e)*ss, cxs=oxs+Tw/2, cellTop=oys+this.topT*ss, cellH=H-this.topT*ss-this.botT*ss;
+      var svgSec='<rect x="'+oxs+'" y="'+oys+'" width="'+Tw+'" height="'+(this.topT*ss)+'" fill="#dbeafe" stroke="#1d4ed8"/>'+
+        '<rect x="'+lwx+'" y="'+cellTop+'" width="'+wt+'" height="'+cellH+'" fill="#dbeafe" stroke="#1d4ed8"/>'+
+        '<rect x="'+rwx+'" y="'+cellTop+'" width="'+wt+'" height="'+cellH+'" fill="#dbeafe" stroke="#1d4ed8"/>'+
+        '<rect x="'+lwx+'" y="'+(oys+H-this.botT*ss)+'" width="'+Bw+'" height="'+(this.botT*ss)+'" fill="#dbeafe" stroke="#1d4ed8"/>'+
+        '<line x1="'+(oxs-5)+'" y1="'+yC+'" x2="'+(oxs+Tw+5)+'" y2="'+yC+'" stroke="#16a34a" stroke-dasharray="3 2"/><text x="'+(oxs+Tw+7)+'" y="'+(yC+3)+'" font-size="7" fill="#16a34a">形心</text>'+
+        '<line x1="'+cxs+'" y1="'+yC+'" x2="'+cxs+'" y2="'+yTen+'" stroke="#dc2626"/><circle cx="'+cxs+'" cy="'+yTen+'" r="3" fill="#dc2626"/><text x="'+(cxs+6)+'" y="'+(yTen+3)+'" font-size="7" fill="#dc2626">鋼腱 e='+this.e+'</text>';
+      var sH=110, sox=34, soy=14, zx=sox+72, pps=6, ptx=zx+serv.st*pps, pbx=zx+serv.sb*pps;
+      var svgStr='<line x1="'+sox+'" y1="'+soy+'" x2="'+sox+'" y2="'+(soy+sH)+'" stroke="#999"/><text x="'+(sox-3)+'" y="'+(soy+4)+'" font-size="7" fill="#999" text-anchor="end">頂</text><text x="'+(sox-3)+'" y="'+(soy+sH)+'" font-size="7" fill="#999" text-anchor="end">底</text>'+
+        '<line x1="'+zx+'" y1="'+(soy-4)+'" x2="'+zx+'" y2="'+(soy+sH+4)+'" stroke="#888" stroke-dasharray="2 2"/><text x="'+zx+'" y="'+(soy+sH+15)+'" font-size="7" fill="#888" text-anchor="middle">σ=0（拉→）</text>'+
+        '<path d="M'+zx+','+soy+' L'+ptx+','+soy+' L'+pbx+','+(soy+sH)+' L'+zx+','+(soy+sH)+'Z" fill="#3b82f6" fill-opacity="0.22" stroke="#1d4ed8" stroke-width="1.2"/>'+
+        '<text x="'+ptx+'" y="'+(soy-2)+'" font-size="8" fill="#1d4ed8" text-anchor="middle">σt '+f1(serv.st)+'</text>'+
+        '<text x="'+pbx+'" y="'+(soy+sH+15)+'" font-size="8" fill="'+(serv.sb<=0?'#1d4ed8':'#dc2626')+'" text-anchor="middle">σb '+f1(serv.sb)+(serv.sb<=0?'壓✓':'拉✗')+'</text>';
+      var mcx=120, mcy=72, ms=7, mc=-sh.fpc/2, mr=Math.sqrt(Math.pow(sh.fpc/2,2)+sh.tau*sh.tau);
+      var svgMohr='<line x1="28" y1="'+mcy+'" x2="212" y2="'+mcy+'" stroke="#999"/><text x="213" y="'+(mcy-3)+'" font-size="7" fill="#999">σ</text>'+
+        '<line x1="'+mcx+'" y1="18" x2="'+mcx+'" y2="126" stroke="#999"/><text x="'+(mcx+3)+'" y="22" font-size="7" fill="#999">τ</text>'+
+        '<circle cx="'+(mcx+mc*ms)+'" cy="'+mcy+'" r="'+(mr*ms)+'" fill="#1d4ed8" fill-opacity="0.06" stroke="#1d4ed8" stroke-width="1.4"/>'+
+        '<line x1="'+(mcx+sh.sigma1_limit*ms)+'" y1="'+(mcy-30)+'" x2="'+(mcx+sh.sigma1_limit*ms)+'" y2="'+(mcy+30)+'" stroke="#dc2626" stroke-dasharray="3 2"/><text x="'+(mcx+sh.sigma1_limit*ms)+'" y="'+(mcy+40)+'" font-size="7" fill="#dc2626" text-anchor="middle">限 '+f1(sh.sigma1_limit)+'</text>'+
+        '<circle cx="'+(mcx+sh.sigma1*ms)+'" cy="'+mcy+'" r="3" fill="#dc2626"/><text x="'+(mcx+sh.sigma1*ms)+'" y="'+(mcy-7)+'" font-size="8" fill="#dc2626" text-anchor="middle">σ1='+f1(sh.sigma1)+'</text>';
+      var ftP=B.flexuralStrengthT(this.contApsTop,1860,this.fc,1400,200,700,1950,this.contMuP);
+      var M2mid=B.secondaryMoment(8320,B.primaryMoment([[23700,0.950],[12557,-0.300]]));
+      var M2pier=B.secondaryMoment(-10594,B.primaryMoment([[23700,-0.080],[12557,0.900]]));
+      var cont={ftP:ftP,M2mid:M2mid,M2pier:M2pier,f:f};
+      return {sec:sec,wsw:wsw,Mdc:Mdc,Mdw:Mdw,IM:IM,perLane:perLane,Mll:Mll,loss:loss,
+              rows:rows,npass:np,ntot:nt,matchGolden:mg,cont:cont,
+              svgSec:svgSec,svgStr:svgStr,svgMohr:svgMohr};
+    }
+  };
+}
+</script>
+</body>
+</html>

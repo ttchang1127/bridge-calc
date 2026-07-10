@@ -28,6 +28,15 @@ jobs:
       - name: JS 引擎回歸（box-girder-engine.js 對 golden）
         run: node box-girder-engine.test.js
 
+      - name: JS 引擎回歸（seismic-engine.js 對 golden・台灣單軌 S1/S2/S3/S5）
+        run: node seismic-engine.test.js
+
+      - name: JS 引擎回歸（construction-engine.js 對 golden・施工 H1-H6）
+        run: node construction-engine.test.js
+
+      - name: JS 引擎回歸（retrofit-engine.js 對 golden・中國 JTG R1/R2/R4）
+        run: node retrofit-engine.test.js
+
       - name: golden 新鮮度檢查（忘記重產則紅燈）
         run: |
           git diff --exit-code golden_answers.json \

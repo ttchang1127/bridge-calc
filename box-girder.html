@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>簡支後張箱梁設計分析器（台灣 HS20-44）</title>
 <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-<script src="box-girder-engine.js"></script>
+<script src="engine.js"></script>
 <style>
 :root{--blue:#1d4ed8;--ink:#1a1a1a;--mut:#555;--line:#e5e7eb;--ok:#16a34a;--ng:#dc2626;--bg:#f8f9fa}
 *{box-sizing:border-box}
@@ -28,7 +28,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 </head>
 <body x-data="calc()">
 <h1>簡支後張箱梁設計分析器</h1>
-<div class="sub">台灣 HS20-44 ＋車道載重・單室箱梁・輸入即時重算 16 項檢核（核心 9 + 次檢核 7）｜核心 = <code>box-girder-engine.js</code>（= Python bridgecalc，對 golden 驗證）</div>
+<div class="sub">台灣 HS20-44 ＋車道載重・單室箱梁・輸入即時重算 16 項檢核（核心 9 + 次檢核 7）｜核心 = <code>engine.js</code>（= Python bridgecalc，對 golden 驗證）</div>
 
 <div class="card no-print">
   <h2>輸入</h2>

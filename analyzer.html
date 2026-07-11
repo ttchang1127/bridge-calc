@@ -7,10 +7,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-<script src="box-girder-engine.js"></script>
-<script src="retrofit-engine.js"></script>
-<script src="seismic-engine.js"></script>
-<script src="construction-engine.js"></script>
+<script src="engine.js"></script>
 <style>
 :root{--blue:#1d4ed8;--ink:#1a1a1a;--mut:#555;--line:#e5e7eb;--ok:#16a34a;--ng:#dc2626;--bg:#f8f9fa}
 *{box-sizing:border-box}
@@ -68,7 +65,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <div class="bar no-print">
   <div class="bar-row">
-    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎（P1 分頁殼）｜核心 = <code>box-girder-engine.js</code>（對 golden 驗證）</div></div>
+    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 110 項驗證）</div></div>
   </div>
   <div class="bar-row" style="margin-top:8px">
     <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
@@ -265,7 +262,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ⑧ 施工 -->
 <div x-show="tab==='⑧'">
-  <div class="hint no-print" style="margin:10px 0 0">施工階段應力歷程與工法設計。核心 = <code>construction-engine.js</code>（construction/launching/segmental 移植，對 <code>construction_stage_H1H2</code>/<code>cantilever_H3</code>/<code>launching_H4</code>/<code>segmental_H5H6</code> golden）。<b>H1/H2 串接①斷面/③預力/②自重</b>；H3/H4/H5H6 各自算例。</div>
+  <div class="hint no-print" style="margin:10px 0 0">施工階段應力歷程與工法設計。核心 = <code>engine.js</code>（CE 域＝construction/launching/segmental 移植，對 <code>construction_stage_H1H2</code>/<code>cantilever_H3</code>/<code>launching_H4</code>/<code>segmental_H5H6</code> golden）。<b>H1/H2 串接①斷面/③預力/②自重</b>；H3/H4/H5H6 各自算例。</div>
 
   <!-- H1/H2 支架施拉 -->
   <div class="card"><h2>H1/H2 支架施拉應力歷程 <span class="gold" style="background:#eef2ff;color:#1d4ed8">★串接 ①③②</span></h2>
@@ -378,7 +375,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ⑨ 耐震 -->
 <div x-show="tab==='⑨'">
-  <div class="hint no-print" style="margin:10px 0 0">台灣公路橋梁耐震設計規範（<b>單軌</b>，與箱梁主引擎 HS20/HL-93 雙軌不同，各式沿用條文原生單位）。預設重現 S1/S2/S3/S5 算例（對 <code>seismic_*</code> golden）。核心 = <code>seismic-engine.js</code>。</div>
+  <div class="hint no-print" style="margin:10px 0 0">台灣公路橋梁耐震設計規範（<b>單軌</b>，與箱梁主引擎 HS20/HL-93 雙軌不同，各式沿用條文原生單位）。預設重現 S1/S2/S3/S5 算例（對 <code>seismic_*</code> golden）。核心 = <code>engine.js</code>（SE 域）。</div>
 
   <!-- S1 落橋防止 -->
   <div class="card"><h2>S1 落橋防止系統（§8.5）</h2>
@@ -521,7 +518,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <template x-for="d in RR.det" :key="d[0]"><tr><td x-text="d[0]"></td><td x-text="d[1]"></td></tr></template>
       <tr><td><b>判定</b></td><td :class="RR.ok?'ok':'ng'" style="text-align:left" x-text="RR.ok?('✓ M_u '+RR.Mu.toFixed(0)+' ≥ 目標 '+rMdTarget):('✗ 不足：M_u '+RR.Mu.toFixed(0)+' < 目標 '+rMdTarget+'（增層/加大/換法）')"></td></tr>
     </tbody></table>
-    <div class="cite">中國 JTG/T J22 加固法（單軌）。CFRP 剝離控制 [ε_f]；鋼板/增大截面計二次受力應變滯後。公式＝ retrofit-engine.js（對 retrofit_* golden 驗證）。預設重現 R1/R2/R4 算例（CFRP 539／鋼板 609／增大 679 kN·m）。</div>
+    <div class="cite">中國 JTG/T J22 加固法（單軌）。CFRP 剝離控制 [ε_f]；鋼板/增大截面計二次受力應變滯後。公式＝ engine.js（RF 域，對 retrofit_* golden 驗證）。預設重現 R1/R2/R4 算例（CFRP 539／鋼板 609／增大 679 kN·m）。</div>
   </div>
 </div>
 

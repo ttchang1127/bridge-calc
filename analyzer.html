@@ -134,10 +134,20 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 <div x-show="tab==='③'">
   <div class="card no-print"><h2>預力 輸入（G1+B）</h2>
     <div class="grid">
+      <label>鋼腱型號<select x-model="strandType" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:13px">
+        <template x-for="(s,k) in strandSpecs" :key="k"><option :value="k" x-text="s.label"></option></template>
+      </select></label>
       <label>鋼腱組數<input type="number" x-model.number="ntd" step="1"></label>
       <label>每組股數<input type="number" x-model.number="strands" step="1"></label>
       <label>偏心 e (mm)<input type="number" x-model.number="e" step="5"></label>
+      <template x-if="strandType==='custom'">
+        <label>自訂 Ap (mm²)<input type="number" x-model.number="customAp" step="0.1"></label>
+      </template>
+      <template x-if="strandType==='custom'">
+        <label>自訂 f_pu (MPa)<input type="number" x-model.number="customFpu" step="10"></label>
+      </template>
     </div>
+    <div class="hint">每股面積 Ap = <b x-text="strandAp"></b> mm²（型號自動帶）・f_pu = <b x-text="strandFpu"></b> MPa　→　總鋼腱面積 A_ps = <span x-text="ntd"></span>組×<span x-text="strands"></span>股×<span x-text="strandAp"></span> = <b x-text="(ntd*strands*strandAp).toLocaleString('en-US')"></b> mm²・初拉力 P_i = <b x-text="(R.tenPi/1e3).toLocaleString('en-US',{maximumFractionDigits:0})"></b> kN</div>
   </div>
   <div class="card"><h2>有效預力與損失</h2>
     <div class="grid" style="margin-bottom:10px">
@@ -570,6 +580,16 @@ function calc(){
   return {
     tab:'①', open:null,
     katexHTML(tex){ return (window.katex&&tex)?katex.renderToString(tex,{throwOnError:false}):(tex||''); },
+    // 標準鋼腱型號（選型號→自動帶每股面積 Ap；皆 Grade 270 低鬆弛 f_pu=1860）
+    strandSpecs:{
+      '15.2':{Ap:140, fpu:1860, label:"φ15.2mm 0.6″（Ap 140）"},
+      '12.7':{Ap:98.7, fpu:1860, label:"φ12.7mm 0.5″（Ap 98.7）"},
+      '15.7':{Ap:150, fpu:1860, label:"φ15.7mm（Ap 150）"},
+      '17.8':{Ap:190, fpu:1860, label:"φ17.8mm 0.7″（Ap 190）"},
+      'custom':{Ap:140, fpu:1860, label:"自訂"},
+    },
+    get strandAp(){ return this.strandType==='custom' ? this.customAp : this.strandSpecs[this.strandType].Ap; },
+    get strandFpu(){ return this.strandType==='custom' ? this.customFpu : this.strandSpecs[this.strandType].fpu; },
     tabs:[
       {id:'①',name:'斷面・材料',grp:'箱梁設計'},
       {id:'②',name:'載重',grp:'箱梁設計'},
@@ -587,6 +607,7 @@ function calc(){
     L:40, fc:40, lanes:2, wDW:20,
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, Av:397.4, sv:250, Vu:2069,
+    strandType:'15.2', customAp:140, customFpu:1860,
     Tu:1900, dMfat:3222, deltaS:40, jointSh:29.4,
     contMuP:75337, contApsTop:11292,
     // ⑩ 補強（既有 RC 構材，中國 JTG）——預設＝R1/R2/R4 算例（重現 golden）
@@ -653,7 +674,7 @@ function calc(){
       var C=window.CE, B=window.BC, f=function(n,d){return (+n.toFixed(d==null?0:d)).toLocaleString('en-US')};
       // H1/H2 支架施拉——串接 ①斷面 / ③預力 / ②自重
       var R=this.R, sec=R.sec, Mdc=R.Mdc, e=this.e, nt=this.ntd;
-      var Pi=B.tendon(this.ntd,this.strands,this.e).Pi, bt=this.cBridge, fci=this.cFci;
+      var Pi=B.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu).Pi, bt=this.cBridge, fci=this.cFci;
       var full=C.batchedTransfer(Pi,nt,nt,sec,e,fci,0,bt);
       var batch=C.batchedTransfer(Pi,this.cNBatch,nt,sec,e,fci,0,bt);
       var strike=C.stageStress(Pi,sec,e,Mdc,fci,bt);
@@ -685,7 +706,7 @@ function calc(){
     get R(){
       var B=window.BC;
       var sec=B.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
-      var ten=B.tendon(this.ntd,this.strands,this.e);
+      var ten=B.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu);
       var wsw=sec.A/1e6*24.5, Mdc=wsw*this.L*this.L/8, Mdw=this.wDW*this.L*this.L/8;
       var IM=B.taiwanImpact(this.L), perLane=B.taiwanPerLaneMoment(this.L);
       var Mll=B.laneLiveLoad(perLane,this.lanes,1.0);
@@ -762,7 +783,7 @@ function calc(){
       var M2mid=B.secondaryMoment(8320,B.primaryMoment([[23700,0.950],[12557,-0.300]]));
       var M2pier=B.secondaryMoment(-10594,B.primaryMoment([[23700,-0.080],[12557,0.900]]));
       var cont={ftP:ftP,M2mid:M2mid,M2pier:M2pier,f:f};
-      return {sec:sec,wsw:wsw,Mdc:Mdc,Mdw:Mdw,IM:IM,perLane:perLane,Mll:Mll,loss:loss,
+      return {sec:sec,wsw:wsw,Mdc:Mdc,Mdw:Mdw,IM:IM,perLane:perLane,Mll:Mll,loss:loss,tenPi:ten.Pi,
               rows:rows,npass:np,ntot:nt,matchGolden:mg,cont:cont,
               svgSec:svgSec,svgStr:svgStr,svgMohr:svgMohr};
     }

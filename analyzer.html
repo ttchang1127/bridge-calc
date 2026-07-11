@@ -558,6 +558,22 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <button class="btn" style="margin-top:12px;background:var(--blue);color:#fff;border-color:var(--blue)" @click="window.print()">🖨 列印完整計算書（全分頁展開）</button>
     <div class="cite">列印時：分頁列與輸入欄自動隱藏，所有檢核面板與公式（KaTeX）自動展開成線性送審計算書，專案資訊列於頁首。目前涵蓋箱梁 ①~⑦＋施工⑧＋耐震⑨＋補強⑩（全分頁上線）。</div>
   </div>
+
+  <div class="card"><h2>串接總覽（單頁共享 project → 改上游即時重算下游）</h2>
+    <div class="hint no-print">全分頁綁<b>同一 reactive <code>project</code> 狀態</b>：改 ① 斷面／② 載重／③ 預力任一欄，下游即時重算——下表現值隨之變。這就是「一頁看完整座橋、資料串接零額外機制」。</div>
+    <table><thead><tr><th>共享值（誰產）</th><th>現值</th><th style="text-align:center">產</th><th>讀取分頁</th></tr></thead>
+    <tbody>
+      <tr><td>斷面積 A</td><td x-text="(R.sec.A/1e6).toFixed(3)+' m²'"></td><td style="text-align:center">①</td><td class="mut">③④⑤⑦⑧</td></tr>
+      <tr><td>慣性矩 I</td><td x-text="R.sec.I.toExponential(3)"></td><td style="text-align:center">①</td><td class="mut">③④⑤⑦⑧</td></tr>
+      <tr><td>混凝土 f'c</td><td x-text="fc+' MPa'"></td><td style="text-align:center">①</td><td class="mut">全部下游</td></tr>
+      <tr><td>靜載彎矩 M_DC</td><td x-text="R.Mdc.toLocaleString('en-US',{maximumFractionDigits:0})+' kN·m'"></td><td style="text-align:center">②</td><td class="mut">③④⑤⑧</td></tr>
+      <tr><td>活載 M_LL+IM</td><td x-text="R.Mll.toLocaleString('en-US',{maximumFractionDigits:0})+' kN·m'"></td><td style="text-align:center">②</td><td class="mut">③④⑤</td></tr>
+      <tr><td>有效預力 Pe</td><td x-text="(R.loss.Pe/1e3).toLocaleString('en-US',{maximumFractionDigits:0})+' kN（損失 '+(R.loss.loss_pct*100).toFixed(1)+'%）'"></td><td style="text-align:center">③</td><td class="mut">④⑤⑧</td></tr>
+      <tr><td>底緣服務性 σ_bot</td><td x-text="R.rows.find(r=>r[0].indexOf('底緣')>=0)[1]"></td><td style="text-align:center">④</td><td class="mut">⑪／總覽</td></tr>
+    </tbody></table>
+    <div class="cite"><b>串接關鍵三條</b>：① ② M_LL/M_DC → ③④⑤（箱梁載重效應）；② ① 斷面＋③ Pe → ⑧ 施工（施拉應力歷程即時跟斷面/預力動）；③ ① f'c → ⑩ 補強（參照）。<br>
+    <b>⚠️ 構材邊界（誠實）</b>：箱梁 <b>①–⑧ ＝ 同一構材</b>（真串接——改①斷面/③預力，②載重效應、④⑤檢核、⑧施拉歷程全流動）；<b>⑨ 柱＝下部結構、⑩ 補強＝既有 RC 矩形梁 ＝ 不同構材</b>，故只參照 ① f'c／示範共享機制，<b>不</b>吃箱梁斷面幾何（真斷面串接僅在同構材 ①–⑧ 內成立）。</div>
+  </div>
 </div>
 
 <!-- ⑧⑨ 待建 placeholder（列印時不出現）-->

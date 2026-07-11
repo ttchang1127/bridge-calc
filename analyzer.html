@@ -88,7 +88,11 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 <div x-show="tab==='①'">
   <div class="card no-print"><h2>斷面・材料 輸入</h2>
     <div class="grid">
-      <label>f'c (MPa)<input type="number" x-model.number="fc" step="1"></label>
+      <label>f'c 級別<select x-model="fcGrade" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:14px">
+        <template x-for="g in ['28','35','40','50','60']" :key="g"><option :value="g" x-text="'C'+g+'（'+g+' MPa）'"></option></template>
+        <option value="custom">自訂</option>
+      </select></label>
+      <template x-if="fcGrade==='custom'"><label>f'c (MPa)<input type="number" x-model.number="fc" step="1"></label></template>
       <label>頂板寬<input type="number" x-model.number="topW" step="100"></label>
       <label>頂板厚<input type="number" x-model.number="topT" step="10"></label>
       <label>底板寬<input type="number" x-model.number="botW" step="100"></label>
@@ -115,7 +119,9 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
   <div class="card no-print"><h2>載重 輸入（L0）</h2>
     <div class="grid">
       <label>跨度 L (m)<input type="number" x-model.number="L" step="1"></label>
-      <label>設計車道數<input type="number" x-model.number="lanes" step="1"></label>
+      <label>設計車道數<select x-model.number="lanes" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:14px">
+        <template x-for="n in [1,2,3,4]" :key="n"><option :value="n" x-text="n+' 車道'"></option></template>
+      </select></label>
       <label>SDL 附加靜載 (kN/m)<input type="number" x-model.number="wDW" step="1"></label>
     </div>
   </div>
@@ -197,10 +203,18 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 <div x-show="tab==='⑤'">
   <div class="card no-print"><h2>剪力・撓度 輸入（D1+C2/C3）</h2>
     <div class="grid">
-      <label>箍筋 Av (mm²,雙腳)<input type="number" x-model.number="Av" step="1"></label>
+      <label>箍筋號數<select x-model="stirrupBar" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:14px">
+        <template x-for="(a,d) in rebarArea" :key="d"><option :value="d" x-text="d+'（'+a+' mm²）'"></option></template>
+        <option value="custom">自訂</option>
+      </select></label>
+      <label>箍筋肢數<select x-model.number="stirrupLegs" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:14px">
+        <template x-for="n in [2,4,6]" :key="n"><option :value="n" x-text="n+' 肢'"></option></template>
+      </select></label>
+      <template x-if="stirrupBar==='custom'"><label>自訂 Av (mm²)<input type="number" x-model.number="customAv" step="1"></label></template>
       <label>箍筋間距 s (mm)<input type="number" x-model.number="sv" step="25"></label>
       <label>控制斷面 Vu/腹板 (kN)<input type="number" x-model.number="Vu" step="10"></label>
     </div>
+    <div class="hint">箍筋 Av = <span x-text="stirrupBar==='custom'?'自訂':stirrupBar"></span> × <span x-text="stirrupLegs"></span> 肢 = <b x-text="avAuto.toFixed(1)"></b> mm²（號數自動帶）　→　Av/s = <b x-text="(avAuto/sv).toFixed(2)"></b> mm²/mm</div>
   </div>
   <div class="card"><h2>腹板抗剪・撓度</h2>
     <template x-for="r in R.rows.filter(x=>x[4]==='⑤')" :key="r[0]">
@@ -590,6 +604,12 @@ function calc(){
     },
     get strandAp(){ return this.strandType==='custom' ? this.customAp : this.strandSpecs[this.strandType].Ap; },
     get strandFpu(){ return this.strandType==='custom' ? this.customFpu : this.strandSpecs[this.strandType].fpu; },
+    // 標準竹節鋼筋號數→單根公稱面積 mm²（CNS 560）
+    rebarArea:{D10:71.33, D13:126.7, D16:198.6, D19:286.5, D22:387.1, D25:506.7, D29:642.4, D32:794.2},
+    // 箍筋號數×肢數→Av（雙腳/多腳自動）；自訂則手填
+    get avAuto(){ return this.stirrupBar==='custom' ? this.customAv : (this.rebarArea[this.stirrupBar]||0)*this.stirrupLegs; },
+    // 選 f'c 級別→帶入 f'c（自訂則保留手填值）
+    init(){ this.$watch('fcGrade', v=>{ if(v!=='custom') this.fc=+v; }); },
     tabs:[
       {id:'①',name:'斷面・材料',grp:'箱梁設計'},
       {id:'②',name:'載重',grp:'箱梁設計'},
@@ -606,8 +626,9 @@ function calc(){
     pjName:'40m 後張箱梁', pjFirm:'', pjEng:'', pjDate:new Date().toISOString().slice(0,10),
     L:40, fc:40, lanes:2, wDW:20,
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
-    ntd:8, strands:19, e:1109, Av:397.4, sv:250, Vu:2069,
+    ntd:8, strands:19, e:1109, sv:250, Vu:2069,
     strandType:'15.2', customAp:140, customFpu:1860,
+    fcGrade:'40', stirrupBar:'D16', stirrupLegs:2, customAv:397.4,
     Tu:1900, dMfat:3222, deltaS:40, jointSh:29.4,
     contMuP:75337, contApsTop:11292,
     // ⑩ 補強（既有 RC 構材，中國 JTG）——預設＝R1/R2/R4 算例（重現 golden）
@@ -717,7 +738,7 @@ function calc(){
       var dp=sec.yt+this.e, dv=Math.max(0.9*dp,0.72*this.h), bwEff=this.webT-100;
       var flex=B.flexuralStrength(ten,sec,this.fc,this.topW,this.topT,dp,comb.Strength_I,loss.Pe,this.e);
       var sh=B.shearWeb(loss.Pe,sec,this.e,this.fc,bwEff,dv,this.Vu*1e3,dv,this.L*1000,this.nWeb);
-      var phiVn=B.phiVn(sh.Vcw,this.Av/this.sv,dv), AvsMin=B.AvSminTW(this.fc,bwEff);
+      var phiVn=B.phiVn(sh.Vcw,this.avAuto/this.sv,dv), AvsMin=B.AvSminTW(this.fc,bwEff);
       var compAllow=-0.60*this.fc;
       var df=B.deflection(this.L*1000,29700,sec,wsw+this.wDW,loss.Pe,this.e,perLane*0.01);
       var f=function(n,d){return (+n.toFixed(d==null?0:d)).toLocaleString('en-US')};
@@ -727,8 +748,8 @@ function calc(){
         ['C1 服務性 頂緣 σ_t',f(serv.st,2)+' MPa',' ≥ '+f(compAllow,1)+'（−0.6f\'c）',serv.st>=compAllow,'④'],
         ['M1 極限彎曲 φMn','φMn '+f(flex.phiMn)+' kN·m（CR '+f(flex.CR,2)+'）','≥ Mu '+f(comb.Strength_I)+' 且 ≥下限 '+f(flex.lower),flex.ok,'④'],
         ['D1 主拉應力 σ1',f(sh.sigma1,2)+' MPa',' ≤ '+f(sh.sigma1_limit,2)+'（近支承超→箍筋）',sh.sigma1_ok,'⑤'],
-        ['D1 設計抗剪 φVn','φVn '+f(phiVn/1e3)+' kN（Av/s '+(this.Av/this.sv).toFixed(2)+'）','≥ Vu '+f(this.Vu)+' kN',phiVn>=this.Vu*1e3,'⑤'],
-        ['D1 最小箍筋','Av/s '+(this.Av/this.sv).toFixed(2)+' mm²/mm','≥ '+AvsMin.toFixed(2),(this.Av/this.sv)>=AvsMin,'⑤'],
+        ['D1 設計抗剪 φVn','φVn '+f(phiVn/1e3)+' kN（Av/s '+(this.avAuto/this.sv).toFixed(2)+'）','≥ Vu '+f(this.Vu)+' kN',phiVn>=this.Vu*1e3,'⑤'],
+        ['D1 最小箍筋','Av/s '+(this.avAuto/this.sv).toFixed(2)+' mm²/mm','≥ '+AvsMin.toFixed(2),(this.avAuto/this.sv)>=AvsMin,'⑤'],
         ['C2/C3 活載撓度 δ_LL',f(df.d_LL,1)+' mm','≤ L/800 = '+f(this.L*1000/800)+' mm',df.d_LL_ok,'⑤'],
         ['C2/C3 建議預拱',f(df.camber)+' mm（LBR '+f(df.LBR*100,1)+'%）','—',null,'⑤']
       ];
@@ -741,7 +762,7 @@ function calc(){
       var anc=B.anchorageCheck(ten.Pi/1e3,this.ntd,260,this.h,Math.floor(this.ntd/2));
       var spr=B.spiralLocalBearing(anc.Pu,2919,8.47,104044,50,380);
       var fat=B.fatigueCheck(sec,loss.Pe,this.e,Mdc+Mdw,this.dMfat,this.fc);
-      var stf=B.stirrupFatigue(565,this.sv,this.Av,dv);
+      var stf=B.stirrupFatigue(565,this.sv,this.avAuto,dv);
       var tb=B.thermalBandsFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
       var tg=B.selfEquilibratingStress(tb,sec.I,sec.yt,this.h,[['底',this.h,0]],29700,1.08e-5);
       var tgs=B.thermalServiceCheck(tg.sigma_neg['底'],serv.sb,0.5);

@@ -36,7 +36,7 @@ tbody tr{border-bottom:0.5px solid var(--line)}
 
 <div class="card" id="valcard">
   <h2>40m 參考橋・完整設計黃金範例</h2>
-  <p class="note-src">本頁與 Python 計算引擎 <code>bridgecalc</code> 共用 <code>golden_answers.json</code>。影響線為 <b>JS 獨立重算 × Python 交叉驗證</b>；設計檢核為 <b>Python 引擎產生・回歸 41/41 驗證</b>（JS 不重算，避免雙實作漂移）。</p>
+  <p class="note-src">本頁與 Python 計算引擎 <code>bridgecalc</code> 共用 <code>golden_answers.json</code>。影響線為 <b>JS 獨立重算 × Python 交叉驗證</b>；設計檢核為 <b>Python 引擎產生・回歸 42/42 驗證</b>（JS 不重算，避免雙實作漂移）。</p>
   <a class="gold-link" href="engine/40m參考橋計算書.html" target="_blank" rel="noopener">📄 開啟 16 章完整設計計算書（A1～T1＋施工 H1–H6）→</a>
   <a class="gold-link" href="engine/連續梁中墩計算書.html" target="_blank" rel="noopener" style="margin-left:6px">📄 連續梁中墩計算書（M₂／中墩雙控）→</a>
   <a class="gold-link" href="box-girder.html" style="margin-left:6px">🧮 簡支箱梁設計分析器（輸入即時重算）→</a>
@@ -95,6 +95,8 @@ tbody tr{border-bottom:0.5px solid var(--line)}
 <script>
 (function(){
  var TRK={P:[36,144,144],x:[0,4.25,8.5]}, LANE=9.4, PM=80, PV=116;
+ // 車可雙向行駛：TRKS[0]＝原向、[1]＝掉頭（軸序與軸距鏡射）；單向會使非跨中彎矩與短跨剪力偏低
+ var TRKS=[TRK,{P:TRK.P.slice().reverse(),x:TRK.x.map(function(d){return TRK.x[2]-d}).reverse()}];
  // ── 簡支解析影響線（與 engine/influence.py 一致，用於自驗證）──
  function ilPeak(L,a){ return a*(L-a)/L; }
  function ilMa(L,a,p){ return p<=a ? p*(L-a)/L : a*(L-p)/L; }
@@ -107,34 +109,56 @@ tbody tr{border-bottom:0.5px solid var(--line)}
  // ── 數值剛度法影響線（連續梁；簡支亦適用）──
  function inv(A){var n=A.length,M=A.map(function(r,i){return r.concat(Array.from({length:n},function(_,j){return i===j?1:0}))});for(var i=0;i<n;i++){var p=i;for(var r=i+1;r<n;r++)if(Math.abs(M[r][i])>Math.abs(M[p][i]))p=r;var t=M[i];M[i]=M[p];M[p]=t;var pv=M[i][i];for(var j=0;j<2*n;j++)M[i][j]/=pv;for(var r2=0;r2<n;r2++)if(r2!==i){var f=M[r2][i];for(var j2=0;j2<2*n;j2++)M[r2][j2]-=f*M[i][j2]}}return M.map(function(r){return r.slice(n)})}
  function model(spans){var ne=spans.length>1?12:24,nodes=[0],sx=[0],cum=0;spans.forEach(function(Ln){for(var k=1;k<=ne;k++)nodes.push(+(cum+Ln*k/ne).toFixed(4));cum+=Ln;sx.push(+cum.toFixed(4))});var sIdx=sx.map(function(x){var b=0;for(var i=0;i<nodes.length;i++)if(Math.abs(nodes[i]-x)<Math.abs(nodes[b]-x))b=i;return b});return {nodes:nodes,sx:sx,sIdx:sIdx,tot:cum}}
- function solveIL(m,tIdx,eff){var nodes=m.nodes,N=nodes.length,nd=2*N,K=[];for(var i=0;i<nd;i++)K.push(new Array(nd).fill(0));for(var e=0;e<N-1;e++){var le=nodes[e+1]-nodes[e],cc=1/(le*le*le),ke=[[12*cc,6*le*cc,-12*cc,6*le*cc],[6*le*cc,4*le*le*cc,-6*le*cc,2*le*le*cc],[-12*cc,-6*le*cc,12*cc,-6*le*cc],[6*le*cc,2*le*le*cc,-6*le*cc,4*le*le*cc]],mp=[2*e,2*e+1,2*e+2,2*e+3];for(var a=0;a<4;a++)for(var b=0;b<4;b++)K[mp[a]][mp[b]]+=ke[a][b]}var cons={};m.sIdx.forEach(function(s){cons[2*s]=1});var free=[];for(var d=0;d<nd;d++)if(!cons[d])free.push(d);var Kr=free.map(function(a){return free.map(function(b){return K[a][b]})}),Kri=inv(Kr);var xt=nodes[tIdx],il=[];for(var p=0;p<N;p++){if(cons[2*p]){il.push(0);continue}var Fr=free.map(function(d2){return d2===2*p?-1:0}),dr=Kri.map(function(row){var s=0;for(var k=0;k<row.length;k++)s+=row[k]*Fr[k];return s});var dfull=new Array(nd).fill(0);free.forEach(function(d2,k){dfull[d2]=dr[k]});var R=m.sIdx.map(function(s){var sm=0;for(var j=0;j<nd;j++)sm+=K[2*s][j]*dfull[j];return sm});var val=0,px=nodes[p];if(eff==='M'){for(var k=0;k<m.sx.length;k++)if(m.sx[k]<xt-1e-6)val+=R[k]*(xt-m.sx[k]);if(px<xt-1e-6)val-=(xt-px)}else{for(var k=0;k<m.sx.length;k++)if(m.sx[k]<xt-1e-6)val+=R[k];if(px<xt-1e-6)val-=1}il.push(val)}var ref=(eff==='M'?Math.max(m.tot,1)/4:1);return il.map(function(v){return Math.abs(v)<ref*1e-3?0:v})}
+ // rs=true：支承節點取「右側」剪力（計入該支承反力）；預設為左側。僅對 eff=V 有意義
+ function solveIL(m,tIdx,eff,rs){var nodes=m.nodes,N=nodes.length,nd=2*N,K=[];for(var i=0;i<nd;i++)K.push(new Array(nd).fill(0));for(var e=0;e<N-1;e++){var le=nodes[e+1]-nodes[e],cc=1/(le*le*le),ke=[[12*cc,6*le*cc,-12*cc,6*le*cc],[6*le*cc,4*le*le*cc,-6*le*cc,2*le*le*cc],[-12*cc,-6*le*cc,12*cc,-6*le*cc],[6*le*cc,2*le*le*cc,-6*le*cc,4*le*le*cc]],mp=[2*e,2*e+1,2*e+2,2*e+3];for(var a=0;a<4;a++)for(var b=0;b<4;b++)K[mp[a]][mp[b]]+=ke[a][b]}var cons={};m.sIdx.forEach(function(s){cons[2*s]=1});var free=[];for(var d=0;d<nd;d++)if(!cons[d])free.push(d);var Kr=free.map(function(a){return free.map(function(b){return K[a][b]})}),Kri=inv(Kr);var xt=nodes[tIdx],il=[];for(var p=0;p<N;p++){if(cons[2*p]){il.push(0);continue}var Fr=free.map(function(d2){return d2===2*p?-1:0}),dr=Kri.map(function(row){var s=0;for(var k=0;k<row.length;k++)s+=row[k]*Fr[k];return s});var dfull=new Array(nd).fill(0);free.forEach(function(d2,k){dfull[d2]=dr[k]});var R=m.sIdx.map(function(s){var sm=0;for(var j=0;j<nd;j++)sm+=K[2*s][j]*dfull[j];return sm});var val=0,px=nodes[p];if(eff==='M'){for(var k=0;k<m.sx.length;k++)if(m.sx[k]<xt-1e-6)val+=R[k]*(xt-m.sx[k]);if(px<xt-1e-6)val-=(xt-px)}else{var lim=rs?xt+1e-6:xt-1e-6;for(var k=0;k<m.sx.length;k++)if(m.sx[k]<lim)val+=R[k];if(px<lim)val-=1}il.push(val)}var ref=(eff==='M'?Math.max(m.tot,1)/4:1),out=il.map(function(v){return Math.abs(v)<ref*1e-3?0:v});
+  // 剪力影響線於斷面有跳躍 1：以重複節點存左/右極限（xs/vs），否則內插會把跳躍抹進鄰元素、支承旁的軸被低估
+  if(eff==='V'){var sup=m.sIdx.indexOf(tIdx)>=0,jl,jr;if(sup){jl=rs?0:-1;jr=rs?1:0}else{jr=out[tIdx];jl=jr-1}
+   if(tIdx===0)jl=jr;if(tIdx===N-1)jr=jl;   // 梁端外側不存在
+   out.xs=nodes.slice(0,tIdx+1).concat(nodes.slice(tIdx));out.vs=out.slice(0,tIdx).concat([jl,jr],out.slice(tIdx+1))}
+  return out}
  function interp(nodes,il,x){if(x<=nodes[0])return il[0];if(x>=nodes[nodes.length-1])return il[il.length-1];for(var i=0;i<nodes.length-1;i++)if(x>=nodes[i]&&x<=nodes[i+1]){var t=(x-nodes[i])/(nodes[i+1]-nodes[i]);return il[i]*(1-t)+il[i+1]*t}return 0}
- function truckMax(nodes,il,tot){var best=0,bx=0;for(var s=-TRK.x[2];s<=tot;s+=0.25){var sum=0;for(var a=0;a<3;a++){var ax=s+TRK.x[a];if(ax>=0&&ax<=tot)sum+=TRK.P[a]*interp(nodes,il,ax)}if(Math.abs(sum)>Math.abs(best)){best=sum;bx=s}}return {v:best,x:bx}}
- function laneMax(nodes,il,P){var posA=0,negA=0,mx=0,mn=0;for(var i=0;i<nodes.length-1;i++){var dx=nodes[i+1]-nodes[i],av=(il[i]+il[i+1])/2;if(av>0)posA+=av*dx;else negA+=av*dx;if(il[i]>mx)mx=il[i];if(il[i]<mn)mn=il[i]}var pos=LANE*posA+P*mx,neg=LANE*negA+P*mn;return Math.abs(pos)>=Math.abs(neg)?pos:neg}
+ // 卡車軸組於 s（最左軸位置）、車向 dir 時之效應；軸位夾到 [0,tot] 免支承上的軸被浮點誤差略去
+ // 回傳陣列：剪力影響線有跳躍時於 s±δ 各算一次（軸恰在斷面時左右極限都取到）
+ function truckSum(nodes,il,tot,s,dir){var T=TRKS[dir||0],X=il.xs||nodes,Y=il.vs||il,ds=il.xs?[-1e-7,1e-7]:[0];return ds.map(function(e){var sum=0;for(var a=0;a<3;a++){var ax=s+e+T.x[a];if(ax>=-1e-6&&ax<=tot+1e-6)sum+=T.P[a]*interp(X,Y,Math.min(Math.max(ax,0),tot))}return sum})}
+ function truckScan(tot,step,fn){var span=TRK.x[2],n=Math.round((tot+span)/step);for(var d=0;d<2;d++)for(var k=0;k<=n;k++)fn(-span+k*step,d)}
+ function absMaxOf(a){return a.reduce(function(b,v){return Math.abs(v)>Math.abs(b)?v:b},0)}
+ function truckMax(nodes,il,tot){var best=0,bx=0,bd=0;truckScan(tot,0.25,function(s,d){var sum=absMaxOf(truckSum(nodes,il,tot,s,d));if(Math.abs(sum)>Math.abs(best)){best=sum;bx=s;bd=d}});return {v:best,x:bx,dir:bd}}
+ function laneEnv(nodes,il,P){var X=il.xs||nodes,Y=il.vs||il,posA=0,negA=0,mx=0,mn=0;for(var i=0;i<X.length-1;i++){var dx=X[i+1]-X[i],av=(Y[i]+Y[i+1])/2;if(av>0)posA+=av*dx;else negA+=av*dx}Y.forEach(function(v){if(v>mx)mx=v;if(v<mn)mn=v});return {pos:LANE*posA+P*mx,neg:LANE*negA+P*mn}}
+ function laneMax(nodes,il,P){var e=laneEnv(nodes,il,P);return Math.abs(e.pos)>=Math.abs(e.neg)?e.pos:e.neg}
  var lf={'1':[1,1.0],'2':[2,1.0],'2b':[2,1.0],'4':[4,0.75]};
  // ── 包絡線：每斷面的最大正/負設計效應 ──
- function truckEnv(nodes,il,tot){var pos=0,neg=0;for(var s=-TRK.x[2];s<=tot;s+=0.5){var sum=0;for(var a=0;a<3;a++){var ax=s+TRK.x[a];if(ax>=0&&ax<=tot)sum+=TRK.P[a]*interp(nodes,il,ax)}if(sum>pos)pos=sum;if(sum<neg)neg=sum}return {pos:pos,neg:neg}}
- function laneEnv(nodes,il,P){var posA=0,negA=0,mx=0,mn=0;for(var i=0;i<nodes.length-1;i++){var dx=nodes[i+1]-nodes[i],av=(il[i]+il[i+1])/2;if(av>0)posA+=av*dx;else negA+=av*dx;if(il[i]>mx)mx=il[i];if(il[i]<mn)mn=il[i]}return {pos:LANE*posA+P*mx,neg:LANE*negA+P*mn}}
- function envelope(m,eff,I,nl,red){var P=eff==='M'?PM:PV,fac=(1+I)*nl*red,posE=[],negE=[];for(var t=0;t<m.nodes.length;t++){var il=solveIL(m,t,eff);var te=truckEnv(m.nodes,il,m.tot),le=laneEnv(m.nodes,il,P);posE.push(Math.max(te.pos,le.pos)*fac);negE.push(Math.min(te.neg,le.neg)*fac)}return {pos:posE,neg:negE}}
+ function truckEnv(nodes,il,tot){var pos=0,neg=0;truckScan(tot,0.25,function(s,d){truckSum(nodes,il,tot,s,d).forEach(function(sum){if(sum>pos)pos=sum;if(sum<neg)neg=sum})});return {pos:pos,neg:neg}}
+ function isSup(m,t){return m.sIdx.indexOf(t)>=0}
+ // 支承節點剪力有左右兩側（右側計入該支承反力），兩側都算
+ function sideILs(m,t,eff){var a=[solveIL(m,t,eff)];if(eff==='V'&&isSup(m,t))a.push(solveIL(m,t,eff,true));return a}
+ function envelope(m,eff,I,nl,red){var P=eff==='M'?PM:PV,fac=(1+I)*nl*red,posE=[],negE=[];for(var t=0;t<m.nodes.length;t++){var pos=0,neg=0;sideILs(m,t,eff).forEach(function(il){var te=truckEnv(m.nodes,il,m.tot),le=laneEnv(m.nodes,il,P);pos=Math.max(pos,te.pos,le.pos);neg=Math.min(neg,te.neg,le.neg)});posE.push(pos*fac);negE.push(neg*fac)}return {pos:posE,neg:negE}}
  function E(id){return document.getElementById(id)}
  var manualPos=null;   // 手動卡車位置(拖曳)；null=自動最不利
+ var manualDir=0;      // 手動拖曳沿用最後一次自動結果的車向
  var UF=1;             // 力單位換算係數（kN→tf=0.10197）
  function F(v){return (v*UF).toFixed(UF<1?1:0)}   // 力/彎矩值依單位格式化
  function gBox(S,nl){return nl>=2?S/2.10:S/2.40}   // 台灣 S/D 箱梁內梁
  // BMD/SFD：簡支梁設計卡車圖 ×(1+I)。HS20-44 取「卡車或車道大者」，故圖示卡車（不疊加車道）。
- function bmdSimple(L,pos,eff,IM){var P=TRK.P,Xa=TRK.x,RA=0,f=1+(IM||0);for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L)RA+=P[i]*(L-p)/L}
+ function bmdSimple(L,pos,eff,IM,dir){var T=TRKS[dir||0],P=T.P,Xa=T.x,RA=0,f=1+(IM||0);for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L)RA+=P[i]*(L-p)/L}
   var pts=[];for(var x=0;x<=L+1e-6;x+=L/60){var v;if(eff==='M'){v=RA*x;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L&&p<x)v-=P[i]*(x-p)}}else{v=RA;for(var i=0;i<3;i++){var p=pos+Xa[i];if(p>=0&&p<=L&&p<x)v-=P[i]}}pts.push([x,v*f])}return pts}
  // 車道載重簡支圖峰值（與卡車比，判斷誰控制）
  function laneSimplePeak(L,eff){return eff==='M'?(LANE*L*L/8+PM*L/4):(LANE*L/2+PV)}
  // ── ① 影響線交叉驗證（JS 獨立重算 vs Python golden）──
+ function nodeAt(m,x){var b=0;for(var i=0;i<m.nodes.length;i++)if(Math.abs(m.nodes[i]-x)<Math.abs(m.nodes[b]-x))b=i;return b}
+ function numTruck(sp,x,eff,rs){var m=model(sp);return truckMax(m.nodes,solveIL(m,nodeAt(m,x),eff,rs),m.tot).v}
+ function numPerLaneV(L){var m=model([L]),il=solveIL(m,0,'V',true);return Math.max(Math.abs(truckMax(m.nodes,il,L).v),Math.abs(laneMax(m.nodes,il,PV)))*(1+twImpact(L))}
  function validate(golden){
-   var g=golden.influence_simple_40m, rows=[
+   var g=golden.influence_simple_40m, ll=golden.live_load_TW_HS20_40m||{}, rows=[
      ['峰值 η_M(x=20)', ilPeak(40,20), g.peak_M_mid_m,'m',0.01],
      ['峰值 η_M(x=10)', ilPeak(40,10), g.peak_M_a10_m,'m',0.01],
      ['HS20 卡車絕對最大 M', absMaxTW(40), g.truck_absmax_kNm,'kN·m',5],
      ['車道彎矩 M(含集中80)', twLaneM(40), g.lane_M_kNm,'kN·m',2],
      ['每車道 M_LL+IM(取大×I)', twPerLane(40), g.per_lane_M_LL_IM_kNm,'kN·m',6],
-     ['彎矩包絡峰值', absMaxTW(40), g.envelope_peak_kNm,'kN·m',6]
+     ['彎矩包絡峰值', absMaxTW(40), g.envelope_peak_kNm,'kN·m',6],
+     // 以下走本頁實際計算路徑（剛度法影響線＋雙向卡車掃描），非解析式
+     ['L/4 卡車彎矩（剛度法・雙向）', numTruck([40],10,'M'), g.envelope_at_L4_kNm,'kN·m',3],
+     ['支承卡車剪力 40m（剛度法・雙向）', Math.abs(numTruck([40],0,'V',true)), ll.truck_V_support_kN,'kN',0.5],
+     ['支承 V_LL+IM/車道 30m（卡車控制）', numPerLaneV(30), ll.per_lane_V_30m_kN,'kN',0.5]
    ];
    var pass=0,html=rows.map(function(r){var ok=Math.abs(r[1]-r[2])<=r[4];if(ok)pass++;var dec=r[3]==='m'?2:0;return '<tr><td>'+r[0]+'</td><td>'+r[1].toFixed(dec)+' '+r[3]+'</td><td style="color:#888">'+r[2].toFixed(dec)+'</td><td style="text-align:center" class="'+(ok?'ok':'ng')+'">'+(ok?'✓':'✗')+'</td></tr>'}).join('');
    E('vrows').innerHTML=html;
@@ -169,7 +193,7 @@ tbody tr{border-bottom:0.5px solid var(--line)}
  }
  fetch('./golden_answers.json').then(function(r){return r.json()}).then(function(g){validate(g);renderGolden(g)}).catch(function(){
    E('vrows').innerHTML='<tr><td colspan="4" style="color:#888">（本機直接開檔無法 fetch；部署到 GitHub Pages 後即顯示。內嵌 fallback：）</td></tr>';
-   validate({influence_simple_40m:{peak_M_mid_m:10.0,peak_M_a10_m:7.5,truck_absmax_kNm:2860,lane_M_kNm:2680,per_lane_M_LL_IM_kNm:3418,envelope_peak_kNm:2857}});
+   validate({influence_simple_40m:{peak_M_mid_m:10.0,peak_M_a10_m:7.5,truck_absmax_kNm:2860,lane_M_kNm:2680,per_lane_M_LL_IM_kNm:3418,envelope_peak_kNm:2857,envelope_at_L4_kNm:2200},live_load_TW_HS20_40m:{truck_V_support_kN:301.1,per_lane_V_30m_kN:359.1}});
    renderGolden({});
  });
  // ── 互動計算 ──
@@ -183,18 +207,22 @@ tbody tr{border-bottom:0.5px solid var(--line)}
   saveState();
   var I=Math.min(0.3,15.24/(tot+38.1)),lc=lf[E('ln').value],nl=lc[0],red=lc[1],U=unit==='tf'?(eff==='M'?'tf·m':'tf'):(eff==='M'?'kN·m':'kN');
   if(E('mode').value==='env'){runEnvelope(m,eff,I,nl,red,U);phdr(eff,U);return;}
-  var il=solveIL(m,ti,eff);
+  var ils=sideILs(m,ti,eff),il=ils[0],side='';
+  if(ils.length>1){   // 支承節點剪力：左右兩側取控制者
+    var gv=function(x){return Math.max(Math.abs(truckMax(m.nodes,x,tot).v),Math.abs(laneMax(m.nodes,x,PV)))};
+    if(gv(ils[1])>gv(ils[0])){il=ils[1];side='支承右側';}else side='支承左側';
+  }
   if(E('mode').value==='bmd'){runBMD(m,il,ti,eff,tot,U,I);phdr(eff,U);return;}
   var tk;
-  if(manualPos!=null){var sm=0;for(var a=0;a<3;a++){var ax=manualPos+TRK.x[a];if(ax>=0&&ax<=tot)sm+=TRK.P[a]*interp(m.nodes,il,ax)}tk={v:sm,x:manualPos}}
-  else tk=truckMax(m.nodes,il,tot);
+  if(manualPos!=null)tk={v:absMaxOf(truckSum(m.nodes,il,tot,manualPos,manualDir)),x:manualPos,dir:manualDir};
+  else{tk=truckMax(m.nodes,il,tot);manualDir=tk.dir;}
   var ln=laneMax(m.nodes,il,eff==='M'?PM:PV),gov=Math.abs(tk.v)>=Math.abs(ln)?tk.v:ln,govn=Math.abs(tk.v)>=Math.abs(ln)?'卡車':'車道';
   var perLane=gov*(1+I),total=perLane*nl*red;
   var S=parseFloat(E('sgw').value)||0,g=gBox(S,nl),perWeb=perLane*g;
   function card(t,v,sub){return '<div class="metric"><div class="l">'+t+'</div><div class="v">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>'}
-  E('res').innerHTML=card('卡車 '+eff,F(tk.v)+' '+U,manualPos!=null?'手動 x='+manualPos.toFixed(1)+'（雙擊梁回自動）':'')+card('車道 '+eff,F(ln)+' '+U)+card('每車道×衝擊',F(perLane)+' '+U,govn+'，I='+(I*100).toFixed(1)+'%')+card('總計(×'+nl+'×'+(red*100)+'%)',F(total)+' '+U,'多車道法')+card('單腹版(×g)',F(perWeb)+' '+U,'g=S/'+(nl>=2?'2.10':'2.40')+'='+g.toFixed(2)+'，分配法不再乘折減');
+  E('res').innerHTML=card('卡車 '+eff,F(tk.v)+' '+U,(manualPos!=null?'手動 x='+manualPos.toFixed(1)+'（雙擊梁回自動）':'前軸朝'+(tk.dir?'右':'左'))+(side?'・'+side:''))+card('車道 '+eff,F(ln)+' '+U)+card('每車道×衝擊',F(perLane)+' '+U,govn+'，I='+(I*100).toFixed(1)+'%')+card('總計(×'+nl+'×'+(red*100)+'%)',F(total)+' '+U,'多車道法')+card('單腹版(×g)',F(perWeb)+' '+U,'g=S/'+(nl>=2?'2.10':'2.40')+'='+g.toFixed(2)+'，分配法不再乘折減');
   draw(m,il,xt,tk,eff);
-  E('cite').textContent='依據：台灣公路橋梁設計規範 §3.6 HS20-44+車道載重(M用80/V用116)、§3.13 衝擊 I=15.24/(L+38.1)≤30%、§3.10 多車道折減、§4.2 橫向分配 S/D 法。影響線：連續梁剛度法。簡支峰值經 golden_answers.json 驗證。可拖梁上卡車手動定位。';
+  E('cite').textContent='依據：台灣公路橋梁設計規範 §3.6 HS20-44+車道載重(M用80/V用116)、§3.13 衝擊 I=15.24/(L+38.1)≤30%、§3.10 多車道折減、§4.2 橫向分配 S/D 法。影響線：連續梁剛度法；設計卡車雙向（原向＋掉頭）掃描取最不利，支承節點剪力取左右兩側控制者。簡支峰值經 golden_answers.json 驗證。可拖梁上卡車手動定位（沿用目前車向）。';
  }
  function runBMD(m,il,ti,eff,tot,U,I){
   function card(t,v,sub){return '<div class="metric"><div class="l">'+t+'</div><div class="v">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>'}
@@ -204,19 +232,19 @@ tbody tr{border-bottom:0.5px solid var(--line)}
     E('cite').textContent='連續梁的 BMD/SFD 需完整結構分析（簡支公式僅適用單跨）；本計算器以影響線／包絡線涵蓋連續梁設計效應。';
     return;
   }
-  var tk=truckMax(m.nodes,il,tot),pos=tk.x;   // 取對目標斷面最不利的卡車位置
-  var pts=bmdSimple(tot,pos,eff,I),mx=0,mn=0;pts.forEach(function(p){if(p[1]>mx)mx=p[1];if(p[1]<mn)mn=p[1]});
+  var tk=truckMax(m.nodes,il,tot),pos=tk.x;   // 取對目標斷面最不利的卡車位置與車向
+  var pts=bmdSimple(tot,pos,eff,I,tk.dir),mx=0,mn=0;pts.forEach(function(p){if(p[1]>mx)mx=p[1];if(p[1]<mn)mn=p[1]});
   var lanePk=laneSimplePeak(tot,eff)*(1+I),govLane=lanePk>Math.abs(mx);
   E('res').innerHTML=card('最大 '+eff,F(mx)+' '+U,'設計卡車×IM @x='+pos.toFixed(1))+card('最小 '+eff,F(mn)+' '+U)+card('車道(取大比較)',F(govLane?lanePk:mx)+' '+U,govLane?'車道控制!':'卡車控制');
-  drawDiag(m,pts,eff,U,pos);
+  drawDiag(m,pts,eff,U,pos,tk.dir);
   E('cite').textContent=(eff==='M'?'彎矩圖 BMD':'剪力圖 SFD')+'：HS20-44 設計卡車置最不利位置 ×(1+I)，簡支解析。台灣取卡車<b>或</b>車道大者——車道峰值 '+F(lanePk)+' '+U+' 一併比較（不疊加）。';
  }
- function drawDiag(m,pts,eff,U,pos){
+ function drawDiag(m,pts,eff,U,pos,dir){
   var x0=50,x1=780,tot=m.tot,sc=(x1-x0)/tot;function X(x){return x0+x*sc}
   var maxA=Math.max.apply(null,pts.map(function(p){return Math.abs(p[1])}))||1,by=60,ah=110,cy=by+ah;
   var g='<text x="'+x0+'" y="'+(by-20)+'" font-size="11" fill="#555">'+(eff==='M'?'彎矩圖 BMD':'剪力圖 SFD')+'（'+tot.toFixed(0)+'m，'+U+'，卡車@'+pos.toFixed(1)+'m）</text>';
   m.sx.forEach(function(s){g+='<path d="M'+X(s)+','+(cy+ah+5)+' l-6,11 l12,0 z" fill="#555"/>'});
-  TRK.x.forEach(function(dx,a){var ax=pos+dx;if(ax>=0&&ax<=tot)g+='<line x1="'+X(ax)+'" y1="'+(cy-ah-12)+'" x2="'+X(ax)+'" y2="'+(cy-ah)+'" stroke="#1d4ed8" stroke-width="2"/>'});
+  TRKS[dir||0].x.forEach(function(dx,a){var ax=pos+dx;if(ax>=0&&ax<=tot)g+='<line x1="'+X(ax)+'" y1="'+(cy-ah-12)+'" x2="'+X(ax)+'" y2="'+(cy-ah)+'" stroke="#1d4ed8" stroke-width="2"/>'});
   g+='<line x1="'+x0+'" y1="'+cy+'" x2="'+x1+'" y2="'+cy+'" stroke="#555" stroke-width="1.5"/>';
   var p='M'+X(0)+','+cy+' ';pts.forEach(function(pt){p+='L'+X(pt[0])+','+(cy-pt[1]/maxA*ah)+' '});p+='L'+X(tot)+','+cy+'Z';
   g+='<path d="'+p+'" fill="#1d4ed8" fill-opacity="0.12" stroke="#1d4ed8" stroke-width="1.8"/>';
@@ -228,13 +256,13 @@ tbody tr{border-bottom:0.5px solid var(--line)}
  }
  function draw(m,il,xt,tk,eff){
   var x0=50,x1=780,sw=x1-x0,tot=m.tot,sc=sw/tot;function X(x){return x0+x*sc}
-  var maxRaw=Math.max.apply(null,il.map(Math.abs)),ref=(eff==='M'?Math.max(tot,1)/4:1),maxA=Math.max(maxRaw,ref*0.02),by=90,ah=80;
+  var XX=il.xs||m.nodes,YY=il.vs||il,maxRaw=Math.max.apply(null,YY.map(Math.abs)),ref=(eff==='M'?Math.max(tot,1)/4:1),maxA=Math.max(maxRaw,ref*0.02),by=90,ah=80;
   var g='<line x1="'+x0+'" y1="'+by+'" x2="'+x1+'" y2="'+by+'" stroke="#555" stroke-width="2"/>';
   m.sx.forEach(function(s){g+='<path d="M'+X(s)+','+by+' l-7,13 l14,0 z" fill="#555"/>'});
   g+='<text x="'+x0+'" y="'+(by-10)+'" font-size="11" fill="#888">梁（'+tot.toFixed(0)+'m，▲支承）</text>';
-  TRK.x.forEach(function(dx,a){var ax=tk.x+dx;if(ax>=0&&ax<=tot)g+='<line x1="'+X(ax)+'" y1="'+(by-20)+'" x2="'+X(ax)+'" y2="'+by+'" stroke="#1d4ed8" stroke-width="2"/><text x="'+X(ax)+'" y="'+(by-23)+'" font-size="9" fill="#1d4ed8" text-anchor="middle">'+TRK.P[a]+'</text>'});
+  var TK=TRKS[tk.dir||0];TK.x.forEach(function(dx,a){var ax=tk.x+dx;if(ax>=0&&ax<=tot)g+='<line x1="'+X(ax)+'" y1="'+(by-20)+'" x2="'+X(ax)+'" y2="'+by+'" stroke="#1d4ed8" stroke-width="2"/><text x="'+X(ax)+'" y="'+(by-23)+'" font-size="9" fill="#1d4ed8" text-anchor="middle">'+TK.P[a]+'</text>'});
   g+='<line x1="'+X(xt)+'" y1="'+(by-30)+'" x2="'+X(xt)+'" y2="'+(by+ah+30)+'" stroke="#D85A30" stroke-dasharray="4 3"/><text x="'+X(xt)+'" y="'+(by-33)+'" font-size="10" fill="#D85A30" text-anchor="middle">x='+xt.toFixed(1)+'</text>';
-  var cy=by+ah+40,path='';for(var i=0;i<m.nodes.length;i++)path+=(i?'L':'M')+X(m.nodes[i])+','+(cy-il[i]/maxA*ah)+' ';
+  var cy=by+ah+40,path='';for(var i=0;i<XX.length;i++)path+=(i?'L':'M')+X(XX[i])+','+(cy-YY[i]/maxA*ah)+' ';
   g+='<line x1="'+x0+'" y1="'+cy+'" x2="'+x1+'" y2="'+cy+'" stroke="#cbd5e1"/><path d="'+path+'Z" fill="#1d4ed8" fill-opacity="0.10"/><path d="'+path+'" fill="none" stroke="#1d4ed8" stroke-width="1.8"/>';
   g+='<text x="'+x0+'" y="'+(cy-ah-6)+'" font-size="11" fill="#555">影響線 η（'+eff+' at x，峰值 '+maxRaw.toFixed(2)+(eff==='M'?' m':'')+'）</text>';
   E('dg').innerHTML=g;
@@ -245,7 +273,7 @@ tbody tr{border-bottom:0.5px solid var(--line)}
   function card(t,v,sub){return '<div class="metric"><div class="l">'+t+'</div><div class="v">'+v+'</div>'+(sub?'<div class="s">'+sub+'</div>':'')+'</div>'}
   E('res').innerHTML=card('最大正 '+eff,F(maxPos)+' '+U,'設計值（含IM×車道×折減）')+card('最大負 '+eff,F(minNeg)+' '+U,'連續梁支承區')+card('車道','×'+nl+'×'+(red*100)+'%','I='+(I*100).toFixed(1)+'%');
   drawEnv(m,env,eff,U);
-  E('cite').textContent='設計包絡線：掃全跨各斷面取最大正/負設計效應（卡車 OR 車道 × 衝擊 × 多車道折減）。連續梁支承區顯示負彎矩。簡支峰值經 golden_answers.json 驗證。';
+  E('cite').textContent='設計包絡線：掃全跨各斷面取最大正/負設計效應（卡車雙向掃描 OR 車道 × 衝擊 × 多車道折減；支承處剪力含左右兩側）。連續梁支承區顯示負彎矩。簡支峰值經 golden_answers.json 驗證。';
  }
  function drawEnv(m,env,eff,U){
   var x0=50,x1=780,tot=m.tot,sc=(x1-x0)/tot;function X(x){return x0+x*sc}

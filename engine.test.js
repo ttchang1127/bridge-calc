@@ -32,6 +32,8 @@ function chkEq(name, got, exp) {
   chk('影響線 HS20卡車M', BC.taiwanTruckMoment(40), g.influence_simple_40m.truck_absmax_kNm, 5);
   chk('影響線 每車道M', BC.taiwanPerLaneMoment(40), g.influence_simple_40m.per_lane_M_LL_IM_kNm, 5);
   chk('影響線 每車道V', BC.taiwanPerLaneShear(40), g.live_load_TW_HS20_40m.per_lane_V_kN, 3);
+  chk('影響線 卡車支承V（雙向）', BC.taiwanTruckShear(40), g.live_load_TW_HS20_40m.truck_V_support_kN, 0.1);
+  chk('影響線 30m 每車道V（卡車控制）', BC.taiwanPerLaneShear(30), g.live_load_TW_HS20_40m.per_lane_V_30m_kN, 0.2);
   chk('L0 M_LL 2車道', M_LL, g.loads.M_LL_IM_2lane_kNm, 5);
   chk('L0 Strength I', c.Strength_I, g.loads.StrengthI_kNm, 30);
   chk('L0 Service I', c.Service_I, g.loads.ServiceI_kNm, 5);

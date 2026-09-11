@@ -16,6 +16,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         abs_max_moment, lane_moment_simple, hl93_per_lane_moment,
                         moment_envelope_simple, taiwan_per_lane_moment, taiwan_per_lane_shear,
                         taiwan_impact, taiwan_truck_moment, taiwan_lane_moment,
+                        taiwan_truck_shear, max_moment_moving,
                         fatigue_check, stirrup_fatigue,
                         torsion_check, slab_flexure, As_min_slab, temp_gradient_AASHTO,
                         bearing_check, anchorage_check, spiral_local_bearing, expansion_joint,
@@ -157,6 +158,16 @@ def test_taiwan_hs20_live_load():
     _close(taiwan_impact(40), 0.195, 0.002)
     _close(taiwan_per_lane_moment(40), 3418, 5)    # 卡車 2860 控制（< HL-93 5673）
     _close(taiwan_per_lane_shear(40), 363, 3)      # 車道 304 控制（< HL-93 588）
+
+
+def test_truck_both_directions():
+    """軸組須雙向掃描（原向＋掉頭）。單向曾使短跨支承剪力低估至 9.8%、L/4 彎矩低估 1.8%。"""
+    for L in (15, 20, 30, 38, 40, 45):
+        _close(taiwan_truck_shear(L), 324 - 918 / L, 0.05)   # 後軸壓支承閉合解
+    _close(taiwan_truck_shear(40), 301.1, 0.1)     # 40m：仍 < 車道 304 → 車道控制
+    _close(taiwan_per_lane_shear(30), 359.1, 0.2)  # 30m：卡車控制（舊單向 326.9）
+    _close(max_moment_moving(40, 10, (36.0, 144.0, 144.0), (0.0, 4.25, 8.5)), 2200.5, 0.5)  # L/4（舊單向 2160）
+    _close(taiwan_truck_moment(40), 2860, 5)       # 絕對最大對稱，不受影響
 
 
 def test_fatigue_P1():

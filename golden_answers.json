@@ -7,7 +7,7 @@
     "lane_M_kNm": 2680,
     "per_lane_M_LL_IM_kNm": 3418,
     "envelope_peak_kNm": 2857,
-    "envelope_at_L4_kNm": 2160
+    "envelope_at_L4_kNm": 2200
   },
   "loads": {
     "M_LL_IM_2lane_kNm": 6837,
@@ -105,7 +105,9 @@
     "impact": 0.1951,
     "per_lane_M_kNm": 3418,
     "per_lane_V_kN": 363,
-    "_note": "台灣 HS20-44；對照 HL-93 每車道 5673/588"
+    "truck_V_support_kN": 301.1,
+    "per_lane_V_30m_kN": 359.1,
+    "_note": "台灣 HS20-44；對照 HL-93 每車道 5673/588。卡車雙向掃描：40m 卡車 301.1 < 車道 304（車道控制）；30m 卡車控制"
   },
   "temperature_SE_T1": {
     "Tu_C": 6.27,

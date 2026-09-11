@@ -38,26 +38,31 @@
   // ── 台灣 HS20-44 活載（卡車或車道取大）──────────────────
   BC.TW = { P: [36, 144, 144], x: [0, 4.25, 8.5], lane: 9.4, PM: 80, PV: 116 };
   function ilM(L, a, p) { return p <= a ? p * (L - a) / L : a * (L - p) / L; }
+  // 軸組雙向（原向＋掉頭）掃描取 |ΣP·η| 最大；整數步進、軸位夾到 [0,L]（同 influence.py _max_moving）
+  function truckMaxMoving(L, il, step) {
+    var T = BC.TW, span = T.x[2], n = Math.round((L + span) / step), best = 0;
+    var sets = [[T.P, T.x], [T.P.slice().reverse(), T.x.map(function (d) { return span - d; }).reverse()]];
+    for (var o = 0; o < 2; o++) for (var k = 0; k <= n; k++) {
+      var s = -span + k * step, t = 0;
+      for (var i = 0; i < 3; i++) { var p = s + sets[o][1][i]; if (p >= -1e-9 && p <= L + 1e-9) t += sets[o][0][i] * il(min(max(p, 0), L)); }
+      if (abs(t) > abs(best)) best = t;
+    }
+    return best;
+  }
   BC.taiwanTruckMoment = function (L) {
-    var T = BC.TW, best = 0;
-    for (var a = 0.2; a < L; a += 0.2)
-      for (var s = -T.x[2]; s <= L; s += 0.2) {
-        var t = 0; for (var i = 0; i < 3; i++) { var xx = s + T.x[i]; if (xx >= 0 && xx <= L) t += T.P[i] * ilM(L, a, xx); }
-        if (abs(t) > abs(best)) best = t;
-      }
+    var best = 0;
+    for (var j = 1; j * 0.2 < L - 1e-9; j++) {
+      var a = j * 0.2, m = truckMaxMoving(L, function (p) { return ilM(L, a, p); }, 0.2);
+      if (abs(m) > abs(best)) best = m;
+    }
     return best;
   };
   BC.taiwanImpact = function (L) { return min(0.30, 15.24 / (L + 38.1)); };
   BC.taiwanLaneMoment = function (L) { return BC.TW.lane * L * L / 8 + BC.TW.PM * L / 4; };
   BC.taiwanPerLaneMoment = function (L) { return max(BC.taiwanTruckMoment(L), BC.taiwanLaneMoment(L)) * (1 + BC.taiwanImpact(L)); };
   function ilV(L, a, p) { return p < a ? -p / L : (L - p) / L; }
-  BC.taiwanTruckShear = function (L) {     // 支承最大剪力（a→0）
-    var T = BC.TW, best = 0, a = 1e-6;
-    for (var s = -T.x[2]; s <= L; s += 0.1) {
-      var t = 0; for (var i = 0; i < 3; i++) { var xx = s + T.x[i]; if (xx >= 0 && xx <= L) t += T.P[i] * ilV(L, a, xx); }
-      if (abs(t) > abs(best)) best = t;
-    }
-    return abs(best);
+  BC.taiwanTruckShear = function (L) {     // 支承最大剪力（a=0 即反力；L≥8.5 時 = 324−918/L）
+    return abs(truckMaxMoving(L, function (p) { return ilV(L, 0, p); }, 0.1));
   };
   BC.taiwanLaneShear = function (L) { return BC.TW.lane * L / 2 + BC.TW.PV; };
   BC.taiwanPerLaneShear = function (L) { return max(BC.taiwanTruckShear(L), BC.taiwanLaneShear(L)) * (1 + BC.taiwanImpact(L)); };

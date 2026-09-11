@@ -32,30 +32,43 @@ def il_moment_peak(L: float, a: float) -> float:
     return a * (L - a) / L
 
 
+def _max_moving(L: float, il, axles, spacing, step: float) -> float:
+    """軸組沿梁掃描取 |ΣPᵢ·η| 最大者（保留正負號）。
+
+    車可雙向行駛 → 原向與掉頭（軸序與軸距鏡射）都掃；單向會使非跨中斷面
+    彎矩與短跨支承剪力偏低。整數步進免浮點累加漂移；軸位夾到 [0, L]，
+    否則壓在支承上的軸會因 −1e-15 被略去。
+    """
+    span = spacing[-1]
+    mirrored = (tuple(reversed(axles)), tuple(span - d for d in reversed(spacing)))
+    n = int(round((L + span) / step))
+    best = 0.0
+    for P_set, d_set in ((tuple(axles), tuple(spacing)), mirrored):
+        for k in range(n + 1):
+            s = -span + k * step
+            tot = sum(P * il(min(max(s + d, 0.0), L))
+                      for P, d in zip(P_set, d_set) if -1e-9 <= s + d <= L + 1e-9)
+            if abs(tot) > abs(best):
+                best = tot
+    return best
+
+
 def max_moment_moving(L: float, a: float, axles=HL93_AXLES,
                       spacing=HL93_SPACING, step: float = 0.1) -> float:
-    """移動車組於斷面 a 之最大彎矩 max ΣPᵢ·η（卡車沿梁掃描）。"""
-    best = 0.0
-    s = -spacing[-1]
-    while s <= L:
-        tot = sum(P * il_moment_simple(L, a, s + dx)
-                  for P, dx in zip(axles, spacing) if 0 <= s + dx <= L)
-        if abs(tot) > abs(best):
-            best = tot
-        s += step
-    return best
+    """移動車組於斷面 a 之最大彎矩 max ΣPᵢ·η（雙向掃描）。"""
+    return _max_moving(L, lambda p: il_moment_simple(L, a, p), axles, spacing, step)
 
 
 def abs_max_moment(L: float, axles=HL93_AXLES, spacing=HL93_SPACING,
                    step: float = 0.2) -> float:
     """絕對最大彎矩：掃描斷面 a 與車組位置，取全梁最大。"""
     best = 0.0
-    a = step
-    while a < L:
-        m = max_moment_moving(L, a, axles, spacing, step)
+    j = 1
+    while j * step < L - 1e-9:
+        m = max_moment_moving(L, j * step, axles, spacing, step)
         if abs(m) > abs(best):
             best = m
-        a += step
+        j += 1
     return best
 
 
@@ -95,16 +108,8 @@ def taiwan_impact(L: float) -> float:
 
 def max_shear_moving(L: float, a: float, axles=TW_HS20_AXLES,
                      spacing=TW_HS20_SPACING, step: float = 0.1) -> float:
-    """移動車組於斷面 a 之最大剪力 max ΣPᵢ·η_V。"""
-    best = 0.0
-    s = -spacing[-1]
-    while s <= L:
-        tot = sum(P * il_shear_simple(L, a, s + dx)
-                  for P, dx in zip(axles, spacing) if 0 <= s + dx <= L)
-        if abs(tot) > abs(best):
-            best = tot
-        s += step
-    return best
+    """移動車組於斷面 a 之最大剪力 max ΣPᵢ·η_V（雙向掃描）。a=0 即支承反力。"""
+    return _max_moving(L, lambda p: il_shear_simple(L, a, p), axles, spacing, step)
 
 
 def taiwan_lane_moment(L: float) -> float:
@@ -133,7 +138,11 @@ def taiwan_per_lane_moment(L: float) -> float:
     return max(truck, taiwan_lane_moment(L)) * (1 + taiwan_impact(L))
 
 
+def taiwan_truck_shear(L: float) -> float:
+    """台灣 HS20-44 設計卡車支承最大剪力（不含衝擊）。L ≥ 8.5 m 時 = 324 − 918/L（後軸壓支承、前軸朝跨內）。"""
+    return abs(max_shear_moving(L, 0.0, TW_HS20_AXLES, TW_HS20_SPACING))
+
+
 def taiwan_per_lane_shear(L: float) -> float:
     """台灣每設計車道 V_LL+IM = max(設計卡車支承剪力, 車道剪力) × (1+I)。"""
-    truck = abs(max_shear_moving(L, 1e-6, TW_HS20_AXLES, TW_HS20_SPACING))
-    return max(truck, taiwan_lane_shear(L)) * (1 + taiwan_impact(L))
+    return max(taiwan_truck_shear(L), taiwan_lane_shear(L)) * (1 + taiwan_impact(L))

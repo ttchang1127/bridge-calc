@@ -53,7 +53,18 @@
     }
     return { total: pos + neg, pos: pos, neg: neg };
   }
-  var IL = { TRK: TRK, TRKS: TRKS, LANE: LANE, PM: PM, PV: PV,
+  // 區段均布載重效應 = w × ∫[x1,x2] η dx（梯形逐段裁切；等效載重法算 M_total 用）
+  function ilAreaRange(nodes, il, x1, x2) {
+    var X = il.xs || nodes, Y = il.vs || il, s = 0;
+    for (var i = 0; i < X.length - 1; i++) {
+      var a = X[i], b = X[i + 1]; if (b <= a) continue;
+      var lo = Math.max(a, x1), hi = Math.min(b, x2); if (hi <= lo) continue;
+      var t1 = (lo - a) / (b - a), t2 = (hi - a) / (b - a);
+      s += ((Y[i] + (Y[i + 1] - Y[i]) * t1) + (Y[i] + (Y[i + 1] - Y[i]) * t2)) / 2 * (hi - lo);
+    }
+    return s;
+  }
+  var IL = { ilAreaRange: ilAreaRange, TRK: TRK, TRKS: TRKS, LANE: LANE, PM: PM, PV: PV,
              inv: inv, model: model, solveIL: solveIL, interp: interp,
              truckSum: truckSum, truckScan: truckScan, absMaxOf: absMaxOf,
              truckMax: truckMax, truckEnv: truckEnv, laneEnv: laneEnv, laneMax: laneMax,

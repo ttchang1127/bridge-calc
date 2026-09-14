@@ -403,6 +403,17 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <label>腹板合計寬 b_w (mm)<input type="number" x-model.number="contBw" step="50"></label>
       <label>中墩 d_p (mm)<input type="number" x-model.number="contDp" step="10"></label>
     </div>
+    <div class="grid" style="margin-top:10px">
+      <label>端部偏心 e_end (mm)<input type="number" x-model.number="contEEnd" step="50"></label>
+      <label>跨中偏心 e_mid (mm，正=形心下)<input type="number" x-model.number="contEMid" step="50"></label>
+      <label>中墩偏心 e_pier (mm，負=形心上)<input type="number" x-model.number="contEPier" step="50"></label>
+      <template x-if="!contPeAuto"><label>有效預力 P_e (kN)<input type="number" x-model.number="contPe" step="500"></label></template>
+    </div>
+    <div class="hint"><label style="display:inline-flex;gap:5px;align-items:center">
+      <input type="checkbox" x-model="contM2On"> 計入預力次彎矩 M₂（載重因數 1.0）</label>
+      　<label style="display:inline-flex;gap:5px;align-items:center">
+      <input type="checkbox" x-model="contPeAuto"> P_e 依 ③ 鋼腱配置自動計算</label>
+    </div>
     <div class="hint"><label style="display:inline-flex;gap:5px;align-items:center">
       <input type="checkbox" x-model="contAuto"> 中墩 Mu 由包絡自動帶入</label>
       <template x-if="!contAuto"><span>　手動 Mu (kN·m)：<input type="number" x-model.number="contMuP" step="1000" style="width:120px;height:26px"></span></template>
@@ -418,14 +429,23 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </div>
     <div class="hint" style="margin-top:10px">彎矩包絡（kN·m；藍＝Service I、紅＝Strength I、灰虛＝靜載；▲＝支承）</div>
     <div class="figbox"><svg viewBox="0 0 640 230" style="width:100%;max-width:640px;height:auto" x-html="CB?cbSvg:''"></svg></div>
+    <div class="grid" style="margin-top:10px" x-show="CB&&CB.m2" x-cloak>
+      <div class="metric"><div class="l">等效上揚 w_eq（各跨）</div><div class="v" style="font-size:15px" x-text="CB&&CB.m2?CB.m2.segs.map(g=>fmt(g.w,1)).join(' / ')+' kN/m':''"></div></div>
+      <div class="metric"><div class="l">中墩 M₁（主彎矩）</div><div class="v" x-text="CB&&CB.pier.M1!=null?fmt(CB.pier.M1)+' kN·m':''"></div></div>
+      <div class="metric"><div class="l">中墩 M_total（等效載重）</div><div class="v" x-text="CB&&CB.pier.Mtot!=null?fmt(CB.pier.Mtot)+' kN·m':''"></div></div>
+      <div class="metric"><div class="l">中墩 M₂（次彎矩）</div><div class="v" :class="CB&&CB.pier.M2>0?'ok':''" x-text="CB&&CB.pier.M2!=null?fmt(CB.pier.M2)+' kN·m':''"></div></div>
+    </div>
+    <div class="cite" x-show="CB&&CB.m2" x-cloak>M₂ 以<b>等效載重法</b>實算：每跨鋼腱為通過（e_end／e_mid／e_pier）的拋物線 → 等效上揚 w=8P·a/L²（a＝相對弦線垂度）→ 施於同一連續梁模型得 M_total；M₁＝−P·e(x)；<b>M₂＝M_total−M₁</b>，支承間呈直線（可用以自我檢核）。M₂ 已以因數 1.0 計入上方 Service I／Strength I。</div>
     <table style="margin-top:10px">
-      <thead><tr><th>斷面</th><th>靜載 M_DL</th><th>活載 M_LL+IM</th><th>Service I</th><th>Strength I</th></tr></thead>
+      <thead><tr><th>斷面</th><th>靜載 M_DL</th><th>活載 M_LL+IM</th><th>M₂</th><th>Service I</th><th>Strength I</th></tr></thead>
       <tbody>
         <tr><td>中墩（x = <span x-text="CB?CB.pier.x.toFixed(1):''"></span> m）</td>
             <td x-text="CB?fmt(CB.pier.Mdl):''"></td><td x-text="CB?fmt(CB.pier.MllN):''"></td>
+            <td x-text="CB&&CB.pier.M2!=null?fmt(CB.pier.M2):'—'"></td>
             <td x-text="CB?fmt(CB.pier.MsN):''"></td><td class="ng" x-text="CB?fmt(CB.pier.MuN):''"></td></tr>
         <tr><td>跨中最大正（x = <span x-text="CB?CB.mid.x.toFixed(1):''"></span> m）</td>
             <td x-text="CB?fmt(CB.mid.Mdl):''"></td><td x-text="CB?fmt(CB.mid.MllP):''"></td>
+            <td x-text="CB&&CB.mid.M2!=null?fmt(CB.mid.M2):'—'"></td>
             <td x-text="CB?fmt(CB.mid.MsP):''"></td><td x-text="CB?fmt(CB.mid.MuP):''"></td></tr>
       </tbody>
     </table>
@@ -434,7 +454,9 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
   <div class="card"><h2>中墩負彎矩控制斷面 <span class="gold" style="background:#fef2f2;color:#dc2626">★ 簡支不會出現</span></h2>
     <table><thead><tr><th>項目</th><th>計算值</th><th>說明</th><th style="text-align:center">判定</th></tr></thead>
     <tbody>
-      <tr><td>次彎矩 M2（跨中 / B墩）</td><td x-text="R.cont.f(R.cont.M2mid)+' / '+R.cont.f(R.cont.M2pier)+' kN·m'"></td><td style="color:#888">M2=M_total−M1</td><td class="mut" style="text-align:center">—</td></tr>
+      <tr><td>次彎矩 M₂（中墩 / 跨中）</td>
+          <td x-text="CB&&CB.m2?(fmt(CB.pier.M2)+' / '+fmt(CB.mid.M2)+' kN·m'):'（未計入）'"></td>
+          <td style="color:#888">等效載重法實算，已計入上方 Mu</td><td class="mut" style="text-align:center">—</td></tr>
       <tr><td>中墩 NA 位置</td><td x-text="'c = '+R.cont.ftP.c.toFixed(0)+' mm'"></td><td style="color:#888" x-text="R.cont.ftP.flanged?'＞翼板厚200 → 進腹板，T 斷面':'翼板內'"></td><td class="mut" style="text-align:center">—</td></tr>
       <tr><td>中墩設計彎矩 Mu</td><td x-text="fmt(contMuUse)+' kN·m'"></td><td style="color:#888" x-text="contAuto?'由包絡自動帶入（負彎矩絕對值）':'手動輸入'"></td><td style="text-align:center" class="mut">—</td></tr>
       <tr><td>中墩 φMn / CR</td><td x-text="R.cont.f(R.cont.ftP.phiMn)+' kN·m（CR '+R.cont.ftP.CR.toFixed(2)+'）'"></td><td style="color:#888" x-text="'≥ Mu '+R.cont.f(contMuP)+'？'"></td>
@@ -1023,7 +1045,7 @@ function apply3D(o){
 }
 // ── 連續梁設計效應（共用 influence-lines.js：剛度法影響線→DL/LL 包絡）──
 // DL：均布載重效應 = w×∫η dx；LL：HS20-44 雙向掃描與車道載重取大×衝擊×車道數
-function contEnvelope(spans,wDC,wDW,lanes){
+function contEnvelope(spans,wDC,wDW,lanes,pt){
   var tot=spans.reduce(function(a,b){return a+b},0);
   var ne=Math.max(8,Math.round(50/spans.length));      // 總節點數 ~50：精度與速度折衷
   var m=IL.model(spans,ne), IM=Math.min(0.30,15.24/(tot+38.1)), fac=(1+IM)*lanes;
@@ -1037,9 +1059,43 @@ function contEnvelope(spans,wDC,wDW,lanes){
             MuP:1.25*mdc+1.5*mdw+1.75*llP, MuN:1.25*mdc+1.5*mdw+1.75*llN};
   });
   var pierIdx=m.sIdx.slice(1,-1);                       // 內支承（中墩）
-  var pier=pierIdx.map(function(t){return rows[t]}).reduce(function(a,b){return (a&&a.MuN<b.MuN)?a:b}, null);
-  var mid=rows.reduce(function(a,b){return a.MuP>b.MuP?a:b});
-  return {m:m, IM:IM, rows:rows, tot:tot, ne:ne, pier:pier, mid:mid, nPier:pierIdx.length};
+  var C={m:m, IM:IM, rows:rows, tot:tot, ne:ne, spans:spans, nPier:pierIdx.length};
+  if(pt && pt.Pe>0){                                    // 預力次彎矩（含入組合，載重因數 1.0）
+    var m2=contPrestressM2(C, pt.Pe, pt.eEnd, pt.eMid, pt.ePier);
+    rows.forEach(function(r,t){ var q=m2.at(t);
+      r.e=q.e; r.M1=q.M1; r.Mtot=q.Mtot; r.M2=q.M2;
+      r.MsP+=q.M2; r.MsN+=q.M2; r.MuP+=q.M2; r.MuN+=q.M2; });
+    C.m2=m2;
+  }
+  C.pier=pierIdx.map(function(t){return rows[t]}).reduce(function(a,b){return (a&&a.MuN<b.MuN)?a:b}, null);
+  C.mid=rows.reduce(function(a,b){return a.MuP>b.MuP?a:b});
+  return C;
+}
+// ── 連續梁預力次彎矩 M₂（等效載重法）───────────────────────
+// 鋼腱線形 e(x)：每跨為通過（端 e_L、跨中 e_mid、端 e_R）的拋物線，e 正＝形心下方。
+// 等效上揚 w_i = 8·P·a_i/L_i²（a_i＝相對弦線垂度）；支承處線形折角產生的集中力直接進支承、不生彎矩。
+// M_total = Σ(−w_i)×∫_span η dp（上揚＝負的向下載重）；M₁ = −P·e(x)；M₂ = M_total − M₁（支承間為直線）。
+function contPrestressM2(C, PeN, eEnd, eMid, ePier){
+  var P=PeN/1e3, spans=C.spans, xs=[0], acc=0;          // P: kN
+  spans.forEach(function(L){ acc+=L; xs.push(acc); });
+  var segs=spans.map(function(L,i){
+    var eL=(i===0?eEnd:ePier), eR=(i===spans.length-1?eEnd:ePier);
+    var a=(eMid-(eL+eR)/2)/1000;                        // m（相對弦線垂度，正＝下垂）
+    return {x1:xs[i], x2:xs[i+1], L:L, eL:eL, eR:eR, a:a, w:8*P*a/(L*L)};   // w: kN/m 上揚
+  });
+  function eAt(x){                                      // 該里程的鋼腱偏心（mm，正＝形心下方）
+    for(var i=0;i<segs.length;i++){ var g=segs[i];
+      if(x>=g.x1-1e-9&&x<=g.x2+1e-9){ var t=(x-g.x1)/g.L;
+        return g.eL+(g.eR-g.eL)*t+4*(eMid-(g.eL+g.eR)/2)*t*(1-t); } }
+    return 0;
+  }
+  return {segs:segs, eAt:eAt,
+    at:function(t){                                     // t＝節點索引
+      var il=IL.solveIL(C.m,t,'M'), Mtot=0;
+      segs.forEach(function(g){ Mtot+=(-g.w)*IL.ilAreaRange(C.m.nodes,il,g.x1,g.x2); });
+      var x=C.m.nodes[t], M1=-P*eAt(x)/1000;
+      return {x:x, e:eAt(x), Mtot:Mtot, M1:M1, M2:Mtot-M1};
+    }};
 }
 // ── 參數存檔：localStorage 自動存 ＋ JSON 匯出/匯入（呈現層，不影響計算）──
 var STORE_KEY='bridge-analyzer-params';
@@ -1055,7 +1111,8 @@ var PARAM_KEYS=[
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
   // ⑦ 連續梁
-  'contMuP','contApsTop','contSpans','contAuto','contB','contHf','contBw','contDp','lbrTarget','sigLimBot',
+  'contMuP','contApsTop','contSpans','contAuto','contB','contHf','contBw','contDp',
+  'contM2On','contPeAuto','contPe','contEEnd','contEMid','contEPier','lbrTarget','sigLimBot',
   // ⑧ 施工
   'cFci','cBridge','cNBatch','cHpier','cHmid','cHalf','cXq','cFtLoad','cFtArm','cDelas','cPhi',
   'cW','cLc','cL4','cA4','cZb4','cSigRes','cPper','cMu','cWtot','cRbrg','cAbrg',
@@ -1083,8 +1140,12 @@ function calc(){
       if(sp.length<2) return null;
       // 自重自行由斷面算（不可讀 this.R：R 內的中墩檢核會讀 contMuUse→CB，形成循環）
       var sec=window.BC.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
-      var wDC=sec.A/1e6*24.5, key=sp.join('|')+'|'+this.lanes+'|'+wDC.toFixed(3)+'|'+this.wDW;
-      if(cbCache.key!==key){ cbCache.key=key; cbCache.val=contEnvelope(sp,wDC,this.wDW,this.lanes); }
+      var wDC=sec.A/1e6*24.5;
+      var ten=window.BC.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu);
+      var PeC=this.contPeAuto ? window.BC.computeLosses(ten,sec,0,0).Pe : this.contPe*1e3;
+      var pt={Pe:this.contM2On?PeC:0, eEnd:this.contEEnd, eMid:this.contEMid, ePier:this.contEPier};
+      var key=[sp.join('+'),this.lanes,wDC.toFixed(3),this.wDW,pt.Pe.toFixed(0),pt.eEnd,pt.eMid,pt.ePier].join('|');
+      if(cbCache.key!==key){ cbCache.key=key; cbCache.val=contEnvelope(sp,wDC,this.wDW,this.lanes,pt); }
       return cbCache.val;
     },
     // 連續梁彎矩包絡圖（正彎矩畫在受拉側＝軸下；負彎矩在軸上）
@@ -1233,7 +1294,9 @@ function calc(){
     fcGrade:'40', stirrupBar:'D16', stirrupLegs:2, customAv:397.4,
     Tu:1900, dMfat:3222, deltaS:40, jointSh:29.4,
     contMuP:75337, contApsTop:11292,
-    contSpans:'40,40', contAuto:true,         // ⑦ 連續梁：跨長組成、Mu 自動由包絡帶入
+    contSpans:'40,40', contAuto:true,
+    contM2On:true, contPeAuto:true, contPe:23724,        // ⑦ 次彎矩：是否計入、Pe 來源（自動＝依③鋼腱配置）
+    contEEnd:0, contEMid:1109, contEPier:-900,          // 鋼腱線形控制點（mm，正＝形心下方）         // ⑦ 連續梁：跨長組成、Mu 自動由包絡帶入
     contB:1400, contHf:200, contBw:700, contDp:1950,   // 中墩受壓區（底板寬/厚、腹板合計寬、d_p）
     lbrTarget:0.985, sigLimBot:0,      // 反解設計目標：荷重平衡率、底緣容許拉應力（台灣零拉=0）
     // ⑩ 補強（既有 RC 構材，中國 JTG）——預設＝R1/R2/R4 算例（重現 golden）
@@ -1451,9 +1514,7 @@ function calc(){
         '<line x1="'+(mcx+sh.sigma1_limit*ms)+'" y1="'+(mcy-30)+'" x2="'+(mcx+sh.sigma1_limit*ms)+'" y2="'+(mcy+30)+'" stroke="#dc2626" stroke-dasharray="3 2"/><text x="'+(mcx+sh.sigma1_limit*ms)+'" y="'+(mcy+40)+'" font-size="7" fill="#dc2626" text-anchor="middle">限 '+f1(sh.sigma1_limit)+'</text>'+
         '<circle cx="'+(mcx+sh.sigma1*ms)+'" cy="'+mcy+'" r="3" fill="#dc2626"/><text x="'+(mcx+sh.sigma1*ms)+'" y="'+(mcy-7)+'" font-size="8" fill="#dc2626" text-anchor="middle">σ1='+f1(sh.sigma1)+'</text>';
       var ftP=B.flexuralStrengthT(this.contApsTop,1860,this.fc,this.contB,this.contHf,this.contBw,this.contDp,this.contMuUse);
-      var M2mid=B.secondaryMoment(8320,B.primaryMoment([[23700,0.950],[12557,-0.300]]));
-      var M2pier=B.secondaryMoment(-10594,B.primaryMoment([[23700,-0.080],[12557,0.900]]));
-      var cont={ftP:ftP,M2mid:M2mid,M2pier:M2pier,f:f};
+      var cont={ftP:ftP,f:f};   // M₂ 已改由 ⑦ CB（等效載重法實算），不再用硬編算例值
       return {sec:sec,wsw:wsw,Mdc:Mdc,Mdw:Mdw,IM:IM,perLane:perLane,Mll:Mll,loss:loss,tenPi:ten.Pi,
               rows:rows,npass:np,ntot:nt,matchGolden:mg,cont:cont,
               svgSec:svgSec,svgStr:svgStr,svgMohr:svgMohr,

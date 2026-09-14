@@ -8,6 +8,7 @@
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script src="engine.js"></script>
+<script src="influence-lines.js"></script>
 <style>
 :root{--blue:#1d4ed8;--ink:#1a1a1a;--mut:#555;--line:#e5e7eb;--ok:#16a34a;--ng:#dc2626;--bg:#f8f9fa}
 *{box-sizing:border-box}
@@ -393,17 +394,49 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ⑦ 連續梁 -->
 <div x-show="tab==='⑦'">
-  <div class="card no-print"><h2>連續梁中墩 輸入（40+40 兩跨）</h2>
+  <div class="card no-print"><h2>連續梁 輸入</h2>
     <div class="grid">
-      <label>中墩 Mu (kN·m)<input type="number" x-model.number="contMuP" step="1000"></label>
+      <label>各跨長 (m，逗號分隔)<input type="text" x-model="contSpans"></label>
       <label>頂板 PT Aps (mm²)<input type="number" x-model.number="contApsTop" step="100"></label>
+      <label>中墩底板寬 b (mm)<input type="number" x-model.number="contB" step="50"></label>
+      <label>中墩底板厚 h_f (mm)<input type="number" x-model.number="contHf" step="10"></label>
+      <label>腹板合計寬 b_w (mm)<input type="number" x-model.number="contBw" step="50"></label>
+      <label>中墩 d_p (mm)<input type="number" x-model.number="contDp" step="10"></label>
     </div>
+    <div class="hint"><label style="display:inline-flex;gap:5px;align-items:center">
+      <input type="checkbox" x-model="contAuto"> 中墩 Mu 由包絡自動帶入</label>
+      <template x-if="!contAuto"><span>　手動 Mu (kN·m)：<input type="number" x-model.number="contMuP" step="1000" style="width:120px;height:26px"></span></template>
+    </div>
+  </div>
+
+  <div class="card" x-show="CB" x-cloak><h2>設計效應包絡（剛度法影響線・真實多跨）</h2>
+    <div class="grid">
+      <div class="metric"><div class="l">配置</div><div class="v" style="font-size:15px" x-text="contSpans+' m（'+(CB?CB.tot.toFixed(0):0)+' m 全長）'"></div></div>
+      <div class="metric"><div class="l">衝擊係數 I（全長）</div><div class="v" x-text="CB?(CB.IM*100).toFixed(1)+' %':''"></div></div>
+      <div class="metric"><div class="l">中墩 Mu（負，控制）</div><div class="v ng" x-text="CB?fmt(CB.pier.MuN)+' kN·m':''"></div></div>
+      <div class="metric"><div class="l">跨中 Mu（正）</div><div class="v" x-text="CB?fmt(CB.mid.MuP)+' kN·m':''"></div></div>
+    </div>
+    <div class="hint" style="margin-top:10px">彎矩包絡（kN·m；藍＝Service I、紅＝Strength I、灰虛＝靜載；▲＝支承）</div>
+    <div class="figbox"><svg viewBox="0 0 640 230" style="width:100%;max-width:640px;height:auto" x-html="CB?cbSvg:''"></svg></div>
+    <table style="margin-top:10px">
+      <thead><tr><th>斷面</th><th>靜載 M_DL</th><th>活載 M_LL+IM</th><th>Service I</th><th>Strength I</th></tr></thead>
+      <tbody>
+        <tr><td>中墩（x = <span x-text="CB?CB.pier.x.toFixed(1):''"></span> m）</td>
+            <td x-text="CB?fmt(CB.pier.Mdl):''"></td><td x-text="CB?fmt(CB.pier.MllN):''"></td>
+            <td x-text="CB?fmt(CB.pier.MsN):''"></td><td class="ng" x-text="CB?fmt(CB.pier.MuN):''"></td></tr>
+        <tr><td>跨中最大正（x = <span x-text="CB?CB.mid.x.toFixed(1):''"></span> m）</td>
+            <td x-text="CB?fmt(CB.mid.Mdl):''"></td><td x-text="CB?fmt(CB.mid.MllP):''"></td>
+            <td x-text="CB?fmt(CB.mid.MsP):''"></td><td x-text="CB?fmt(CB.mid.MuP):''"></td></tr>
+      </tbody>
+    </table>
+    <div class="cite">影響線由 <code>influence-lines.js</code>（剛度法，與 index.html 影響線計算器同一份）算出：DL＝w×∫η dx、LL＝HS20-44 軸組雙向掃描與車道載重取大×衝擊×車道數。每跨切 <b x-text="CB?CB.ne:''"></b> 段（總節點約 50）；均布載重下中墩彎矩與理論 −wL²/8 差約 0.2%。自重取 ① 斷面（<span x-text="R.wsw.toFixed(0)"></span> kN/m）、SDL 與車道數取 ②。</div>
   </div>
   <div class="card"><h2>中墩負彎矩控制斷面 <span class="gold" style="background:#fef2f2;color:#dc2626">★ 簡支不會出現</span></h2>
     <table><thead><tr><th>項目</th><th>計算值</th><th>說明</th><th style="text-align:center">判定</th></tr></thead>
     <tbody>
       <tr><td>次彎矩 M2（跨中 / B墩）</td><td x-text="R.cont.f(R.cont.M2mid)+' / '+R.cont.f(R.cont.M2pier)+' kN·m'"></td><td style="color:#888">M2=M_total−M1</td><td class="mut" style="text-align:center">—</td></tr>
       <tr><td>中墩 NA 位置</td><td x-text="'c = '+R.cont.ftP.c.toFixed(0)+' mm'"></td><td style="color:#888" x-text="R.cont.ftP.flanged?'＞翼板厚200 → 進腹板，T 斷面':'翼板內'"></td><td class="mut" style="text-align:center">—</td></tr>
+      <tr><td>中墩設計彎矩 Mu</td><td x-text="fmt(contMuUse)+' kN·m'"></td><td style="color:#888" x-text="contAuto?'由包絡自動帶入（負彎矩絕對值）':'手動輸入'"></td><td style="text-align:center" class="mut">—</td></tr>
       <tr><td>中墩 φMn / CR</td><td x-text="R.cont.f(R.cont.ftP.phiMn)+' kN·m（CR '+R.cont.ftP.CR.toFixed(2)+'）'"></td><td style="color:#888" x-text="'≥ Mu '+R.cont.f(contMuP)+'？'"></td>
         <td style="text-align:center" :class="R.cont.ftP.ok?'ok':'ng'" x-text="R.cont.ftP.ok?'✓':'✗ 不足'"></td></tr>
     </tbody></table>
@@ -988,6 +1021,26 @@ function apply3D(o){
   if(G3.grp.cut){ G3.grp.cut.visible=!!o.cutOn; G3.grp.cut.position.z=Math.min(z,G3.L); }
   draw3D();
 }
+// ── 連續梁設計效應（共用 influence-lines.js：剛度法影響線→DL/LL 包絡）──
+// DL：均布載重效應 = w×∫η dx；LL：HS20-44 雙向掃描與車道載重取大×衝擊×車道數
+function contEnvelope(spans,wDC,wDW,lanes){
+  var tot=spans.reduce(function(a,b){return a+b},0);
+  var ne=Math.max(8,Math.round(50/spans.length));      // 總節點數 ~50：精度與速度折衷
+  var m=IL.model(spans,ne), IM=Math.min(0.30,15.24/(tot+38.1)), fac=(1+IM)*lanes;
+  var rows=m.nodes.map(function(x,t){
+    var il=IL.solveIL(m,t,'M'), ar=IL.ilArea(m.nodes,il);
+    var te=IL.truckEnv(m.nodes,il,tot), le=IL.laneEnv(m.nodes,il,IL.PM);
+    var llP=Math.max(te.pos,le.pos)*fac, llN=Math.min(te.neg,le.neg)*fac;
+    var mdc=wDC*ar.total, mdw=wDW*ar.total;
+    return {x:x, Mdl:mdc+mdw, MllP:llP, MllN:llN,
+            MsP:mdc+mdw+llP, MsN:mdc+mdw+llN,
+            MuP:1.25*mdc+1.5*mdw+1.75*llP, MuN:1.25*mdc+1.5*mdw+1.75*llN};
+  });
+  var pierIdx=m.sIdx.slice(1,-1);                       // 內支承（中墩）
+  var pier=pierIdx.map(function(t){return rows[t]}).reduce(function(a,b){return (a&&a.MuN<b.MuN)?a:b}, null);
+  var mid=rows.reduce(function(a,b){return a.MuP>b.MuP?a:b});
+  return {m:m, IM:IM, rows:rows, tot:tot, ne:ne, pier:pier, mid:mid, nPier:pierIdx.length};
+}
 // ── 參數存檔：localStorage 自動存 ＋ JSON 匯出/匯入（呈現層，不影響計算）──
 var STORE_KEY='bridge-analyzer-params';
 var PARAM_KEYS=[
@@ -1002,7 +1055,7 @@ var PARAM_KEYS=[
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
   // ⑦ 連續梁
-  'contMuP','contApsTop','lbrTarget','sigLimBot',
+  'contMuP','contApsTop','contSpans','contAuto','contB','contHf','contBw','contDp','lbrTarget','sigLimBot',
   // ⑧ 施工
   'cFci','cBridge','cNBatch','cHpier','cHmid','cHalf','cXq','cFtLoad','cFtArm','cDelas','cPhi',
   'cW','cLc','cL4','cA4','cZb4','cSigRes','cPper','cMu','cWtot','cRbrg','cAbrg',
@@ -1019,11 +1072,42 @@ var PARAM_KEYS=[
 function paramsOf(d){ var o={}; PARAM_KEYS.forEach(function(k){ o[k]=d[k] }); return o; }
 function applyParams(d,o){ PARAM_KEYS.forEach(function(k){ if(o[k]!==undefined&&o[k]!==null) d[k]=o[k]; }); }
 function calc(){
-  var ldCache={key:null,pts:null}, DEFAULTS=null, saveTimer=null;
+  var ldCache={key:null,pts:null}, cbCache={key:null,val:null}, DEFAULTS=null, saveTimer=null;
   return {
     tab:'①', open:null,
     // ── §十三 3D（只存旗標；THREE 物件放 G3 closure，不進 reactive proxy）──
     v3d:{on:false,box:true,tendon:true,anchor:true,axes:true,cutOn:false,cutT:0.5,msg:'',view:'iso'},
+    // ── ⑦ 連續梁：真實多跨包絡（記憶化：僅在跨長/車道/自重改變時重算）──
+    get CB(){
+      var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
+      if(sp.length<2) return null;
+      // 自重自行由斷面算（不可讀 this.R：R 內的中墩檢核會讀 contMuUse→CB，形成循環）
+      var sec=window.BC.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
+      var wDC=sec.A/1e6*24.5, key=sp.join('|')+'|'+this.lanes+'|'+wDC.toFixed(3)+'|'+this.wDW;
+      if(cbCache.key!==key){ cbCache.key=key; cbCache.val=contEnvelope(sp,wDC,this.wDW,this.lanes); }
+      return cbCache.val;
+    },
+    // 連續梁彎矩包絡圖（正彎矩畫在受拉側＝軸下；負彎矩在軸上）
+    get cbSvg(){
+      var C=this.CB; if(!C) return '';
+      var x0=50, W=560, y0=110, rows=C.rows, tot=C.tot;
+      var mx=Math.max.apply(null,rows.map(function(r){return Math.max(Math.abs(r.MuP),Math.abs(r.MuN),1)}));
+      var sc=88/mx, X=function(r){return x0+r.x/tot*W}, Y=function(k){return function(r){return y0+r[k]*sc}};
+      var g='<line x1="'+x0+'" y1="'+y0+'" x2="'+(x0+W)+'" y2="'+y0+'" stroke="#333"/>';
+      C.m.sx.forEach(function(sx){ var xx=x0+sx/tot*W;
+        g+='<path d="M'+xx+','+(y0+0)+' l-6,12 h12z" fill="#64748b"/>'+
+           '<line x1="'+xx+'" y1="18" x2="'+xx+'" y2="202" stroke="#e5e7eb"/>'+
+           '<text x="'+xx+'" y="216" font-size="9" fill="#888" text-anchor="middle">'+fmt(sx,0)+'</text>'; });
+      g+='<path d="M'+x0+','+y0+' '+rows.map(function(r){return 'L'+X(r).toFixed(1)+','+Y('MuP')(r).toFixed(1)}).join(' ')+' L'+(x0+W)+','+y0+'Z" fill="#dc2626" fill-opacity="0.07"/>'+
+         '<path d="M'+x0+','+y0+' '+rows.map(function(r){return 'L'+X(r).toFixed(1)+','+Y('MuN')(r).toFixed(1)}).join(' ')+' L'+(x0+W)+','+y0+'Z" fill="#dc2626" fill-opacity="0.07"/>'+
+         polyline(rows,X,Y('Mdl'),'stroke="#64748b" stroke-dasharray="4 3"')+
+         polyline(rows,X,Y('MsP'),'stroke="#1d4ed8" stroke-width="1.3"')+polyline(rows,X,Y('MsN'),'stroke="#1d4ed8" stroke-width="1.3"')+
+         polyline(rows,X,Y('MuP'),'stroke="#dc2626" stroke-width="1.6"')+polyline(rows,X,Y('MuN'),'stroke="#dc2626" stroke-width="1.6"')+
+         '<text x="'+X(C.pier)+'" y="'+(Y('MuN')(C.pier)-5)+'" font-size="10" fill="#dc2626" text-anchor="middle">中墩 '+fmt(C.pier.MuN)+'</text>'+
+         '<text x="'+X(C.mid)+'" y="'+(Y('MuP')(C.mid)+13)+'" font-size="10" fill="#dc2626" text-anchor="middle">跨中 '+fmt(C.mid.MuP)+'</text>';
+      return g;
+    },
+    get contMuUse(){ return this.contAuto&&this.CB ? Math.abs(this.CB.pier.MuN) : this.contMuP; },
     // ── 反解設計（design.py→engine.js 移植）：給目標算所需配置 ──
     get DS(){
       var B=window.BC, R=this.R, sec=R.sec, Ms=R.Mdc+R.Mdw+R.Mll, Lmm=this.L*1000;
@@ -1149,6 +1233,8 @@ function calc(){
     fcGrade:'40', stirrupBar:'D16', stirrupLegs:2, customAv:397.4,
     Tu:1900, dMfat:3222, deltaS:40, jointSh:29.4,
     contMuP:75337, contApsTop:11292,
+    contSpans:'40,40', contAuto:true,         // ⑦ 連續梁：跨長組成、Mu 自動由包絡帶入
+    contB:1400, contHf:200, contBw:700, contDp:1950,   // 中墩受壓區（底板寬/厚、腹板合計寬、d_p）
     lbrTarget:0.985, sigLimBot:0,      // 反解設計目標：荷重平衡率、底緣容許拉應力（台灣零拉=0）
     // ⑩ 補強（既有 RC 構材，中國 JTG）——預設＝R1/R2/R4 算例（重現 golden）
     method:'CFRP',
@@ -1364,7 +1450,7 @@ function calc(){
         '<circle cx="'+(mcx+mc*ms)+'" cy="'+mcy+'" r="'+(mr*ms)+'" fill="#1d4ed8" fill-opacity="0.06" stroke="#1d4ed8" stroke-width="1.4"/>'+
         '<line x1="'+(mcx+sh.sigma1_limit*ms)+'" y1="'+(mcy-30)+'" x2="'+(mcx+sh.sigma1_limit*ms)+'" y2="'+(mcy+30)+'" stroke="#dc2626" stroke-dasharray="3 2"/><text x="'+(mcx+sh.sigma1_limit*ms)+'" y="'+(mcy+40)+'" font-size="7" fill="#dc2626" text-anchor="middle">限 '+f1(sh.sigma1_limit)+'</text>'+
         '<circle cx="'+(mcx+sh.sigma1*ms)+'" cy="'+mcy+'" r="3" fill="#dc2626"/><text x="'+(mcx+sh.sigma1*ms)+'" y="'+(mcy-7)+'" font-size="8" fill="#dc2626" text-anchor="middle">σ1='+f1(sh.sigma1)+'</text>';
-      var ftP=B.flexuralStrengthT(this.contApsTop,1860,this.fc,1400,200,700,1950,this.contMuP);
+      var ftP=B.flexuralStrengthT(this.contApsTop,1860,this.fc,this.contB,this.contHf,this.contBw,this.contDp,this.contMuUse);
       var M2mid=B.secondaryMoment(8320,B.primaryMoment([[23700,0.950],[12557,-0.300]]));
       var M2pier=B.secondaryMoment(-10594,B.primaryMoment([[23700,-0.080],[12557,0.900]]));
       var cont={ftP:ftP,M2mid:M2mid,M2pier:M2pier,f:f};

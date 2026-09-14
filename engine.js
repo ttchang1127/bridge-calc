@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 110 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 116 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -113,6 +113,22 @@
     var Mcr = sec.Sb * (fr + fcpe) / 1e6, lower = min(1.33 * Mu, 1.2 * Mcr);
     return { c: c, in_flange: c <= hf, a: a, fps: fps, Mn: Mn, eps_t: eps_t, phi: phi,
              phiMn: phiMn, CR: phiMn / Mu, Mcr: Mcr, lower: lower, ok: phiMn >= Mu && phiMn >= lower };
+  };
+
+  // ── 反解設計（design.py 移植）：設計＝驗算之逆 ───────────
+  // Pe = n·股數·A_strand·f_pe → n = ⌈Pe/(股數·A_strand·f_pe)⌉
+  BC.minTendonGroups = function (Pe_req_N, strandsPer, fpe, Ap) {
+    Ap = Ap == null ? 140 : Ap;
+    return Math.ceil(Pe_req_N / (strandsPer * Ap * fpe));
+  };
+  // w_eq = 8·Pe·a/L²、LBR = w_eq/w_DL → a = LBR·w_DL·L²/(8·Pe)（w_DL N/mm、L mm → a mm）
+  BC.requiredDrape = function (LBR_target, w_DL, L, Pe) {
+    return LBR_target * w_DL * L * L / (8 * Pe);
+  };
+  // σ_b = −Pe/A − Pe·e/S_b + M/S_b ≤ σ_lim → S_b ≥ (M − Pe·e)/(σ_lim + Pe/A)
+  BC.minSectionModulusSb = function (Pe, A, e, M_kNm, sigma_tension_limit) {
+    var lim = sigma_tension_limit == null ? 0 : sigma_tension_limit;
+    return (M_kNm * 1e6 - Pe * e) / (lim + Pe / A);
   };
 
   // ── 腹板抗剪 D1 ───────────────────────────────────────

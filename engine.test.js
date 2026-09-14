@@ -40,6 +40,14 @@ function chkEq(name, got, exp) {
   chk('B 損失%', L.loss_pct * 100, g.prestress.loss_pct, 0.3);
   chk('B Pe(kN)', L.Pe / 1e3, g.prestress.Pe_kN, 50);
   chk('B Pe_min', BC.PeMinZeroTension(sec, t.e, c.Service_I) / 1e3, g.prestress.Pe_min_kN, 50);
+  // 反解設計（design.py 移植）：設計＝驗算之逆，對 design_inverse golden
+  var Pe_min = BC.PeMinZeroTension(sec, t.e, c.Service_I);
+  var Pe21 = BC.computeLosses(BC.tendon(8, 21, 1109), sec, 24800, 4000).Pe;
+  var w_DL = 8 * (24800 + 4000) * 1e6 / (40000 * 40000);
+  chk('設計 Pe_min(反解種子)', Pe_min / 1e3, g.design_inverse.Pe_min_zero_tension_kN, 1);
+  chk('設計 最小鋼腱組數', BC.minTendonGroups(Pe_min, 19, L.fpe), g.design_inverse.min_tendon_groups, 0);
+  chk('設計 所需垂度(LBR0.985)', BC.requiredDrape(0.985, w_DL, 40000, Pe21), g.design_inverse.required_drape_LBR0985_mm, 2);
+  chk('設計 最小 Sb', BC.minSectionModulusSb(L.Pe, sec.A, t.e, c.Service_I, 0) / 1e9, g.design_inverse.min_Sb_zero_tension_e9mm3, 0.01);
   chk('C1 底緣σ', s.sb, g.service.sigma_bot_MPa, 0.06);
   chk('C1 頂緣σ', s.st, g.service.sigma_top_MPa, 0.06);
   chk('D1 fpc', sh.fpc, g.shear_D1.fpc_MPa, 0.05);

@@ -60,7 +60,8 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 .d3bar label{display:flex;align-items:center;gap:4px}
 .d3bar input[type=range]{width:100%;min-width:120px;height:auto}
 #c3d{width:100%;height:400px;border:0.5px solid var(--line);border-radius:8px;background:linear-gradient(#f8fafc,#eef2f7);touch-action:none}
-#c3d canvas{display:block;border-radius:8px}
+#c3d canvas{display:block;border-radius:8px;max-width:100%;max-height:100%}
+#c3d{overflow:hidden}
 .btn3d{border:0.5px solid var(--blue);background:var(--blue);color:#fff;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer}
 .print-only{display:none}
 .phdr h1{margin:0;font-size:19px}.phdr .m{font-size:12px;color:#555}.phdr{border-bottom:2px solid var(--blue);padding-bottom:8px;margin-bottom:10px}
@@ -787,7 +788,8 @@ function mount3D(el){
   resize3D();
 }
 function resize3D(){ if(!G3.ren) return; var w=G3.mount.clientWidth||640, h=G3.mount.clientHeight||400;
-  G3.ren.setSize(w,h,false); G3.cam.aspect=w/h; G3.cam.updateProjectionMatrix(); draw3D(); }
+  G3.ren.setSize(w,h);       // 不可傳 updateStyle=false：canvas 會以繪圖緩衝尺寸(×dpr)當版面寬而溢出卡片
+  G3.cam.aspect=w/h; G3.cam.updateProjectionMatrix(); draw3D(); }
 function bindOrbit(el){
   var drag=null, v=G3.view;
   el.addEventListener('pointerdown',function(ev){drag={x:ev.clientX,y:ev.clientY};try{el.setPointerCapture(ev.pointerId)}catch(e){};el.style.cursor='grabbing'});
@@ -798,10 +800,22 @@ function bindOrbit(el){
   el.addEventListener('wheel',function(ev){ev.preventDefault();v.r=Math.max(3,Math.min(4000,v.r*(ev.deltaY>0?1.12:0.89)));draw3D()},{passive:false});
   el.style.cursor='grab';
 }
-// 依視埠長寬比算「框住全跨」的鏡頭距離（水平 FOV 由 aspect 決定）
-function fitRadius(L){
-  var cam=G3.cam, asp=(cam&&cam.aspect)||1.8, hfov=2*Math.atan(Math.tan(45*Math.PI/360)*asp);
-  return (L/2)/Math.tan(hfov/2)*0.92;
+// 框景：把箱梁 8 個角投影到畫面，迭代調整鏡頭距離到剛好裝得下（斜角視圖下公式估不準）
+function fitView(target){
+  var T=G3.T, g=G3.grp.box, cam=G3.cam; if(!T||!g||!cam) return;
+  target=target||0.86;
+  var bb=new T.Box3().setFromObject(g), pts=[];
+  [bb.min.x,bb.max.x].forEach(function(x){ [bb.min.y,bb.max.y].forEach(function(y){
+    [bb.min.z,bb.max.z].forEach(function(z){ pts.push(new T.Vector3(x,y,z)) }) }) });
+  var v=G3.view;
+  for(var it=0; it<14; it++){
+    cam.position.set(v.tx+v.r*Math.cos(v.el)*Math.sin(v.az), v.ty+v.r*Math.sin(v.el), v.tz+v.r*Math.cos(v.el)*Math.cos(v.az));
+    cam.lookAt(v.tx,v.ty,v.tz); cam.updateMatrixWorld(true); cam.updateProjectionMatrix();
+    var m=0; pts.forEach(function(p){ var q=p.clone().project(cam); m=Math.max(m,Math.abs(q.x),Math.abs(q.y)) });
+    if(!isFinite(m)||m<=0) return;
+    if(Math.abs(m-target)<0.015) break;
+    v.r=Math.max(1,v.r*m/target);
+  }
 }
 function draw3D(){ if(!G3.ren||!G3.scene) return; var v=G3.view, c=G3.cam;
   c.position.set(v.tx+v.r*Math.cos(v.el)*Math.sin(v.az), v.ty+v.r*Math.sin(v.el), v.tz+v.r*Math.cos(v.el)*Math.cos(v.az));
@@ -839,7 +853,7 @@ function build3D(p){
                           new T.LineBasicMaterial({color:0x7c3aed}))); });
   sc.add(gC); G3.grp.cut=gC;
   G3.L=L; G3.view.tx=0; G3.view.ty=H/2; G3.view.tz=L/2;
-  if(!G3.inited){ G3.view.r=fitRadius(L); G3.inited=true; }
+  if(!G3.inited){ G3.view.r=L; fitView(); G3.inited=true; }
   draw3D();
 }
 // 列印：WebGL canvas 常印成空白 → 列印前換成靜態 PNG，列印後還原
@@ -891,7 +905,7 @@ function calc(){
     rebuild3D(){ build3D({topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,
                           nWeb:this.nWeb,h:this.h,L:this.L,e:this.e,yb:this.R.sec.yb}); this.apply3D(); },
     apply3D(){ apply3D(this.v3d); },
-    reset3D(){ G3.view.az=-0.95; G3.view.el=0.36; G3.view.r=fitRadius(this.L); draw3D(); },
+    reset3D(){ G3.view.az=-0.95; G3.view.el=0.36; G3.view.r=this.L; fitView(); draw3D(); },
     katexHTML(tex){ return (window.katex&&tex)?katex.renderToString(tex,{throwOnError:false}):(tex||''); },
     // 標準鋼腱型號（選型號→自動帶每股面積 Ap；皆 Grade 270 低鬆弛 f_pu=1860）
     strandSpecs:{

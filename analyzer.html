@@ -155,7 +155,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <div class="metric"><div class="l">該處鋼腱斜率</div><div class="v" x-text="cut3d.slope.toFixed(4)"></div></div>
         <div class="metric"><div class="l">腹板數／鋼腱管</div><div class="v" x-text="nWeb+' 腹板'"></div></div>
       </div>
-      <div class="cite">拖曳旋轉、滾輪縮放。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；鋼腱每腹板畫一條<b>合力中心 CGS</b>（引擎 Vp 亦按 P<sub>e</sub>/腹板數計）。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
+      <div class="cite">左鍵拖曳旋轉、<b>中鍵（或 Shift＋左鍵、右鍵）拖曳平移</b>、滾輪縮放，「重設視角」可歸位。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；鋼腱每腹板畫一條<b>合力中心 CGS</b>（引擎 Vp 亦按 P<sub>e</sub>/腹板數計）。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
      </div>
     </template>
   </div>
@@ -790,12 +790,31 @@ function mount3D(el){
 function resize3D(){ if(!G3.ren) return; var w=G3.mount.clientWidth||640, h=G3.mount.clientHeight||400;
   G3.ren.setSize(w,h);       // 不可傳 updateStyle=false：canvas 會以繪圖緩衝尺寸(×dpr)當版面寬而溢出卡片
   G3.cam.aspect=w/h; G3.cam.updateProjectionMatrix(); draw3D(); }
+// 平移：把注視點沿鏡頭的右/上方向移動（像素→世界單位依距離換算）
+function panView(dx,dy){
+  var T=G3.T, cam=G3.cam, v=G3.view, h=(G3.mount&&G3.mount.clientHeight)||400;
+  var k=2*v.r*Math.tan(cam.fov*Math.PI/360)/h;
+  cam.updateMatrixWorld(true);
+  var right=new T.Vector3().setFromMatrixColumn(cam.matrixWorld,0),
+      up=new T.Vector3().setFromMatrixColumn(cam.matrixWorld,1);
+  v.tx+=-dx*k*right.x+dy*k*up.x; v.ty+=-dx*k*right.y+dy*k*up.y; v.tz+=-dx*k*right.z+dy*k*up.z;
+}
 function bindOrbit(el){
   var drag=null, v=G3.view;
-  el.addEventListener('pointerdown',function(ev){drag={x:ev.clientX,y:ev.clientY};try{el.setPointerCapture(ev.pointerId)}catch(e){};el.style.cursor='grabbing'});
+  el.addEventListener('contextmenu',function(ev){ev.preventDefault()});          // 右鍵拖曳用
+  el.addEventListener('auxclick',function(ev){ if(ev.button===1) ev.preventDefault() });  // 擋中鍵自動捲動
+  el.addEventListener('pointerdown',function(ev){
+    var pan=(ev.button===1||ev.button===2||ev.shiftKey);
+    if(pan) ev.preventDefault();
+    drag={x:ev.clientX,y:ev.clientY,pan:pan};
+    try{el.setPointerCapture(ev.pointerId)}catch(e){}
+    el.style.cursor=pan?'move':'grabbing';
+  });
   el.addEventListener('pointermove',function(ev){ if(!drag) return;
-    v.az-=(ev.clientX-drag.x)*0.008; v.el=Math.max(-1.25,Math.min(1.25,v.el+(ev.clientY-drag.y)*0.006));
-    drag={x:ev.clientX,y:ev.clientY}; draw3D(); });
+    var dx=ev.clientX-drag.x, dy=ev.clientY-drag.y;
+    if(drag.pan) panView(dx,dy);
+    else { v.az-=dx*0.008; v.el=Math.max(-1.25,Math.min(1.25,v.el+dy*0.006)); }
+    drag.x=ev.clientX; drag.y=ev.clientY; draw3D(); });
   ['pointerup','pointercancel','pointerleave'].forEach(function(t){el.addEventListener(t,function(){drag=null;el.style.cursor='grab'})});
   el.addEventListener('wheel',function(ev){ev.preventDefault();v.r=Math.max(3,Math.min(4000,v.r*(ev.deltaY>0?1.12:0.89)));draw3D()},{passive:false});
   el.style.cursor='grab';
@@ -852,7 +871,8 @@ function build3D(p){
     gC.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(loop.map(function(q){return new T.Vector3(q.x,q.y,0)})),
                           new T.LineBasicMaterial({color:0x7c3aed}))); });
   sc.add(gC); G3.grp.cut=gC;
-  G3.L=L; G3.view.tx=0; G3.view.ty=H/2; G3.view.tz=L/2;
+  G3.L=L; G3.center={tx:0,ty:H/2,tz:L/2};
+  G3.view.tx=0; G3.view.ty=H/2; G3.view.tz=L/2;
   if(!G3.inited){ G3.view.r=L; fitView(); G3.inited=true; }
   draw3D();
 }
@@ -905,7 +925,10 @@ function calc(){
     rebuild3D(){ build3D({topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,
                           nWeb:this.nWeb,h:this.h,L:this.L,e:this.e,yb:this.R.sec.yb}); this.apply3D(); },
     apply3D(){ apply3D(this.v3d); },
-    reset3D(){ G3.view.az=-0.95; G3.view.el=0.36; G3.view.r=this.L; fitView(); draw3D(); },
+    reset3D(){ var c=G3.center||{tx:0,ty:0,tz:0};
+      G3.view.az=-0.95; G3.view.el=0.36; G3.view.r=this.L;
+      G3.view.tx=c.tx; G3.view.ty=c.ty; G3.view.tz=c.tz;   // 平移一併歸位
+      fitView(); draw3D(); },
     katexHTML(tex){ return (window.katex&&tex)?katex.renderToString(tex,{throwOnError:false}):(tex||''); },
     // 標準鋼腱型號（選型號→自動帶每股面積 Ap；皆 Grade 270 低鬆弛 f_pu=1860）
     strandSpecs:{

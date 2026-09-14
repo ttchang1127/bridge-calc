@@ -65,6 +65,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 #c3d{overflow:hidden}
 .iobar{display:flex;flex-wrap:wrap;gap:8px}
 .savehint{font-size:11.5px;color:#999;margin-left:auto}
+.nowrap{white-space:nowrap}
 .vbtns{display:inline-flex;gap:3px}
 .vbtn{border:0.5px solid var(--line);background:#fff;border-radius:6px;padding:3px 10px;font-size:12.5px;cursor:pointer;color:var(--mut)}
 .vbtn:hover{background:var(--bg)}
@@ -72,15 +73,79 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 .btn3d{border:0.5px solid var(--blue);background:var(--blue);color:#fff;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer}
 .print-only{display:none}
 .phdr h1{margin:0;font-size:19px}.phdr .m{font-size:12px;color:#555}.phdr{border-bottom:2px solid var(--blue);padding-bottom:8px;margin-bottom:10px}
-@media print{.bar,.tabs,.no-print{display:none!important}.card{break-inside:avoid;border-color:#ccc}body{max-width:none;padding:0}
-  [x-show]{display:block!important}.print-only{display:block!important}}
+@media print{
+  @page{size:A4;margin:18mm 15mm 16mm}
+  .bar,.tabs,.no-print{display:none!important}
+  body{max-width:none;padding:0;font-size:11pt}
+  .card{break-inside:avoid;border-color:#ccc;margin:8px 0}
+  [x-show]{display:block!important}.print-only{display:block!important}
+  .chk{break-inside:avoid}
+  table{break-inside:auto}thead{display:table-header-group}tr{break-inside:avoid}
+  .figbox{overflow:visible}
+  /* 封面 */
+  .cover{break-after:page;padding-top:26mm;text-align:center}
+  .cv-owner{font-size:14pt;letter-spacing:4px;margin-bottom:30mm}
+  .cv-title{font-size:28pt;letter-spacing:8px;margin:0 0 6mm;border:none}
+  .cv-sub{font-size:16pt;color:#333;margin-bottom:22mm}
+  .cv-meta{width:78%;margin:0 auto;border-collapse:collapse;font-size:11pt}
+  .cv-meta th,.cv-meta td{border:0.5px solid #999;padding:6px 10px;text-align:left}
+  .cv-meta th{background:#f2f4f7;width:22%;font-weight:600;color:#333}
+  .cv-sign{width:78%;margin:14mm auto 0;border-collapse:collapse;font-size:11pt}
+  .cv-sign th,.cv-sign td{border:0.5px solid #999;padding:6px 10px;text-align:center}
+  .cv-sign th{background:#f2f4f7}
+  .cv-sign .sign-space td{height:22mm;vertical-align:top;color:#aaa;font-size:9pt}
+  .cv-note{margin:16mm auto 0;width:78%;font-size:9pt;color:#666;text-align:left;line-height:1.7}
+  /* 目錄 */
+  .toc{break-after:page}
+  .toc h2{font-size:18pt;text-align:center;letter-spacing:6px;border:none;margin:6mm 0 8mm}
+  .toc ol{font-size:12pt;line-height:2.2;padding-left:12mm}
+  /* 章節標題 */
+  .chap{break-before:page;font-size:15pt;font-weight:600;border-bottom:1.5px solid #1d4ed8;padding-bottom:4px;margin:0 0 8px}
+  .phdr{border-bottom:1px solid #999;padding-bottom:4px;margin-bottom:6px}
+  .phdr .m{font-size:9pt;color:#555}
+}
+.chap{display:none}
 </style>
 </head>
 <body x-data="calc()">
 
+<!-- 送審計算書：封面 -->
+<div class="print-only cover">
+  <div class="cv-owner" x-text="pjOwner||'（業主／主辦機關）'"></div>
+  <h1 class="cv-title">橋梁設計計算書</h1>
+  <div class="cv-sub" x-text="pjName"></div>
+  <table class="cv-meta">
+    <tr><th>設計階段</th><td x-text="pjStage||'—'"></td><th>案號</th><td x-text="pjNo||'—'"></td></tr>
+    <tr><th>版次</th><td x-text="pjRev||'—'"></td><th>日期</th><td x-text="pjDate"></td></tr>
+    <tr><th>設計單位</th><td colspan="3" x-text="pjFirm||'—'"></td></tr>
+  </table>
+  <table class="cv-sign">
+    <thead><tr><th>設計</th><th>校核</th><th>審核</th></tr></thead>
+    <tbody><tr><td x-text="pjEng||''"></td><td x-text="pjChecker||''"></td><td x-text="pjApprover||''"></td></tr>
+           <tr class="sign-space"><td>簽章</td><td>簽章</td><td>簽章</td></tr></tbody>
+  </table>
+  <table class="cv-meta" style="margin-top:14px">
+    <tr><th>橋型／構材</th><td>單室後張預力混凝土箱型梁</td></tr>
+    <tr><th>設計活載</th><td>台灣公路橋梁設計規範 HS20-44（卡車或車道取大）＋衝擊</td></tr>
+    <tr><th>跨徑／斷面</th><td x-text="L+' m　｜　頂寬 '+topW+' × 高 '+h+' mm　｜　f\'c = '+fc+' MPa'"></td></tr>
+    <tr><th>箱梁檢核結果</th><td x-text="R.npass+' / '+R.ntot+' 通過'+(R.matchGolden?'（對齊 40m 黃金範例）':'')"></td></tr>
+  </table>
+  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 116 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
+</div>
+
+<!-- 送審計算書：目錄 -->
+<div class="print-only toc">
+  <h2>目　錄</h2>
+  <ol>
+    <template x-for="(t,i) in tabs" :key="t.id"><li x-text="'第 '+(i+1)+' 章　'+t.name"></li></template>
+    <li>附錄 A　輸入資料彙總</li>
+    <li>附錄 B　檢核結果彙總</li>
+    <li>附錄 C　設計依據條文彙整</li>
+  </ol>
+</div>
+
 <div class="print-only phdr">
-  <h1 x-text="pjName+'　設計計算書'"></h1>
-  <div class="m" x-text="'台灣 HS20-44・單室後張箱梁　｜　公司：'+(pjFirm||'—')+'　工程師：'+(pjEng||'—')+'　日期：'+pjDate+'　｜　箱梁檢核 '+R.npass+'/'+R.ntot+' 通過'+(R.matchGolden?'（＝40m 黃金範例）':'')"></div>
+  <div class="m" x-text="pjName+'　設計計算書　｜　'+(pjFirm||'—')+'　｜　'+pjDate+'　｜　版次 '+(pjRev||'—')"></div>
 </div>
 
 <div class="bar no-print">
@@ -107,6 +172,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ① 斷面・材料 -->
 <div x-show="tab==='①'">
+  <div class="chap print-only">第 1 章　斷面・材料</div>
   <div class="card no-print"><h2>斷面・材料 輸入</h2>
     <div class="grid">
       <label>f'c 級別<select x-model="fcGrade" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:14px">
@@ -176,6 +242,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ② 載重 -->
 <div x-show="tab==='②'">
+  <div class="chap print-only">第 2 章　載重</div>
   <div class="card no-print"><h2>載重 輸入（L0）</h2>
     <div class="grid">
       <label>跨度 L (m)<input type="number" x-model.number="L" step="1"></label>
@@ -219,6 +286,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ③ 預力 -->
 <div x-show="tab==='③'">
+  <div class="chap print-only">第 3 章　預力</div>
   <div class="card no-print"><h2>預力 輸入（G1+B）</h2>
     <div class="grid">
       <label>鋼腱型號<select x-model="strandType" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:13px">
@@ -306,6 +374,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ④ 服務性・強度 -->
 <div x-show="tab==='④'">
+  <div class="chap print-only">第 4 章　服務性・強度</div>
   <div class="card"><h2>服務性・極限強度（C1+M1）</h2>
     <template x-for="r in R.rows.filter(x=>x[4]==='④')" :key="r[0]">
       <div class="chk">
@@ -328,6 +397,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ⑤ 剪力・撓度 -->
 <div x-show="tab==='⑤'">
+  <div class="chap print-only">第 5 章　剪力・撓度</div>
   <div class="card no-print"><h2>剪力・撓度 輸入（D1+C2/C3）</h2>
     <div class="grid">
       <label>箍筋號數<select x-model="stirrupBar" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:14px">
@@ -366,6 +436,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ⑥ 細部檢核 -->
 <div x-show="tab==='⑥'">
+  <div class="chap print-only">第 6 章　細部檢核</div>
   <div class="card no-print"><h2>細部 進階輸入（其餘由斷面/鋼腱自動推導）</h2>
     <div class="grid">
       <label>設計扭矩 Tu (kN·m)<input type="number" x-model.number="Tu" step="50"></label>
@@ -394,6 +465,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ⑦ 連續梁 -->
 <div x-show="tab==='⑦'">
+  <div class="chap print-only">第 7 章　連續梁</div>
   <div class="card no-print"><h2>連續梁 輸入</h2>
     <div class="grid">
       <label>各跨長 (m，逗號分隔)<input type="text" x-model="contSpans"></label>
@@ -468,6 +540,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ⑧ 施工 -->
 <div x-show="tab==='⑧'">
+  <div class="chap print-only">第 8 章　施工</div>
   <div class="hint no-print" style="margin:10px 0 0">施工階段應力歷程與工法設計。核心 = <code>engine.js</code>（CE 域＝construction/launching/segmental 移植，對 <code>construction_stage_H1H2</code>/<code>cantilever_H3</code>/<code>launching_H4</code>/<code>segmental_H5H6</code> golden）。<b>H1/H2 串接①斷面/③預力/②自重</b>；H3/H4/H5H6 各自算例。</div>
 
   <!-- H1/H2 支架施拉 -->
@@ -581,6 +654,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ⑨ 耐震 -->
 <div x-show="tab==='⑨'">
+  <div class="chap print-only">第 9 章　耐震</div>
   <div class="hint no-print" style="margin:10px 0 0">台灣公路橋梁耐震設計規範（<b>單軌</b>，與箱梁主引擎 HS20/HL-93 雙軌不同，各式沿用條文原生單位）。預設重現 S1/S2/S3/S5 算例（對 <code>seismic_*</code> golden）。核心 = <code>engine.js</code>（SE 域）。</div>
 
   <!-- S1 落橋防止 -->
@@ -678,6 +752,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ⑩ 補強 -->
 <div x-show="tab==='⑩'">
+  <div class="chap print-only">第 10 章　補強</div>
   <div class="card no-print"><h2>補強 輸入（既有 RC 構材・中國 JTG/T J22）</h2>
     <div class="hint">補強對象為<b>既有 RC 矩形構材</b>（與新建箱梁為不同構材，斷面自填）。<span style="color:#1d4ed8">串接參照：① 箱梁 f'c = <span x-text="fc"></span> MPa</span></div>
     <div class="grid">
@@ -730,11 +805,20 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <!-- ⑪ 計算書 -->
 <div x-show="tab==='⑪'">
+  <div class="chap print-only">第 11 章　計算書產出與附錄</div>
   <div class="card no-print"><h2>⑪ 計算書產出</h2>
     <div class="grid">
       <label>案件名稱<input type="text" x-model="pjName"></label>
-      <label>公司<input type="text" x-model="pjFirm"></label>
-      <label>工程師<input type="text" x-model="pjEng"></label>
+      <label>業主／主辦機關<input type="text" x-model="pjOwner"></label>
+      <label>設計單位<input type="text" x-model="pjFirm"></label>
+      <label>案號<input type="text" x-model="pjNo"></label>
+      <label>設計階段<select x-model="pjStage" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:14px">
+        <template x-for="v in ['可行性評估','初步設計','細部設計','施工圖說','變更設計']" :key="v"><option :value="v" x-text="v"></option></template>
+      </select></label>
+      <label>版次<input type="text" x-model="pjRev"></label>
+      <label>設計<input type="text" x-model="pjEng"></label>
+      <label>校核<input type="text" x-model="pjChecker"></label>
+      <label>審核<input type="text" x-model="pjApprover"></label>
       <label>日期<input type="text" x-model="pjDate"></label>
     </div>
     <button class="btn" style="margin-top:12px;background:var(--blue);color:#fff;border-color:var(--blue)" @click="window.print()">🖨 列印完整計算書（全分頁展開）</button>
@@ -755,6 +839,38 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <span x-show="msgIO" x-cloak style="color:var(--blue)">　｜　<span x-text="msgIO"></span></span>
     </div>
     <div class="cite">存檔涵蓋全 11 分頁的輸入欄（斷面／載重／預力／剪力／細部／連續梁／施工／耐震／補強／案件資訊），共 <b x-text="paramCount"></b> 欄；不含 3D 視角等呈現狀態。匯出的 JSON 可存進案件資料夾或寄給同事，匯入即還原。</div>
+  </div>
+
+  <div class="card"><h2>附錄 A　輸入資料彙總（<span x-text="inputRows.length"></span> 項）</h2>
+    <div class="hint no-print">列印前自動更新；掃描各分頁實際的輸入欄位，與介面永遠一致。
+      <button class="btn" style="margin-left:8px" @click="refreshSummary()">重新整理</button></div>
+    <table><thead><tr><th>章節</th><th>項目</th><th>設定值</th></tr></thead>
+      <tbody><template x-for="(r,i) in inputRows" :key="i">
+        <tr><td class="mut nowrap" x-text="r.chap"></td><td x-text="r.label"></td><td x-text="r.value"></td></tr>
+      </template></tbody></table>
+  </div>
+
+  <div class="card"><h2>附錄 B　檢核結果彙總</h2>
+    <table><thead><tr><th>檢核項目</th><th>計算值</th><th>容許／比較</th><th style="text-align:center">判定</th></tr></thead>
+      <tbody>
+        <template x-for="r in R.rows" :key="r[0]">
+          <tr><td x-text="r[0]"></td><td x-text="r[1]"></td><td class="mut" x-text="r[2]"></td>
+              <td style="text-align:center" :class="r[3]==null?'mut':(r[3]?'ok':'ng')" x-text="r[3]==null?'—':(r[3]?'✓':'✗')"></td></tr>
+        </template>
+        <tr x-show="CB"><td>連續梁中墩 φMn（第 7 章）</td>
+            <td x-text="fmt(R.cont.ftP.phiMn)+' kN·m（CR '+R.cont.ftP.CR.toFixed(2)+'）'"></td>
+            <td class="mut" x-text="'≥ Mu '+fmt(contMuUse)+' kN·m'"></td>
+            <td style="text-align:center" :class="R.cont.ftP.ok?'ok':'ng'" x-text="R.cont.ftP.ok?'✓':'✗'"></td></tr>
+      </tbody></table>
+    <div class="cite">箱梁 <b x-text="R.npass+'/'+R.ntot"></b> 通過。施工（第 8 章）、耐震（第 9 章）、補強（第 10 章）之判定詳各章；耐震為台灣單軌、補強為中國 JTG 單軌，不可跨軌混用。</div>
+  </div>
+
+  <div class="card"><h2>附錄 C　設計依據條文彙整</h2>
+    <table><thead><tr><th>檢核項目</th><th>規範依據</th></tr></thead>
+      <tbody><template x-for="c in citeRows" :key="c[0]">
+        <tr><td x-text="c[0]"></td><td class="mut" x-text="c[1]"></td></tr>
+      </template></tbody></table>
+    <div class="cite">容許值集中於引擎 <code>allowables</code> 模組（單一真理源，各帶條號）；施工期施拉壓應力限值採 0.55f'ci（場鑄一般橋梁）／0.60f'ci（節塊）。</div>
   </div>
 
   <div class="card"><h2>串接總覽（單頁共享 project → 改上游即時重算下游）</h2>
@@ -1071,6 +1187,30 @@ function contEnvelope(spans,wDC,wDW,lanes,pt){
   C.mid=rows.reduce(function(a,b){return a.MuP>b.MuP?a:b});
   return C;
 }
+// ── 附錄 A：輸入資料彙總（掃描各分頁的 label＋控制項，永遠與介面同步）──
+function scanInputs(tabNames){
+  var out=[];
+  document.querySelectorAll('div[x-show^="tab===\'"]').forEach(function(panel){
+    var mm=(panel.getAttribute('x-show')||'').match(/tab==='(.+?)'/); if(!mm) return;
+    var tab=mm[1]; if(tab==='⑪') return;                       // ⑪ 案件資訊已在封面
+    panel.querySelectorAll('label').forEach(function(lb){
+      var inp=lb.querySelector('input,select'); if(!inp||inp.type==='file') return;
+      // 只取 label 自己的文字（略過 select 的 option 文字，否則會把所有選項抓進來）
+      var label='';
+      Array.prototype.forEach.call(lb.childNodes,function(nd){
+        if(nd.nodeType===3) label+=nd.textContent;
+        else if(nd.nodeType===1 && ['INPUT','SELECT','TEXTAREA','TEMPLATE','OPTION'].indexOf(nd.tagName)<0) label+=nd.textContent;
+      });
+      label=label.replace(/\s+/g,' ').trim(); if(!label) return;
+      var val;
+      if(inp.type==='checkbox') val=inp.checked?'是':'否';
+      else if(inp.tagName==='SELECT') val=(inp.selectedIndex>=0?inp.options[inp.selectedIndex].text:inp.value);
+      else val=inp.value;
+      out.push({tab:tab, chap:tabNames[tab]||tab, label:label, value:val});
+    });
+  });
+  return out;
+}
 // ── 連續梁預力次彎矩 M₂（等效載重法）───────────────────────
 // 鋼腱線形 e(x)：每跨為通過（端 e_L、跨中 e_mid、端 e_R）的拋物線，e 正＝形心下方。
 // 等效上揚 w_i = 8·P·a_i/L_i²（a_i＝相對弦線垂度）；支承處線形折角產生的集中力直接進支承、不生彎矩。
@@ -1124,7 +1264,7 @@ var PARAM_KEYS=[
   'method','rb','rh','rh0','rAs','rfsd','rfcd','rMd1','rMdTarget','rNf','rEf','rTf','rEpsfu','rBf',
   'rAsp','rFsp','rEsp','rH02','rAs2','rFsd2','rEs2',
   // ⑪ 計算書
-  'pjName','pjFirm','pjEng','pjDate'
+  'pjName','pjFirm','pjEng','pjDate','pjOwner','pjNo','pjStage','pjRev','pjChecker','pjApprover'
 ];
 function paramsOf(d){ var o={}; PARAM_KEYS.forEach(function(k){ o[k]=d[k] }); return o; }
 function applyParams(d,o){ PARAM_KEYS.forEach(function(k){ if(o[k]!==undefined&&o[k]!==null) d[k]=o[k]; }); }
@@ -1242,11 +1382,17 @@ function calc(){
     // 箍筋號數×肢數→Av（雙腳/多腳自動）；自訂則手填
     get avAuto(){ return this.stirrupBar==='custom' ? this.customAv : (this.rebarArea[this.stirrupBar]||0)*this.stirrupLegs; },
     // 選 f'c 級別→帶入 f'c（自訂則保留手填值）
-    saved:'', msgIO:'',
+    saved:'', msgIO:'', inputRows:[],
+    get chapMap(){ var m={}; this.tabs.forEach(function(t,i){ m[t.id]='第 '+(i+1)+' 章 '+t.name; }); return m; },
+    refreshSummary(){ this.inputRows=scanInputs(this.chapMap); },
+    get citeRows(){ var out=[]; for(var k in DET) out.push([k, DET[k].cite]); return out; },
     get paramCount(){ return PARAM_KEYS.length; },
     init(){
       this.$watch('fcGrade', v=>{ if(v!=='custom') this.fc=+v; });
       DEFAULTS=paramsOf(this);                                  // 先記下預設（＝40m 黃金範例）
+      var self0=this;
+      window.addEventListener('beforeprint',function(){ self0.refreshSummary(); });
+      setTimeout(function(){ self0.refreshSummary(); },300);
       try{ var s=localStorage.getItem(STORE_KEY); if(s){ applyParams(this,JSON.parse(s)); this.msgIO='已載入上次存檔'; } }catch(e){}
       var self=this;
       Alpine.effect(function(){
@@ -1287,6 +1433,7 @@ function calc(){
       {id:'⑪',name:'計算書',grp:'產出'},
     ],
     pjName:'40m 後張箱梁', pjFirm:'', pjEng:'', pjDate:new Date().toISOString().slice(0,10),
+    pjOwner:'', pjNo:'', pjStage:'細部設計', pjRev:'A', pjChecker:'', pjApprover:'',
     L:40, fc:40, lanes:2, wDW:20,
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, sv:250, Vu:2069,

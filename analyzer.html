@@ -449,7 +449,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
             <td x-text="CB?fmt(CB.mid.MsP):''"></td><td x-text="CB?fmt(CB.mid.MuP):''"></td></tr>
       </tbody>
     </table>
-    <div class="cite">影響線由 <code>influence-lines.js</code>（剛度法，與 index.html 影響線計算器同一份）算出：DL＝w×∫η dx、LL＝HS20-44 軸組雙向掃描與車道載重取大×衝擊×車道數。每跨切 <b x-text="CB?CB.ne:''"></b> 段（總節點約 50）；均布載重下中墩彎矩與理論 −wL²/8 差約 0.2%。自重取 ① 斷面（<span x-text="R.wsw.toFixed(0)"></span> kN/m）、SDL 與車道數取 ②。</div>
+    <div class="cite">影響線由 <code>influence-lines.js</code>（剛度法，與 index.html 影響線計算器同一份）算出：DL＝w×∫η dx、LL＝HS20-44 軸組雙向掃描與車道載重取大×衝擊×車道數。每跨切 <b x-text="CB?CB.ne:''"></b> 段（總節點約 100）；均布載重下中墩彎矩與理論 −wL²/8 差約 0.04%。自重取 ① 斷面（<span x-text="R.wsw.toFixed(0)"></span> kN/m）、SDL 與車道數取 ②。</div>
   </div>
   <div class="card"><h2>中墩負彎矩控制斷面 <span class="gold" style="background:#fef2f2;color:#dc2626">★ 簡支不會出現</span></h2>
     <table><thead><tr><th>項目</th><th>計算值</th><th>說明</th><th style="text-align:center">判定</th></tr></thead>
@@ -502,7 +502,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <label>半跨 (m)<input type="number" x-model.number="cHalf" step="1"></label>
       <label>查詢 x (m)<input type="number" x-model.number="cXq" step="1"></label>
       <label>掛籃重 (kN)<input type="number" x-model.number="cFtLoad" step="50"></label>
-      <label>掛籃力臂 (m)<input type="number" x-model.number="cFtArm" step="0.5"></label>
+      <label>掛籃力臂 (m，對 x=4 斷面)<input type="number" x-model.number="cFtArm" step="0.5"></label>
       <label>彈性下撓 δ_e (mm)<input type="number" x-model.number="cDelas" step="1"></label>
       <label>潛變係數 φ<input type="number" x-model.number="cPhi" step="0.1"></label>
     </div>
@@ -513,7 +513,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <div class="metric"><div class="l">長期下撓 δ(1+φ)</div><div class="v" x-text="CC.f(CC.h3.dLong)+' mm'"></div></div>
     </div>
     <div x-html="katexHTML('h(x)=h_{mid}+(h_{pier}-h_{mid})\\left(\\tfrac{x}{L/2}\\right)^2,\\quad M=\\textstyle\\sum G_i\\,a_i+G_{FT}a_{FT},\\quad \\delta_{lt}=\\delta_e(1+\\varphi)')"></div>
-    <div class="cite" x-text="'端點 h_mid '+CC.f(CC.h3.hMid,2)+' / h_pier '+CC.f(CC.h3.hPier,2)+' m。自重項為算例 8 節塊（643…341 kN，力臂對 x=4）；⚠️公布 94,025 掛籃項以墩CL、自重以 x=4 混用偏保守~4%。長期 φ≈2.0。'"></div>
+    <div class="cite" x-text="'端點 h_mid '+CC.f(CC.h3.hMid,2)+' / h_pier '+CC.f(CC.h3.hPier,2)+' m。自重項為算例 8 節塊（643…341 kN）；力臂一律對 0 號塊端 x=4m 斷面——掛籃距墩 CL 40.5m → 臂 36.5m（2026-09-15 統一參考點，原公布 94,025 因混用偏保守約 3.5%）。長期 φ≈2.0。'"></div>
   </div>
 
   <!-- H4 推進 ILM -->
@@ -1047,7 +1047,7 @@ function apply3D(o){
 // DL：均布載重效應 = w×∫η dx；LL：HS20-44 雙向掃描與車道載重取大×衝擊×車道數
 function contEnvelope(spans,wDC,wDW,lanes,pt){
   var tot=spans.reduce(function(a,b){return a+b},0);
-  var ne=Math.max(8,Math.round(50/spans.length));      // 總節點數 ~50：精度與速度折衷
+  var ne=Math.max(12,Math.round(100/spans.length));    // 總節點數 ~100（反矩陣已快取，成本 <50ms）
   var m=IL.model(spans,ne), IM=Math.min(0.30,15.24/(tot+38.1)), fac=(1+IM)*lanes;
   var rows=m.nodes.map(function(x,t){
     var il=IL.solveIL(m,t,'M'), ar=IL.ilArea(m.nodes,il);
@@ -1312,7 +1312,7 @@ function calc(){
     seiFL:0.3, seiX:5, seiRs:0.2,
     // ⑧ 施工——H1/H2 串接①③②；H3/H4/H5H6 各自算例預設（重現 H* golden）
     cFci:32, cBridge:'一般', cNBatch:4,
-    cHpier:4.5, cHmid:2.2, cHalf:40, cXq:20, cFtLoad:800, cFtArm:40.5, cDelas:147, cPhi:2.0,
+    cHpier:4.5, cHmid:2.2, cHalf:40, cXq:20, cFtLoad:800, cFtArm:36.5, cDelas:147, cPhi:2.0,
     cW:120, cLc:14, cL4:40, cA4:4.870, cZb4:3.093, cSigRes:1.5, cPper:2510, cMu:0.10, cWtot:24000, cRbrg:7200, cAbrg:960000,
     cH5Ac:4.20, cH5L:2.5, cGam:25, cH5nT:4, cH5Pt:480, cH6Ac:2.85, cVfuk:350, cXi:0.439, cVsd:2850, cNkeys:20, cPb:14000, cPtot:42500,
     get RR(){

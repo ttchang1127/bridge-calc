@@ -77,7 +77,7 @@ tc_lim = transfer_comp_limit(32)                             # 0.55 f'ci（一�
 # ── 其他施工工法概要（各自參考橋，非 40m 簡支橋）──
 h3_Mmax = cantilever_moment([643, 599, 550, 497, 439, 385, 353, 341],
                             [x - 4 for x in [6.75, 11.25, 15.75, 20.25, 24.75, 29.25, 33.75, 38.25]],
-                            800, 40.5)                        # 80+80m 懸臂
+                            800, 36.5)                       # 80+80m 懸臂（力臂對 x=4 斷面）
 h3_dLT = long_term_deflection(147, 2.0)
 h4_Mpos = launching_span_moment(120.0, 40.0)                 # 40m ILM
 h4_Mneg = launching_cantilever_moment(120.0, 14.0)

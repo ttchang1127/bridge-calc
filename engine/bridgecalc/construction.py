@@ -78,8 +78,10 @@ def cantilever_moment(weights, arms, ft_load: float = 0.0, ft_arm: float = 0.0) 
 
     weights/arms：各已澆節塊自重與其對驗核斷面的力臂（等長序列）；
     ft_load/ft_arm：掛籃（Form Traveler）重量與力臂。
-    ⚠️ 力臂參考點由呼叫者決定，需自重項與掛籃項一致；算例公布的 94,025 其掛籃項
-       以墩 CL 為準、自重項以 0 號塊端(x=4m)為準（混用，偏保守約 4%）——詳 README。
+    ⚠️ 力臂參考點由呼叫者決定，**自重項與掛籃項必須同一參考點**。
+       算例採 0 號塊端(x=4m)斷面：掛籃位於懸臂尖端外 0.5m（距墩 CL 40.5m）
+       → 力臂 = 40.5 − 4 = 36.5m（2026-09-15 統一；原公布 94,025 因掛籃項誤以
+       墩 CL 為準而偏保守約 4%）。
     """
     return sum(w * a for w, a in zip(weights, arms)) + ft_load * ft_arm
 

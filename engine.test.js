@@ -161,7 +161,7 @@ function chkEq(name, got, exp) {
   chk('H3 h_pier(x=半跨)', CE.variableDepth(40, 4.5, 2.2, 40), c.h_pier_m, 0.01);
   chk('H3 h(x=20)', CE.variableDepth(20, 4.5, 2.2, 40), c.h_at_x20_m, 0.001);
   chk('H3 自重彎矩ΣG·arm', CE.cantileverMoment(w_h3, a_h3), c.M_selfweight_about_x4_kNm, 1);
-  chk('H3 懸臂最大M(含掛籃)', CE.cantileverMoment(w_h3, a_h3, 800, 40.5), c.M_cant_max_kNm, 1);
+  chk('H3 懸臂最大M(含掛籃)', CE.cantileverMoment(w_h3, a_h3, 800, 36.5), c.M_cant_max_kNm, 1);
   chk('H3 長期下撓δ(1+φ)', CE.longTermDeflection(147, 2.0), c.delta_long_term_mm, 1);
 
   // ── H4 推進 ILM：40m等跨、等深 h=2.2m、A=4.870m²、Zb=3.093e9mm³ ──

@@ -422,7 +422,7 @@ def test_cantilever_H3():
     w = [643, 599, 550, 497, 439, 385, 353, 341]
     a = [x - 4 for x in [6.75, 11.25, 15.75, 20.25, 24.75, 29.25, 33.75, 38.25]]
     _close(cantilever_moment(w, a), 61661, 40)              # 自重項（算例 61,625，累積捨入）
-    _close(cantilever_moment(w, a, 800, 40.5), 94061, 40)   # +掛籃（算例公布 94,025）
+    _close(cantilever_moment(w, a, 800, 36.5), 90861, 40)   # +掛籃（力臂統一對 x=4；算例 90,825）
     # 長期下撓 δ(1+φ)
     _close(long_term_deflection(147, 2.0), 441, 1)
 

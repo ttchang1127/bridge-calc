@@ -216,9 +216,9 @@ golden = {
         "h_mid_m": round(variable_depth(0, 4.5, 2.2, 40), 2), "h_pier_m": round(variable_depth(40, 4.5, 2.2, 40), 2),
         "h_at_x20_m": round(variable_depth(20, 4.5, 2.2, 40), 3),
         "M_selfweight_about_x4_kNm": round(cantilever_moment(w_h3, a_h3)),
-        "M_cant_max_kNm": round(cantilever_moment(w_h3, a_h3, 800, 40.5)), "M_cant_max_published_kNm": 94025,
+        "M_cant_max_kNm": round(cantilever_moment(w_h3, a_h3, 800, 36.5)), "M_cant_max_published_kNm": 90825,
         "delta_elastic_mm": 147, "delta_long_term_mm": round(long_term_deflection(147, 2.0)),
-        "_note": "變深h(x)端點2.2/4.5；懸臂彎矩Σ(G·arm)+掛籃；⚠️公布94,025掛籃項以墩CL、自重項以x=4(混用偏保守~4%)；長期下撓δ(1+φ)。對齊算例_懸臂工法施工階段設計"},
+        "_note": "變深h(x)端點2.2/4.5；懸臂彎矩Σ(G·arm)+掛籃；力臂統一對 x=4 斷面（掛籃距墩CL 40.5m→臂36.5m；2026-09-15 修正原混用參考點的94,025）；長期下撓δ(1+φ)。對齊算例_懸臂工法施工階段設計"},
     "launching_H4": {
         "config": "40m等跨 ILM 推進，等深 h=2.2m A=4.870m² Zb=3.093e9mm³",
         "M_cantilever_neg_kNm": round(launching_cantilever_moment(120.0, 14.0)),

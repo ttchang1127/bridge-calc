@@ -19,14 +19,60 @@
  function twPerLane(L){ return Math.max(absMaxTW(L), twLaneM(L))*(1+twImpact(L)); }   // 取大×(1+I)
  // ── 數值剛度法影響線（連續梁；簡支亦適用）──
  function inv(A){var n=A.length,M=A.map(function(r,i){return r.concat(Array.from({length:n},function(_,j){return i===j?1:0}))});for(var i=0;i<n;i++){var p=i;for(var r=i+1;r<n;r++)if(Math.abs(M[r][i])>Math.abs(M[p][i]))p=r;var t=M[i];M[i]=M[p];M[p]=t;var pv=M[i][i];for(var j=0;j<2*n;j++)M[i][j]/=pv;for(var r2=0;r2<n;r2++)if(r2!==i){var f=M[r2][i];for(var j2=0;j2<2*n;j2++)M[r2][j2]-=f*M[i][j2]}}return M.map(function(r){return r.slice(n)})}
- function model(spans,neIn){var ne=neIn||(spans.length>1?12:24),nodes=[0],sx=[0],cum=0;spans.forEach(function(Ln){for(var k=1;k<=ne;k++)nodes.push(+(cum+Ln*k/ne).toFixed(4));cum+=Ln;sx.push(+cum.toFixed(4))});var sIdx=sx.map(function(x){var b=0;for(var i=0;i<nodes.length;i++)if(Math.abs(nodes[i]-x)<Math.abs(nodes[b]-x))b=i;return b});return {nodes:nodes,sx:sx,sIdx:sIdx,tot:cum}}
+ // 每跨分割段數：包絡只在節點取值，密度不足會低估峰值（簡支 24 段時較絕對最大低 0.1%）
+ function model(spans,neIn){var ne=neIn||(spans.length>1?24:60),nodes=[0],sx=[0],cum=0;spans.forEach(function(Ln){for(var k=1;k<=ne;k++)nodes.push(+(cum+Ln*k/ne).toFixed(4));cum+=Ln;sx.push(+cum.toFixed(4))});var sIdx=sx.map(function(x){var b=0;for(var i=0;i<nodes.length;i++)if(Math.abs(nodes[i]-x)<Math.abs(nodes[b]-x))b=i;return b});return {nodes:nodes,sx:sx,sIdx:sIdx,tot:cum}}
  // rs=true：支承節點取「右側」剪力（計入該支承反力）；預設為左側。僅對 eff=V 有意義
- function solveIL(m,tIdx,eff,rs){var nodes=m.nodes,N=nodes.length,nd=2*N,K=[];for(var i=0;i<nd;i++)K.push(new Array(nd).fill(0));for(var e=0;e<N-1;e++){var le=nodes[e+1]-nodes[e],cc=1/(le*le*le),ke=[[12*cc,6*le*cc,-12*cc,6*le*cc],[6*le*cc,4*le*le*cc,-6*le*cc,2*le*le*cc],[-12*cc,-6*le*cc,12*cc,-6*le*cc],[6*le*cc,2*le*le*cc,-6*le*cc,4*le*le*cc]],mp=[2*e,2*e+1,2*e+2,2*e+3];for(var a=0;a<4;a++)for(var b=0;b<4;b++)K[mp[a]][mp[b]]+=ke[a][b]}var cons={};m.sIdx.forEach(function(s){cons[2*s]=1});var free=[];for(var d=0;d<nd;d++)if(!cons[d])free.push(d);var Kr=free.map(function(a){return free.map(function(b){return K[a][b]})}),Kri=inv(Kr);var xt=nodes[tIdx],il=[];for(var p=0;p<N;p++){if(cons[2*p]){il.push(0);continue}var Fr=free.map(function(d2){return d2===2*p?-1:0}),dr=Kri.map(function(row){var s=0;for(var k=0;k<row.length;k++)s+=row[k]*Fr[k];return s});var dfull=new Array(nd).fill(0);free.forEach(function(d2,k){dfull[d2]=dr[k]});var R=m.sIdx.map(function(s){var sm=0;for(var j=0;j<nd;j++)sm+=K[2*s][j]*dfull[j];return sm});var val=0,px=nodes[p];if(eff==='M'){for(var k=0;k<m.sx.length;k++)if(m.sx[k]<xt-1e-6)val+=R[k]*(xt-m.sx[k]);if(px<xt-1e-6)val-=(xt-px)}else{var lim=rs?xt+1e-6:xt-1e-6;for(var k=0;k<m.sx.length;k++)if(m.sx[k]<lim)val+=R[k];if(px<lim)val-=1}il.push(val)}var ref=(eff==='M'?Math.max(m.tot,1)/4:1),out=il.map(function(v){return Math.abs(v)<ref*1e-3?0:v});
+ // 剛度矩陣與其反矩陣只與模型有關 → 每個模型算一次並快取（原本每個斷面都重算一次反矩陣）
+ function prepare(m){
+  if(m._ctx) return m._ctx;
+  var nodes=m.nodes,N=nodes.length,nd=2*N,K=[];
+  for(var i=0;i<nd;i++)K.push(new Array(nd).fill(0));
+  for(var e=0;e<N-1;e++){
+   var le=nodes[e+1]-nodes[e],cc=1/(le*le*le),
+       ke=[[12*cc,6*le*cc,-12*cc,6*le*cc],[6*le*cc,4*le*le*cc,-6*le*cc,2*le*le*cc],
+           [-12*cc,-6*le*cc,12*cc,-6*le*cc],[6*le*cc,2*le*le*cc,-6*le*cc,4*le*le*cc]],
+       mp=[2*e,2*e+1,2*e+2,2*e+3];
+   for(var a=0;a<4;a++)for(var b=0;b<4;b++)K[mp[a]][mp[b]]+=ke[a][b];
+  }
+  var cons={}; m.sIdx.forEach(function(s){cons[2*s]=1});
+  var free=[],idxOf=new Array(nd).fill(-1);
+  for(var d=0;d<nd;d++)if(!cons[d]){idxOf[d]=free.length;free.push(d)}
+  var Kr=free.map(function(a){return free.map(function(b){return K[a][b]})});
+  m._ctx={N:N,nd:nd,K:K,cons:cons,free:free,idxOf:idxOf,Kri:inv(Kr)};
+  return m._ctx;
+ }
+ // rs=true：支承節點取「右側」剪力（計入該支承反力）；預設為左側。僅對 eff=V 有意義
+ function solveIL(m,tIdx,eff,rs){
+  var c=prepare(m),nodes=m.nodes,N=c.N,nd=c.nd,K=c.K,free=c.free,Kri=c.Kri;
+  var xt=nodes[tIdx],il=[];
+  for(var p=0;p<N;p++){
+   if(c.cons[2*p]){il.push(0);continue}
+   // 單位載重的解 = −Kri 的對應行（原本做一次矩陣×單位向量，等價但慢）
+   var col=c.idxOf[2*p],dfull=new Array(nd).fill(0);
+   for(var k=0;k<free.length;k++)dfull[free[k]]=-Kri[k][col];
+   var R=m.sIdx.map(function(s){var sm=0;for(var j=0;j<nd;j++)sm+=K[2*s][j]*dfull[j];return sm});
+   var val=0,px=nodes[p];
+   if(eff==='M'){
+    for(var k2=0;k2<m.sx.length;k2++)if(m.sx[k2]<xt-1e-6)val+=R[k2]*(xt-m.sx[k2]);
+    if(px<xt-1e-6)val-=(xt-px);
+   } else {
+    var lim=rs?xt+1e-6:xt-1e-6;
+    for(var k3=0;k3<m.sx.length;k3++)if(m.sx[k3]<lim)val+=R[k3];
+    if(px<lim)val-=1;
+   }
+   il.push(val);
+  }
+  var ref=(eff==='M'?Math.max(m.tot,1)/4:1),out=il.map(function(v){return Math.abs(v)<ref*1e-3?0:v});
   // 剪力影響線於斷面有跳躍 1：以重複節點存左/右極限（xs/vs），否則內插會把跳躍抹進鄰元素、支承旁的軸被低估
-  if(eff==='V'){var sup=m.sIdx.indexOf(tIdx)>=0,jl,jr;if(sup){jl=rs?0:-1;jr=rs?1:0}else{jr=out[tIdx];jl=jr-1}
-   if(tIdx===0)jl=jr;if(tIdx===N-1)jr=jl;   // 梁端外側不存在
-   out.xs=nodes.slice(0,tIdx+1).concat(nodes.slice(tIdx));out.vs=out.slice(0,tIdx).concat([jl,jr],out.slice(tIdx+1))}
-  return out}
+  if(eff==='V'){
+   var sup=m.sIdx.indexOf(tIdx)>=0,jl,jr;
+   if(sup){jl=rs?0:-1;jr=rs?1:0}else{jr=out[tIdx];jl=jr-1}
+   if(tIdx===0)jl=jr; if(tIdx===N-1)jr=jl;   // 梁端外側不存在
+   out.xs=nodes.slice(0,tIdx+1).concat(nodes.slice(tIdx));
+   out.vs=out.slice(0,tIdx).concat([jl,jr],out.slice(tIdx+1));
+  }
+  return out;
+ }
  function interp(nodes,il,x){if(x<=nodes[0])return il[0];if(x>=nodes[nodes.length-1])return il[il.length-1];for(var i=0;i<nodes.length-1;i++)if(x>=nodes[i]&&x<=nodes[i+1]){var t=(x-nodes[i])/(nodes[i+1]-nodes[i]);return il[i]*(1-t)+il[i+1]*t}return 0}
  // 卡車軸組於 s（最左軸位置）、車向 dir 時之效應；軸位夾到 [0,tot] 免支承上的軸被浮點誤差略去
  // 回傳陣列：剪力影響線有跳躍時於 s±δ 各算一次（軸恰在斷面時左右極限都取到）
@@ -64,7 +110,7 @@
     }
     return s;
   }
-  var IL = { ilAreaRange: ilAreaRange, TRK: TRK, TRKS: TRKS, LANE: LANE, PM: PM, PV: PV,
+  var IL = { prepare: prepare, ilAreaRange: ilAreaRange, TRK: TRK, TRKS: TRKS, LANE: LANE, PM: PM, PV: PV,
              inv: inv, model: model, solveIL: solveIL, interp: interp,
              truckSum: truckSum, truckScan: truckScan, absMaxOf: absMaxOf,
              truckMax: truckMax, truckEnv: truckEnv, laneEnv: laneEnv, laneMax: laneMax,

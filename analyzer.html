@@ -62,6 +62,10 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 #c3d{width:100%;height:400px;border:0.5px solid var(--line);border-radius:8px;background:linear-gradient(#f8fafc,#eef2f7);touch-action:none}
 #c3d canvas{display:block;border-radius:8px;max-width:100%;max-height:100%}
 #c3d{overflow:hidden}
+.vbtns{display:inline-flex;gap:3px}
+.vbtn{border:0.5px solid var(--line);background:#fff;border-radius:6px;padding:3px 10px;font-size:12.5px;cursor:pointer;color:var(--mut)}
+.vbtn:hover{background:var(--bg)}
+.vbtn.on{background:var(--blue);color:#fff;border-color:var(--blue)}
 .btn3d{border:0.5px solid var(--blue);background:var(--blue);color:#fff;border-radius:6px;padding:6px 14px;font-size:13px;cursor:pointer}
 .print-only{display:none}
 .phdr h1{margin:0;font-size:19px}.phdr .m{font-size:12px;color:#555}.phdr{border-bottom:2px solid var(--blue);padding-bottom:8px;margin-bottom:10px}
@@ -144,7 +148,12 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <label><input type="checkbox" x-model="v3d.tendon" @change="apply3D()"> 鋼腱</label>
         <label><input type="checkbox" x-model="v3d.anchor" @change="apply3D()"> 錨頭</label>
         <label><input type="checkbox" x-model="v3d.cutOn" @change="apply3D()"> 剖切</label>
-        <button class="btn" style="margin-left:0" @click="reset3D()">重設視角</button>
+        <label><input type="checkbox" x-model="v3d.axes" @change="apply3D()"> 座標軸</label>
+        <span class="vbtns">
+          <template x-for="b in [['iso','等角'],['plan','平面'],['elev','縱剖'],['sect','橫斷']]" :key="b[0]">
+            <button class="vbtn" :class="{'on':v3d.view===b[0]}" @click="view3D(b[0])" x-text="b[1]"></button>
+          </template>
+        </span>
         <label style="flex:1 1 240px">里程 x = <b x-text="cut3d.x.toFixed(1)"></b> m
           <input type="range" min="0" max="1" step="0.005" x-model.number="v3d.cutT" @input="apply3D()" :disabled="!v3d.cutOn"></label>
       </div>
@@ -155,7 +164,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <div class="metric"><div class="l">該處鋼腱斜率</div><div class="v" x-text="cut3d.slope.toFixed(4)"></div></div>
         <div class="metric"><div class="l">腹板數／鋼腱管</div><div class="v" x-text="nWeb+' 腹板'"></div></div>
       </div>
-      <div class="cite">左鍵拖曳旋轉、<b>中鍵（或 Shift＋左鍵、右鍵）拖曳平移</b>、滾輪縮放，「重設視角」可歸位。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；鋼腱每腹板畫一條<b>合力中心 CGS</b>（引擎 Vp 亦按 P<sub>e</sub>/腹板數計）。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
+      <div class="cite">左鍵拖曳旋轉、<b>中鍵（或 Shift＋左鍵、右鍵）拖曳平移</b>、滾輪縮放，〔等角〕可歸位；〔平面〕〔縱剖〕〔橫斷〕為近似平行投影的標準視圖。座標軸：X 橫向、Y 自梁底向上、Z 沿橋長（0＝起點）。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；鋼腱每腹板畫一條<b>合力中心 CGS</b>（引擎 Vp 亦按 P<sub>e</sub>/腹板數計）。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
      </div>
     </template>
   </div>
@@ -776,6 +785,25 @@ function sectionShape(T,p){
 }
 function webCenters(p){ var s=1/1000, B=p.botW*s, wt=p.webT*s, n=Math.max(2,p.nWeb|0), out=[];
   for(var i=0;i<n;i++) out.push(-B/2+wt/2+(B-wt)*(i/(n-1))); return out; }
+function axisLabel(T,txt,color,pos,size){
+  var c=document.createElement('canvas'); c.width=c.height=64;
+  var g=c.getContext('2d'); g.font='bold 46px system-ui,sans-serif'; g.fillStyle=color;
+  g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt,32,34);
+  var sp=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),transparent:true,depthTest:false}));
+  sp.position.copy(pos); sp.scale.set(size,size,1); return sp;
+}
+// XYZ 座標軸：X 橫向、Y 垂直（自梁底起算）、Z 沿橋長（0＝起點）
+function buildAxes(T,p){
+  var s=1/1000, W=p.topW*s, H=p.h*s;
+  var len=Math.min(p.L*0.15, Math.max(3, H*2));   // 與梁深同量級，斷面視圖才不會比梁還高
+  var o=new T.Vector3(-W/2-0.8,0,0), g=new T.Group();
+  [[new T.Vector3(1,0,0),0xdc2626,'X'],[new T.Vector3(0,1,0),0x16a34a,'Y'],[new T.Vector3(0,0,1),0x1d4ed8,'Z']]
+  .forEach(function(a){
+    g.add(new T.ArrowHelper(a[0],o,len,a[1],len*0.16,len*0.09));
+    g.add(axisLabel(T,a[2],'#'+('000000'+a[1].toString(16)).slice(-6),o.clone().addScaledVector(a[0],len*1.14),len*0.2));
+  });
+  return g;
+}
 function mount3D(el){
   var T=G3.T, ren=new T.WebGLRenderer({antialias:true,alpha:true,preserveDrawingBuffer:true});
   ren.setPixelRatio(Math.min(window.devicePixelRatio||1,2)); ren.localClippingEnabled=true;
@@ -827,6 +855,8 @@ function fitView(target){
   [bb.min.x,bb.max.x].forEach(function(x){ [bb.min.y,bb.max.y].forEach(function(y){
     [bb.min.z,bb.max.z].forEach(function(z){ pts.push(new T.Vector3(x,y,z)) }) }) });
   var v=G3.view;
+  var up=v.up||[0,1,0]; cam.up.set(up[0],up[1],up[2]);
+  if(v.fov && cam.fov!==v.fov){ cam.fov=v.fov; }
   for(var it=0; it<14; it++){
     cam.position.set(v.tx+v.r*Math.cos(v.el)*Math.sin(v.az), v.ty+v.r*Math.sin(v.el), v.tz+v.r*Math.cos(v.el)*Math.cos(v.az));
     cam.lookAt(v.tx,v.ty,v.tz); cam.updateMatrixWorld(true); cam.updateProjectionMatrix();
@@ -837,6 +867,8 @@ function fitView(target){
   }
 }
 function draw3D(){ if(!G3.ren||!G3.scene) return; var v=G3.view, c=G3.cam;
+  var up=v.up||[0,1,0]; c.up.set(up[0],up[1],up[2]);
+  if(v.fov && c.fov!==v.fov){ c.fov=v.fov; c.updateProjectionMatrix(); }
   c.position.set(v.tx+v.r*Math.cos(v.el)*Math.sin(v.az), v.ty+v.r*Math.sin(v.el), v.tz+v.r*Math.cos(v.el)*Math.cos(v.az));
   c.lookAt(v.tx,v.ty,v.tz); G3.ren.render(G3.scene,G3.cam); }
 function disposeGroups(){ var sc=G3.scene; if(!sc) return;
@@ -871,6 +903,7 @@ function build3D(p){
     gC.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(loop.map(function(q){return new T.Vector3(q.x,q.y,0)})),
                           new T.LineBasicMaterial({color:0x7c3aed}))); });
   sc.add(gC); G3.grp.cut=gC;
+  var gX=buildAxes(T,p); sc.add(gX); G3.grp.axes=gX;
   G3.L=L; G3.center={tx:0,ty:H/2,tz:L/2};
   G3.view.tx=0; G3.view.ty=H/2; G3.view.tz=L/2;
   if(!G3.inited){ G3.view.r=L; fitView(); G3.inited=true; }
@@ -896,6 +929,7 @@ function apply3D(o){
   if(G3.grp.box) G3.grp.box.visible=o.box;
   if(G3.grp.tendon) G3.grp.tendon.visible=o.tendon;
   if(G3.grp.anchor) G3.grp.anchor.visible=o.anchor;
+  if(G3.grp.axes) G3.grp.axes.visible=!!o.axes;
   var z=o.cutOn ? o.cutT*G3.L : G3.L+1;
   if(G3.clip) G3.clip.constant=z;
   if(G3.grp.cut){ G3.grp.cut.visible=!!o.cutOn; G3.grp.cut.position.z=Math.min(z,G3.L); }
@@ -906,7 +940,7 @@ function calc(){
   return {
     tab:'①', open:null,
     // ── §十三 3D（只存旗標；THREE 物件放 G3 closure，不進 reactive proxy）──
-    v3d:{on:false,box:true,tendon:true,anchor:true,cutOn:false,cutT:0.5,msg:''},
+    v3d:{on:false,box:true,tendon:true,anchor:true,axes:true,cutOn:false,cutT:0.5,msg:'',view:'iso'},
     get key3d(){ return [this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h,this.L,this.e].join('|'); },
     get cut3d(){ var L=this.L, x=this.v3d.cutT*L, e=this.e, ex=4*e*x*(L-x)/(L*L);
       return {x:x, e:ex, cgs:this.R.sec.yb-ex, slope:(4*e/(L*1000))*(1-2*x/L)}; },   // 同引擎 Vp 所用線形
@@ -925,10 +959,17 @@ function calc(){
     rebuild3D(){ build3D({topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,
                           nWeb:this.nWeb,h:this.h,L:this.L,e:this.e,yb:this.R.sec.yb}); this.apply3D(); },
     apply3D(){ apply3D(this.v3d); },
-    reset3D(){ var c=G3.center||{tx:0,ty:0,tz:0};
-      G3.view.az=-0.95; G3.view.el=0.36; G3.view.r=this.L;
-      G3.view.tx=c.tx; G3.view.ty=c.ty; G3.view.tz=c.tz;   // 平移一併歸位
-      fitView(); draw3D(); },
+    // 視角快捷：等角用透視；平面/縱剖/橫斷用小視角角度近似平行投影（比例不失真）
+    view3D(kind){
+      var v=G3.view, c=G3.center||{tx:0,ty:0,tz:0};
+      v.tx=c.tx; v.ty=c.ty; v.tz=c.tz; v.r=this.L;
+      if(kind==='plan'){      v.az=0;           v.el=Math.PI/2-1e-3; v.fov=8;  v.up=[1,0,0]; }
+      else if(kind==='elev'){ v.az=-Math.PI/2;  v.el=0;              v.fov=8;  v.up=[0,1,0]; }  // 自 −X 側看，橋長左→右遞增
+      else if(kind==='sect'){ v.az=0;           v.el=0;              v.fov=8;  v.up=[0,1,0]; }  // 自 +Z 端看，X 左→右遞增
+      else {                  v.az=-0.95;       v.el=0.36;           v.fov=45; v.up=[0,1,0]; kind='iso'; }
+      this.v3d.view=kind; fitView(); draw3D();
+    },
+    reset3D(){ this.view3D('iso'); },
     katexHTML(tex){ return (window.katex&&tex)?katex.renderToString(tex,{throwOnError:false}):(tex||''); },
     // 標準鋼腱型號（選型號→自動帶每股面積 Ap；皆 Grade 270 低鬆弛 f_pu=1860）
     strandSpecs:{

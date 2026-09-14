@@ -62,6 +62,8 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 #c3d{width:100%;height:400px;border:0.5px solid var(--line);border-radius:8px;background:linear-gradient(#f8fafc,#eef2f7);touch-action:none}
 #c3d canvas{display:block;border-radius:8px;max-width:100%;max-height:100%}
 #c3d{overflow:hidden}
+.iobar{display:flex;flex-wrap:wrap;gap:8px}
+.savehint{font-size:11.5px;color:#999;margin-left:auto}
 .vbtns{display:inline-flex;gap:3px}
 .vbtn{border:0.5px solid var(--line);background:#fff;border-radius:6px;padding:3px 10px;font-size:12.5px;cursor:pointer;color:var(--mut)}
 .vbtn:hover{background:var(--bg)}
@@ -88,6 +90,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
     <span class="gold" :style="R.matchGolden?'background:#dcfce7;color:#16a34a':'background:#f1f5f9;color:#888'"
       x-text="R.matchGolden?'＝40m HS20-44 黃金範例（對齊 golden ✓）':'自訂斷面'"></span>
+    <span class="savehint no-print" x-show="saved" x-cloak x-text="'已存檔 '+saved"></span>
     <button class="btn" @click="window.print()">🖨 列印計算書</button>
   </div>
   <div class="tabs">
@@ -649,6 +652,22 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <div class="cite">列印時：分頁列與輸入欄自動隱藏，所有檢核面板與公式（KaTeX）自動展開成線性送審計算書，專案資訊列於頁首。目前涵蓋箱梁 ①~⑦＋施工⑧＋耐震⑨＋補強⑩（全分頁上線）。</div>
   </div>
 
+  <div class="card no-print"><h2>參數存檔</h2>
+    <div class="iobar">
+      <button class="btn" style="margin-left:0" @click="exportParams()">匯出參數 JSON</button>
+      <button class="btn" style="margin-left:0" @click="$refs.imp.click()">匯入參數</button>
+      <input type="file" accept=".json,application/json" x-ref="imp" @change="importParams($event)" style="display:none">
+      <button class="btn" style="margin-left:0" @click="resetParams()">回復預設（40m 黃金範例）</button>
+      <button class="btn" style="margin-left:0" @click="clearSaved()">清除瀏覽器存檔</button>
+    </div>
+    <div class="hint">
+      <span x-show="saved" x-cloak>已自動儲存 <b x-text="saved"></b>（存在本機瀏覽器，重整不會掉）</span>
+      <span x-show="!saved">尚未儲存</span>
+      <span x-show="msgIO" x-cloak style="color:var(--blue)">　｜　<span x-text="msgIO"></span></span>
+    </div>
+    <div class="cite">存檔涵蓋全 11 分頁的輸入欄（斷面／載重／預力／剪力／細部／連續梁／施工／耐震／補強／案件資訊），共 <b x-text="paramCount"></b> 欄；不含 3D 視角等呈現狀態。匯出的 JSON 可存進案件資料夾或寄給同事，匯入即還原。</div>
+  </div>
+
   <div class="card"><h2>串接總覽（單頁共享 project → 改上游即時重算下游）</h2>
     <div class="hint no-print">全分頁綁<b>同一 reactive <code>project</code> 狀態</b>：改 ① 斷面／② 載重／③ 預力任一欄，下游即時重算——下表現值隨之變。這就是「一頁看完整座橋、資料串接零額外機制」。</div>
     <table><thead><tr><th>共享值（誰產）</th><th>現值</th><th style="text-align:center">產</th><th>讀取分頁</th></tr></thead>
@@ -935,8 +954,38 @@ function apply3D(o){
   if(G3.grp.cut){ G3.grp.cut.visible=!!o.cutOn; G3.grp.cut.position.z=Math.min(z,G3.L); }
   draw3D();
 }
+// ── 參數存檔：localStorage 自動存 ＋ JSON 匯出/匯入（呈現層，不影響計算）──
+var STORE_KEY='bridge-analyzer-params';
+var PARAM_KEYS=[
+  // ① 斷面・材料
+  'fcGrade','fc','topW','topT','botW','botT','webT','nWeb','h',
+  // ② 載重
+  'L','lanes','wDW',
+  // ③ 預力
+  'strandType','customAp','customFpu','ntd','strands','e',
+  // ⑤ 剪力・撓度
+  'stirrupBar','stirrupLegs','customAv','sv','Vu',
+  // ⑥ 細部檢核
+  'Tu','dMfat','deltaS','jointSh',
+  // ⑦ 連續梁
+  'contMuP','contApsTop',
+  // ⑧ 施工
+  'cFci','cBridge','cNBatch','cHpier','cHmid','cHalf','cXq','cFtLoad','cFtArm','cDelas','cPhi',
+  'cW','cLc','cL4','cA4','cZb4','cSigRes','cPper','cMu','cWtot','cRbrg','cAbrg',
+  'cH5Ac','cH5L','cGam','cH5nT','cH5Pt','cH6Ac','cVfuk','cXi','cVsd','cNkeys','cPb','cPtot',
+  // ⑨ 耐震
+  'seiH','seiS','seiSoil','seiLe','seiRatio','seiUR','seiRd','seiSeat','seiW','seiQd','seiKd','seiSII1',
+  'seiMn','seiLc','seiFc','seiFyh','seiAg','seiAc','seiPe','seiColD','seiDb','seiFL','seiX','seiRs',
+  // ⑩ 補強
+  'method','rb','rh','rh0','rAs','rfsd','rfcd','rMd1','rMdTarget','rNf','rEf','rTf','rEpsfu','rBf',
+  'rAsp','rFsp','rEsp','rH02','rAs2','rFsd2','rEs2',
+  // ⑪ 計算書
+  'pjName','pjFirm','pjEng','pjDate'
+];
+function paramsOf(d){ var o={}; PARAM_KEYS.forEach(function(k){ o[k]=d[k] }); return o; }
+function applyParams(d,o){ PARAM_KEYS.forEach(function(k){ if(o[k]!==undefined&&o[k]!==null) d[k]=o[k]; }); }
 function calc(){
-  var ldCache={key:null,pts:null};
+  var ldCache={key:null,pts:null}, DEFAULTS=null, saveTimer=null;
   return {
     tab:'①', open:null,
     // ── §十三 3D（只存旗標；THREE 物件放 G3 closure，不進 reactive proxy）──
@@ -986,7 +1035,37 @@ function calc(){
     // 箍筋號數×肢數→Av（雙腳/多腳自動）；自訂則手填
     get avAuto(){ return this.stirrupBar==='custom' ? this.customAv : (this.rebarArea[this.stirrupBar]||0)*this.stirrupLegs; },
     // 選 f'c 級別→帶入 f'c（自訂則保留手填值）
-    init(){ this.$watch('fcGrade', v=>{ if(v!=='custom') this.fc=+v; }); },
+    saved:'', msgIO:'',
+    get paramCount(){ return PARAM_KEYS.length; },
+    init(){
+      this.$watch('fcGrade', v=>{ if(v!=='custom') this.fc=+v; });
+      DEFAULTS=paramsOf(this);                                  // 先記下預設（＝40m 黃金範例）
+      try{ var s=localStorage.getItem(STORE_KEY); if(s){ applyParams(this,JSON.parse(s)); this.msgIO='已載入上次存檔'; } }catch(e){}
+      var self=this;
+      Alpine.effect(function(){
+        var json=JSON.stringify(paramsOf(self));                // 讀到全部參數→任一改動即重跑
+        clearTimeout(saveTimer);
+        saveTimer=setTimeout(function(){
+          try{ localStorage.setItem(STORE_KEY,json); self.saved=new Date().toLocaleTimeString(); }catch(e){}
+        },400);
+      });
+    },
+    exportParams(){
+      var blob=new Blob([JSON.stringify(paramsOf(this),null,2)],{type:'application/json'});
+      var a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+      a.download=(this.pjName||'橋梁分析器')+'_參數.json'; a.click();
+      setTimeout(function(){URL.revokeObjectURL(a.href)},1000); this.msgIO='已匯出 JSON';
+    },
+    importParams(ev){
+      var f=ev.target.files[0]; if(!f) return; var r=new FileReader(), self=this;
+      r.onload=function(){
+        try{ applyParams(self,JSON.parse(r.result)); self.msgIO='已匯入 '+f.name; }
+        catch(err){ self.msgIO='匯入失敗：JSON 格式錯誤'; }
+      };
+      r.readAsText(f); ev.target.value='';
+    },
+    resetParams(){ if(DEFAULTS) applyParams(this,DEFAULTS); this.msgIO='已回復預設（40m 黃金範例）'; },
+    clearSaved(){ try{ localStorage.removeItem(STORE_KEY) }catch(e){}; this.saved=''; this.msgIO='已清除瀏覽器存檔'; },
     tabs:[
       {id:'①',name:'斷面・材料',grp:'箱梁設計'},
       {id:'②',name:'載重',grp:'箱梁設計'},

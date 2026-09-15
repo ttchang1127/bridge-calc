@@ -205,7 +205,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <div><div class="hint">B-B 端部斷面（e ≈ 0，鋼腱錨於形心）</div>
         <svg viewBox="0 0 270 80" style="width:270px;max-width:100%;height:auto" x-html="R.svgSecEnd"></svg></div>
     </div>
-    <div class="cite">斷面性質由引擎 <code>sectionFromDims</code> 算出，圖只讀其結果；端部 e=0 與引擎 Vp／預拱所用的拋物線線形假設一致。</div>
+    <div class="cite">斷面性質由引擎 <code>sectionFromDims</code> 算出，圖只讀其結果；端部 e=0 與引擎 Vp／預拱所用的拋物線線形假設一致。<span x-show="contLine" x-cloak>　⚠ 本圖為<b>單跨示意</b>（② 的 L＝<span x-text="L"></span> m）；已勾選連續梁線形時，實際的多跨分段線形請看 §十三 3D 或 ⑦ 的包絡圖。</span></div>
   </div>
   <div class="card"><h2>3D 視圖（箱梁＋鋼腱）</h2>
     <div x-show="!v3d.on" class="no-print">

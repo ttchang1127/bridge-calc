@@ -220,6 +220,8 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <label><input type="checkbox" x-model="v3d.cutOn" @change="apply3D()"> 剖切</label>
         <label><input type="checkbox" x-model="v3d.axes" @change="apply3D()"> 座標軸</label>
         <label><input type="checkbox" x-model="v3d.cover" @change="apply3D()"> 保護層界線</label>
+        <label><input type="checkbox" x-model="v3d.pier" @change="apply3D()"> 橋墩</label>
+        <label title="改吃 ⑦ 的跨長與 e_end/e_mid/e_pier"><input type="checkbox" x-model="v3d.cont"> 連續梁（⑦）</label>
         <label>垂直放大
           <select x-model.number="v3d.vz" style="height:26px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:12px">
             <template x-for="z in [1,2,3,5,8]" :key="z"><option :value="z" x-text="'×'+z"></option></template>
@@ -237,11 +239,13 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <div class="metric"><div class="l">剖切處偏心 e(x)</div><div class="v" x-text="fmt(cut3d.e)+' mm'"></div></div>
         <div class="metric"><div class="l">該處 CGS 距梁底</div><div class="v" x-text="fmt(cut3d.cgs)+' mm'"></div></div>
         <div class="metric"><div class="l">該處鋼腱斜率</div><div class="v" x-text="cut3d.slope.toFixed(4)"></div></div>
-        <div class="metric"><div class="l">實配排列</div><div class="v" x-text="nWeb+' 腹板 × '+DL.nCol+'列'+DL.nRow+'層'"></div></div>
+        <div class="metric"><div class="l">模式／跨徑組成</div>
+          <div class="v" style="font-size:14px" x-text="P3D.cont ? ('連續 '+P3D.spans.join('+')+' m') : ('單跨 '+L+' m')"></div></div>
+        <div class="metric"><div class="l">實配排列</div><div class="v" x-text="nWeb+' 腹板 × '+P3D.lay.nCol+'列'+P3D.lay.nRow+'層'"></div></div>
         <div class="metric"><div class="l">管道外徑／最底層外緣</div>
-          <div class="v" :class="DL.coverOk?'':'ng'" x-text="'φ'+ductOD+' / '+fmt(DL.coverBot)+' mm'"></div></div>
+          <div class="v" :class="P3D.lay.coverOk?'':'ng'" x-text="'φ'+ductOD+' / '+fmt(P3D.lay.coverBot)+' mm'"></div></div>
       </div>
-      <div class="cite">左鍵拖曳旋轉、<b>中鍵（或 Shift＋左鍵、右鍵）拖曳平移</b>、滾輪縮放，〔等角〕可歸位；〔平面〕〔縱剖〕〔橫斷〕為近似平行投影的標準視圖。座標軸：X 橫向、Y 自梁底向上、Z 沿橋長（0＝起點）。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；鋼腱依 <code>BC.ductLayout</code> 的<b>實配排列逐條畫</b>（<span x-text="ntd"></span> 組分到 <span x-text="nWeb"></span> 腹板，每腹板 <span x-text="DL.nCol"></span> 列 × <span x-text="DL.nRow"></span> 層，管徑＝輸入的 φ<span x-text="ductOD"></span>）；各腱＝CGS 拋物線加固定偏移，<b>實配形心恆等於引擎在用的 e</b>（引擎 Vp 仍按 P<sub>e</sub>/腹板數計）。<b>橘色管</b>＝該腱最低點已低於清保護層；綠線＝保護層下限。〔垂直放大〕只放大 Y 向以看清分層，<b>該狀態下斷面比例失真</b>，量測請回 2D 斷面圖。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
+      <div class="cite">左鍵拖曳旋轉、<b>中鍵（或 Shift＋左鍵、右鍵）拖曳平移</b>、滾輪縮放，〔等角〕可歸位；〔平面〕〔縱剖〕〔橫斷〕為近似平行投影的標準視圖。座標軸：X 橫向、Y 自梁底向上、Z 沿橋長（0＝起點）。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；勾選〔連續梁〕即改吃 ⑦ 的跨長與 e<sub>end</sub>/e<sub>mid</sub>/e<sub>pier</sub>，<b>與次彎矩 M₂ 共用同一個 <code>contTendonSegs</code> 線形函式</b>——3D 畫出來的就是算 M₂ 用的那條線，不會漂移；橋墩高度取 ⑨ 墩高、直徑取 ⑨ 墩柱徑，僅標示支承位置。鋼腱依 <code>BC.ductLayout</code> 的<b>實配排列逐條畫</b>（<span x-text="ntd"></span> 組分到 <span x-text="nWeb"></span> 腹板，每腹板 <span x-text="DL.nCol"></span> 列 × <span x-text="DL.nRow"></span> 層，管徑＝輸入的 φ<span x-text="ductOD"></span>）；各腱＝CGS 拋物線加固定偏移，<b>實配形心恆等於引擎在用的 e</b>（引擎 Vp 仍按 P<sub>e</sub>/腹板數計）。<b>橘色管</b>＝該腱沿線任一處已穿出保護層（跨中穿底緣、或墩上穿頂緣）；綠線＝上下保護層界線。〔垂直放大〕只放大 Y 向以看清分層，<b>該狀態下斷面比例失真</b>，量測請回 2D 斷面圖。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
      </div>
     </template>
   </div>
@@ -542,6 +546,28 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <input type="checkbox" x-model="contAuto"> 中墩 Mu 由包絡自動帶入</label>
       <template x-if="!contAuto"><span>　手動 Mu (kN·m)：<input type="number" x-model.number="contMuP" step="1000" style="width:120px;height:26px"></span></template>
     </div>
+  </div>
+
+  <div class="card" x-show="CB" x-cloak><h2>鋼腱線形實配（跨中／墩頂兩控制斷面）</h2>
+    <table>
+      <thead><tr><th>控制斷面</th><th>偏心 e</th><th>實配排列</th><th>最底層管外緣</th><th>最頂層距梁頂</th><th style="width:44px">判定</th></tr></thead>
+      <tbody>
+        <tr><td>跨中（正彎矩區，腱在形心下）</td>
+            <td x-text="fmt(contEMid)+' mm'"></td>
+            <td x-text="DLmid.nCol+' 列 × '+DLmid.nRow+' 層'"></td>
+            <td :class="DLmid.coverOk?'':'ng'" x-text="fmt(DLmid.coverBot)+' mm'"></td>
+            <td :class="DLmid.topOk?'':'ng'" x-text="fmt(h-(DLmid.yTop+ductOD/2))+' mm'"></td>
+            <td style="text-align:center" :class="DLmid.fits?'ok':'ng'" x-text="DLmid.fits?'✓':'✗'"></td></tr>
+        <tr><td>墩頂（負彎矩區，腱在形心上）</td>
+            <td x-text="fmt(contEPier)+' mm'"></td>
+            <td x-text="DLpier.nCol+' 列 × '+DLpier.nRow+' 層'"></td>
+            <td :class="DLpier.coverOk?'':'ng'" x-text="fmt(DLpier.coverBot)+' mm'"></td>
+            <td :class="DLpier.topOk?'':'ng'" x-text="fmt(h-(DLpier.yTop+ductOD/2))+' mm'"></td>
+            <td style="text-align:center" :class="DLpier.fits?'ok':'ng'" x-text="DLpier.fits?'✓':'✗'"></td></tr>
+      </tbody>
+    </table>
+    <div class="hint" x-show="!DLpier.topOk" x-cloak style="color:var(--ng)">✗ 墩頂鋼腱已穿出頂緣保護層。以<b>等斷面</b>計，形心以上僅 <b x-text="fmt(h-R.sec.yb)+' mm'"></b>，故 |e<sub>pier</sub>| 上限約 <b x-text="fmt(h-R.sec.yb-ductCover-ductOD/2-(DLpier.yTop-DLpier.yCgs))+' mm'"></b>。</div>
+    <div class="cite">⚠ 本檢核以 <b>① 的等斷面</b>為準（3D 畫的也是等斷面）。實務中墩處底板加厚會使<b>形心下移、y<sub>t</sub> 增大</b>，實際可行的 |e<sub>pier</sub>| 會比上式大——⑦ 的「中墩底板寬／厚」僅用於中墩極限強度 T 型斷面，尚未回饋到此處的形心。若貴案墩頂確有加厚，請以該斷面自行核算後再判讀本列。跨中列則與 ③「管道實配」同式，差別只在偏心取 e<sub>mid</sub>。</div>
   </div>
 
   <div class="card" x-show="CB" x-cloak><h2>設計效應包絡（剛度法影響線・真實多跨）</h2>
@@ -1173,26 +1199,45 @@ function build3D(p){
   var matOK=new T.MeshLambertMaterial({color:0xdc2626,clippingPlanes:[clip]}),
       matNG=new T.MeshLambertMaterial({color:0xf59e0b,clippingPlanes:[clip]}),   // 低於保護層
       matAn=new T.MeshLambertMaterial({color:0x7c3aed});
+  var NS=Math.max(60,Math.round(L*3)), eAt=p.eAt;         // 連續梁要夠密才畫得出墩上反曲
   xs.forEach(function(xc,iw){
     var nThis=(lay.perWeb&&lay.perWeb[iw]!=null)?lay.perWeb[iw]:lay.nPerWeb, drawn=0;
     lay.rows.forEach(function(r){
       for(var j=0;j<r.count&&drawn<nThis;j++,drawn++){
-        var x=xc+lay.xOffsets[j]*s, yMid=r.y*s, dy=yMid-yc;
-        var arr=[]; for(var k=0;k<=60;k++){ var z=L*k/60; arr.push(new T.Vector3(x, yb-4*e*z*(L-z)/(L*L)+dy, z)); }
-        gT.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(arr),120,rad,10,false),
-                          yMid-rad<cov-1e-9?matNG:matOK));
-        [0.07,L-0.07].forEach(function(z){
+        var x=xc+lay.xOffsets[j]*s, dy=r.y*s-yc, arr=[], lo=Infinity, hi=-Infinity;
+        for(var k=0;k<=NS;k++){ var z=L*k/NS, y=yb-eAt(z)*s+dy;
+          if(y<lo)lo=y; if(y>hi)hi=y; arr.push(new T.Vector3(x,y,z)); }
+        // 沿全長判定：跨中可能穿出底緣、墩上可能穿出頂緣（單跨時等同只看跨中）
+        gT.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(arr),NS*2,rad,10,false),
+                          (lo-rad<cov-1e-9||hi+rad>H-cov+1e-9)?matNG:matOK));
+        [0,L].forEach(function(z){
           var m=new T.Mesh(new T.BoxGeometry(rad*4.5,rad*4.5,0.14),matAn);
-          m.position.set(x,yb+dy,z); gA.add(m); });
+          m.position.set(x, yb-eAt(z)*s+dy, z<L/2?0.07:L-0.07); gA.add(m); });
       }
     });
   });
   root.add(gT); G3.grp.tendon=gT; root.add(gA); G3.grp.anchor=gA;
-  var gV=new T.Group();                                   // 保護層下限：管外緣不得低於此線
+  var gV=new T.Group();                                   // 保護層界線：管外緣不得低於下線／高於上線
   xs.forEach(function(xc){
-    gV.add(new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(xc,cov,0),new T.Vector3(xc,cov,L)]),
-                      new T.LineBasicMaterial({color:0x16a34a}))); });
+    [cov, H-cov].forEach(function(yy){
+      gV.add(new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(xc,yy,0),new T.Vector3(xc,yy,L)]),
+                        new T.LineBasicMaterial({color:0x16a34a}))); }); });
   root.add(gV); G3.grp.cover=gV;
+  // 支承與橋墩：中間支承畫柱（高度取 ⑨ 墩高、直徑取 ⑨ 墩柱徑），兩端只畫支承墊塊。
+  // 墩掛在 scene 而非 root：梁底 y=0 不受垂直放大影響，墩高因此維持真實比例。
+  var gP=new T.Group(), sxs=p.sx||[0,L];
+  sxs.forEach(function(zz,i){
+    var bp=new T.Mesh(new T.BoxGeometry(Math.min(1.2,p.botW*s*0.2),0.12,0.6),
+                      new T.MeshLambertMaterial({color:0x475569,clippingPlanes:[clip]}));
+    bp.position.set(0,-0.06,zz); gP.add(bp);
+    if(i>0&&i<sxs.length-1){
+      var pd=p.pierD||1.5, ph=Math.max(1,p.pierH||10);
+      var cy=new T.Mesh(new T.CylinderGeometry(pd/2,pd/2,ph,20),
+                        new T.MeshLambertMaterial({color:0x94a3b8,clippingPlanes:[clip]}));
+      cy.position.set(0,-0.12-ph/2,zz); gP.add(cy);
+    }
+  });
+  sc.add(gP); G3.grp.pier=gP;
   var gC=new T.Group();                                   // 剖切面外框（視覺封口）
   [shape.getPoints(1)].concat(shape.holes.map(function(h){return h.getPoints(1)})).forEach(function(loop){
     gC.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(loop.map(function(q){return new T.Vector3(q.x,q.y,0)})),
@@ -1227,6 +1272,7 @@ function apply3D(o){
   if(G3.grp.anchor) G3.grp.anchor.visible=o.anchor;
   if(G3.grp.axes) G3.grp.axes.visible=!!o.axes;
   if(G3.grp.cover) G3.grp.cover.visible=!!o.cover;
+  if(G3.grp.pier) G3.grp.pier.visible=!!o.pier;
   var z=o.cutOn ? o.cutT*G3.L : G3.L+1;
   if(G3.clip) G3.clip.constant=z;
   if(G3.grp.cut){ G3.grp.cut.visible=!!o.cutOn; G3.grp.cut.position.z=Math.min(z,G3.L); }
@@ -1288,13 +1334,14 @@ function scanInputs(tabNames){
 // 鋼腱線形 e(x)：每跨為通過（端 e_L、跨中 e_mid、端 e_R）的拋物線，e 正＝形心下方。
 // 等效上揚 w_i = 8·P·a_i/L_i²（a_i＝相對弦線垂度）；支承處線形折角產生的集中力直接進支承、不生彎矩。
 // M_total = Σ(−w_i)×∫_span η dp（上揚＝負的向下載重）；M₁ = −P·e(x)；M₂ = M_total − M₁（支承間為直線）。
-function contPrestressM2(C, PeN, eEnd, eMid, ePier){
-  var P=PeN/1e3, spans=C.spans, xs=[0], acc=0;          // P: kN
+// 連續梁鋼腱線形（純幾何）：每跨為通過（端 e_L、跨中 e_mid、端 e_R）的拋物線，e 正＝形心下方。
+// M₂（等效載重法）與 3D 共用這一份 → 3D 畫出來的線形就是算 M₂ 用的線形，不會漂移。
+function contTendonSegs(spans, eEnd, eMid, ePier){
+  var xs=[0], acc=0;
   spans.forEach(function(L){ acc+=L; xs.push(acc); });
   var segs=spans.map(function(L,i){
     var eL=(i===0?eEnd:ePier), eR=(i===spans.length-1?eEnd:ePier);
-    var a=(eMid-(eL+eR)/2)/1000;                        // m（相對弦線垂度，正＝下垂）
-    return {x1:xs[i], x2:xs[i+1], L:L, eL:eL, eR:eR, a:a, w:8*P*a/(L*L)};   // w: kN/m 上揚
+    return {x1:xs[i], x2:xs[i+1], L:L, eL:eL, eR:eR, a:(eMid-(eL+eR)/2)/1000};  // a: m（相對弦線垂度，正＝下垂）
   });
   function eAt(x){                                      // 該里程的鋼腱偏心（mm，正＝形心下方）
     for(var i=0;i<segs.length;i++){ var g=segs[i];
@@ -1302,6 +1349,14 @@ function contPrestressM2(C, PeN, eEnd, eMid, ePier){
         return g.eL+(g.eR-g.eL)*t+4*(eMid-(g.eL+g.eR)/2)*t*(1-t); } }
     return 0;
   }
+  return {segs:segs, eAt:eAt, sx:xs, total:acc};
+}
+function contPrestressM2(C, PeN, eEnd, eMid, ePier){
+  var P=PeN/1e3;                                        // P: kN
+  var tp=contTendonSegs(C.spans, eEnd, eMid, ePier), eAt=tp.eAt;
+  var segs=tp.segs.map(function(g){
+    return {x1:g.x1, x2:g.x2, L:g.L, eL:g.eL, eR:g.eR, a:g.a, w:8*P*g.a/(g.L*g.L)};  // w: kN/m 上揚
+  });
   return {segs:segs, eAt:eAt,
     at:function(t){                                     // t＝節點索引
       var il=IL.solveIL(C.m,t,'M'), Mtot=0;
@@ -1346,7 +1401,7 @@ function calc(){
   return {
     tab:'①', open:null,
     // ── §十三 3D（只存旗標；THREE 物件放 G3 closure，不進 reactive proxy）──
-    v3d:{on:false,box:true,tendon:true,anchor:true,axes:true,cover:true,vz:1,cutOn:false,cutT:0.5,msg:'',view:'iso'},
+    v3d:{on:false,box:true,tendon:true,anchor:true,axes:true,cover:true,pier:true,cont:false,vz:1,cutOn:false,cutT:0.5,msg:'',view:'iso'},
     // ── ⑦ 連續梁：真實多跨包絡（記憶化：僅在跨長/車道/自重改變時重算）──
     get CB(){
       var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
@@ -1419,9 +1474,30 @@ function calc(){
     get ductR(){ var R=window.BC.radiusOfCurvature(this.e,this.L*1000);
       return {R:R, reqTW:6000, reqJP:100*this.ductOD, okTW:R>=6000, okJP:R>=100*this.ductOD}; },
     get key3d(){ return [this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h,this.L,this.e,
-                         this.ntd,this.ductOD,this.ductSv,this.ductCover,this.dAgg,this.v3d.vz].join('|'); },
-    get cut3d(){ var L=this.L, x=this.v3d.cutT*L, e=this.e, ex=4*e*x*(L-x)/(L*L);
-      return {x:x, e:ex, cgs:this.R.sec.yb-ex, slope:(4*e/(L*1000))*(1-2*x/L)}; },   // 同引擎 Vp 所用線形
+                         this.ntd,this.ductOD,this.ductSv,this.ductCover,this.dAgg,this.v3d.vz,
+                         this.v3d.cont,this.contSpans,this.contEEnd,this.contEMid,this.contEPier,
+                         this.seiH,this.seiColD].join('|'); },
+    // 3D 幾何來源：單跨走 ① 的拋物線；勾「連續梁」則走 ⑦ 的多跨線形（與 M₂ 同一個 eAt）
+    get P3D(){
+      var yb=this.R.sec.yb, C=this.v3d.cont?this.CB:null, spans, eAt, sx, tot, eMid;
+      if(C){ var tp=contTendonSegs(C.spans,this.contEEnd,this.contEMid,this.contEPier);
+             spans=C.spans; eAt=tp.eAt; sx=tp.sx; tot=tp.total; eMid=this.contEMid; }
+      else { var L=this.L, e=this.e; spans=[L]; sx=[0,L]; tot=L; eMid=e;
+             eAt=function(x){ return 4*e*x*(L-x)/(L*L) }; }
+      return {cont:!!C, spans:spans, eAt:eAt, sx:sx, tot:tot, eMid:eMid, yb:yb,
+              lay:window.BC.ductLayout(this.ntd,this.nWeb,yb-eMid,
+                {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h})};
+    },
+    // 跨中／墩頂斷面實配（⑦ 用；墩頂 e_pier 為負＝腱在形心上方，控制的是頂緣保護層）
+    get DLmid(){ var yb=this.R.sec.yb;
+      return window.BC.ductLayout(this.ntd,this.nWeb,yb-this.contEMid,
+        {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h}); },
+    get DLpier(){ var yb=this.R.sec.yb;
+      return window.BC.ductLayout(this.ntd,this.nWeb,yb-this.contEPier,
+        {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h}); },
+    get cut3d(){ var q=this.P3D, tot=q.tot, x=this.v3d.cutT*tot, d=Math.max(1e-3,tot*0.001);
+      var x1=Math.max(0,x-d), x2=Math.min(tot,x+d), ex=q.eAt(x);
+      return {x:x, e:ex, cgs:this.R.sec.yb-ex, slope:(q.eAt(x2)-q.eAt(x1))/((x2-x1)*1000)}; },   // 同 M₂／引擎 Vp 所用線形
     enable3D(){
       var self=this; this.v3d.msg='載入中…';
       if(!webglOK()){ this.v3d.msg='此瀏覽器不支援 WebGL，無法顯示 3D。'; return; }
@@ -1434,14 +1510,16 @@ function calc(){
         });
       }).catch(function(err){ self.v3d.on=false; self.v3d.msg='Three.js 載入失敗（需連線）：'+err.message; });
     },
-    rebuild3D(){ build3D({topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,
-                          nWeb:this.nWeb,h:this.h,L:this.L,e:this.e,yb:this.R.sec.yb,
-                          lay:this.DL,od:this.ductOD,cover:this.ductCover,vz:+this.v3d.vz||1}); this.apply3D(); },
+    rebuild3D(){ var q=this.P3D;
+      build3D({topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,
+               nWeb:this.nWeb,h:this.h,L:q.tot,e:q.eMid,yb:q.yb,
+               lay:q.lay,od:this.ductOD,cover:this.ductCover,vz:+this.v3d.vz||1,
+               eAt:q.eAt,sx:q.sx,pierH:this.seiH,pierD:this.seiColD/100}); this.apply3D(); },
     apply3D(){ apply3D(this.v3d); },
     // 視角快捷：等角用透視；平面/縱剖/橫斷用小視角角度近似平行投影（比例不失真）
     view3D(kind){
       var v=G3.view, c=G3.center||{tx:0,ty:0,tz:0};
-      v.tx=c.tx; v.ty=c.ty; v.tz=c.tz; v.r=this.L;
+      v.tx=c.tx; v.ty=c.ty; v.tz=c.tz; v.r=this.P3D.tot;
       if(kind==='plan'){      v.az=0;           v.el=Math.PI/2-1e-3; v.fov=8;  v.up=[1,0,0]; }
       else if(kind==='elev'){ v.az=-Math.PI/2;  v.el=0;              v.fov=8;  v.up=[0,1,0]; }  // 自 −X 側看，橋長左→右遞增
       else if(kind==='sect'){ v.az=0;           v.el=0;              v.fov=8;  v.up=[0,1,0]; }  // 自 +Z 端看，X 左→右遞增

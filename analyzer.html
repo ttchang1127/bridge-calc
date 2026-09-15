@@ -234,6 +234,15 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <label style="flex:1 1 240px">里程 x = <b x-text="cut3d.x.toFixed(1)"></b> m
           <input type="range" min="0" max="1" step="0.005" x-model.number="v3d.cutT" @input="apply3D()" :disabled="!v3d.cutOn"></label>
       </div>
+      <div class="hint no-print" x-show="!P3D.clr.ok" x-cloak
+           style="color:var(--ng);border:1px solid var(--ng);border-radius:8px;padding:8px 10px;margin-bottom:8px">
+        ✗ <b>幾何不成立</b>：有鋼腱管壁落在混凝土外或保護層不足，最不利處餘裕
+        <b x-text="fmt(P3D.clr.minMargin)+' mm'"></b>（需 ≥ <span x-text="ductCover"></span>）＠里程
+        <b x-text="fmt(P3D.clr.worst.z,1)+' m'"></b>、x=<span x-text="fmt(P3D.clr.worst.x)"></span>、
+        距梁底 <span x-text="fmt(P3D.clr.worst.y)"></span> mm。
+        請調整 ③ 的偏心／管徑／保護層，或 ⑦ 的 e<sub>pier</sub>（該卡有「套用上限」）。
+        <b>若這是舊版存檔的參數</b>，可到 ⑪ 按〔回復預設（40m 黃金範例）〕。
+      </div>
       <div id="c3d"></div>
       <div class="grid" style="margin-top:10px">
         <div class="metric"><div class="l">剖切處偏心 e(x)</div><div class="v" x-text="fmt(cut3d.e)+' mm'"></div></div>
@@ -244,8 +253,11 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <div class="metric"><div class="l">實配排列</div><div class="v" x-text="nWeb+' 腹板 × '+P3D.lay.nCol+'列'+P3D.lay.nRow+'層'"></div></div>
         <div class="metric"><div class="l">管道外徑／最底層外緣</div>
           <div class="v" :class="P3D.lay.coverOk?'':'ng'" x-text="'φ'+ductOD+' / '+fmt(P3D.lay.coverBot)+' mm'"></div></div>
+        <div class="metric"><div class="l">最小保護層餘裕（全腱全長）</div>
+          <div class="v" :class="P3D.clr.ok?'ok':'ng'"
+            x-text="fmt(P3D.clr.minMargin)+' mm ＠里程 '+fmt(P3D.clr.worst.z,1)+' m'"></div></div>
       </div>
-      <div class="cite">左鍵拖曳旋轉、<b>中鍵（或 Shift＋左鍵、右鍵）拖曳平移</b>、滾輪縮放，〔等角〕可歸位；〔平面〕〔縱剖〕〔橫斷〕為近似平行投影的標準視圖。座標軸：X 橫向、Y 自梁底向上、Z 沿橋長（0＝起點）。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；勾選〔連續梁〕即改吃 ⑦ 的跨長與 e<sub>end</sub>/e<sub>mid</sub>/e<sub>pier</sub>，<b>與次彎矩 M₂ 共用同一個 <code>contTendonSegs</code> 線形函式</b>——3D 畫出來的就是算 M₂ 用的那條線，不會漂移；橋墩高度取 ⑨ 墩高、直徑取 ⑨ 墩柱徑，僅標示支承位置。鋼腱依 <code>BC.ductLayout</code> 的<b>實配排列逐條畫</b>（<span x-text="ntd"></span> 組分到 <span x-text="nWeb"></span> 腹板，每腹板 <span x-text="DL.nCol"></span> 列 × <span x-text="DL.nRow"></span> 層，管徑＝輸入的 φ<span x-text="ductOD"></span>）；各腱＝CGS 拋物線加固定偏移，<b>實配形心恆等於引擎在用的 e</b>（引擎 Vp 仍按 P<sub>e</sub>/腹板數計）。<b>橘色管</b>＝該腱沿線任一處已穿出保護層（跨中穿底緣、或墩上穿頂緣）；綠線＝上下保護層界線。〔垂直放大〕只放大 Y 向以看清分層，<b>該狀態下斷面比例失真</b>，量測請回 2D 斷面圖。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
+      <div class="cite">左鍵拖曳旋轉、<b>中鍵（或 Shift＋左鍵、右鍵）拖曳平移</b>、滾輪縮放，〔等角〕可歸位；〔平面〕〔縱剖〕〔橫斷〕為近似平行投影的標準視圖。座標軸：X 橫向、Y 自梁底向上、Z 沿橋長（0＝起點）。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；勾選〔連續梁〕即改吃 ⑦ 的跨長與 e<sub>end</sub>/e<sub>mid</sub>/e<sub>pier</sub>，<b>與次彎矩 M₂ 共用同一個 <code>contTendonSegs</code> 線形函式</b>——3D 畫出來的就是算 M₂ 用的那條線，不會漂移；橋墩高度取 ⑨ 墩高、直徑取 ⑨ 墩柱徑，僅標示支承位置。鋼腱依 <code>BC.ductLayout</code> 的<b>實配排列逐條畫</b>（<span x-text="ntd"></span> 組分到 <span x-text="nWeb"></span> 腹板，每腹板 <span x-text="DL.nCol"></span> 列 × <span x-text="DL.nRow"></span> 層，管徑＝輸入的 φ<span x-text="ductOD"></span>）；各腱＝CGS 拋物線加固定偏移，<b>實配形心恆等於引擎在用的 e</b>（引擎 Vp 仍按 P<sub>e</sub>/腹板數計）。<b>橘色管</b>＝該腱沿線任一處保護層不足——判定用 <code>tendonClearance</code>：把斷面攤成 12 條邊界線段（外輪廓 8＋空腔 4），逐點算管壁到最近邊界的距離，<b>涵蓋梁頂／梁底／箱身外側／頂板外伸底面／腹板內側／底板頂面／頂板底面</b>，不是只比 y。上方「最小保護層餘裕」即全腱全長的最不利值與其里程。綠線＝上下保護層界線（僅示意 y 向）。〔垂直放大〕只放大 Y 向以看清分層，<b>該狀態下斷面比例失真</b>，量測請回 2D 斷面圖。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
      </div>
     </template>
   </div>
@@ -591,6 +603,9 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <div class="grid" style="margin-top:10px" x-show="CB&&CB.m2" x-cloak>
       <div class="metric"><div class="l">等效載重 w（跨中段↑／墩頂段↓）</div><div class="v" style="font-size:15px"
         x-text="CB&&CB.m2?(fmt(Math.max.apply(null,CB.m2.segs.filter(g=>g.kind==='sag').map(g=>g.w)),1)+' ↑ / '+fmt(Math.min.apply(null,CB.m2.segs.filter(g=>g.kind==='hog').map(g=>g.w)),1)+' ↓ kN/m（'+CB.m2.segs.length+' 段）'):''"></div></div>
+      <div class="metric"><div class="l">各段最小曲率半徑 R</div>
+        <div class="v" style="font-size:15px" :class="CB&&CB.m2?(CB.m2.Rmin>=6000?'ok':'ng'):''"
+          x-text="CB&&CB.m2?(fmt(CB.m2.Rmin/1000,1)+' m（需 ≥6.0 台灣／≥'+fmt(ductOD/10,1)+' 日本 100φ）'):''"></div></div>
       <div class="metric"><div class="l">反曲點／低點 里程</div><div class="v" style="font-size:15px"
         x-text="CB&&CB.m2?(CB.m2.infl.map(v=>fmt(v,1)).join('、')+' ｜ '+CB.m2.lows.map(v=>fmt(v,1)).join('、')+' m'):''"></div></div>
       <div class="metric"><div class="l">中墩 M₁（主彎矩）</div><div class="v" x-text="CB&&CB.pier.M1!=null?fmt(CB.pier.M1)+' kN·m':''"></div></div>
@@ -1097,6 +1112,58 @@ function sectionShape(T,p){
     hole.moveTo(hx1,hy1); hole.lineTo(hx2,hy1); hole.lineTo(hx2,hy2); hole.lineTo(hx1,hy2); hole.closePath(); sh.holes.push(hole); }
   return sh;
 }
+// ── 嚴格幾何檢核：鋼腱是否真的埋在混凝土裡（不只看頂/底緣）────────────
+// 把斷面輪廓攤成 12 條邊界線段（外輪廓 8 ＋ 空腔 4），對腱中心算「到最近邊界的
+// 距離 d」，餘裕 = d − 管半徑。涵蓋梁頂、梁底、箱身外側、頂板外伸底面、腹板
+// 內側、底板頂面、頂板底面所有邊界——只比較 y 會漏掉腹板內外側與空腔。
+// 單位 mm；座標同 3D（x 橫向、y 自梁底向上）。
+function sectionEdges(p){
+  var W=p.topW/2, B=p.botW/2, H=p.h, hy=H-p.topT, Bt=p.botT, hx=B-p.webT;
+  var e=[[-W,H,W,H],[W,H,W,hy],[W,hy,B,hy],[B,hy,B,0],[B,0,-B,0],
+         [-B,0,-B,hy],[-B,hy,-W,hy],[-W,hy,-W,H]];
+  if(hx>0&&hy>Bt) e.push([-hx,Bt,hx,Bt],[hx,Bt,hx,hy],[hx,hy,-hx,hy],[-hx,hy,-hx,Bt]);
+  return e;
+}
+function inConcrete(x,y,p){
+  var W=p.topW/2, B=p.botW/2, H=p.h, hy=H-p.topT, ax=Math.abs(x);
+  if(y<0||y>H) return false;
+  if(y>hy) return ax<=W;                 // 頂板
+  if(ax>B) return false;                 // 箱身外
+  if(y<p.botT) return true;              // 底板
+  return ax>=B-p.webT;                   // 腹板（空腔之外）
+}
+function distSeg(px,py,a){
+  var dx=a[2]-a[0], dy=a[3]-a[1], l2=dx*dx+dy*dy;
+  var t=l2>0?Math.max(0,Math.min(1,((px-a[0])*dx+(py-a[1])*dy)/l2)):0;
+  var qx=a[0]+t*dx-px, qy=a[1]+t*dy-py;
+  return Math.sqrt(qx*qx+qy*qy);
+}
+// 逐條腱沿全長取樣，回傳每條腱的最小保護層餘裕與最不利位置。
+// margin 為負＝管壁已在混凝土外；margin < cover ＝保護層不足。
+function tendonClearance(p, lay, eAt, tot, nSample){
+  var N=nSample||Math.max(120,Math.round(tot*4)), edges=sectionEdges(p), xs=webCenters(p);
+  var rad=p.od/2, out=[], worst={margin:Infinity};
+  xs.forEach(function(xc,iw){
+    var nThis=(lay.perWeb&&lay.perWeb[iw]!=null)?lay.perWeb[iw]:lay.nPerWeb, drawn=0;
+    var xcm=xc*1000, yc=p.yb-lay.yCgs;         // xc 為 m；yCgs 已是距梁底 mm
+    lay.rows.forEach(function(r){
+      for(var j=0;j<r.count&&drawn<nThis;j++,drawn++){
+        var x=xcm+lay.xOffsets[j], dy=r.y-lay.yCgs, m={margin:Infinity};
+        for(var k=0;k<=N;k++){
+          var z=tot*k/N, y=p.yb-eAt(z)+dy, d=Infinity;
+          for(var q=0;q<edges.length;q++){ var dd=distSeg(x,y,edges[q]); if(dd<d) d=dd; }
+          if(!inConcrete(x,y,p)) d=-d;         // 圓心已在混凝土外
+          var mg=d-rad;
+          if(mg<m.margin) m={margin:mg, z:z, y:y, x:x};
+        }
+        m.web=iw; m.row=r.y; out.push(m);
+        if(m.margin<worst.margin) worst=m;
+      }
+    });
+  });
+  return {tendons:out, worst:worst,
+          ok:worst.margin>=p.cover-1e-6, minMargin:worst.margin};
+}
 function webCenters(p){ var s=1/1000, B=p.botW*s, wt=p.webT*s, n=Math.max(2,p.nWeb|0), out=[];
   for(var i=0;i<n;i++) out.push(-B/2+wt/2+(B-wt)*(i/(n-1))); return out; }
 function axisLabel(T,txt,color,pos,size){
@@ -1211,17 +1278,19 @@ function build3D(p){
   var matOK=new T.MeshLambertMaterial({color:0xdc2626,clippingPlanes:[clip]}),
       matNG=new T.MeshLambertMaterial({color:0xf59e0b,clippingPlanes:[clip]}),   // 低於保護層
       matAn=new T.MeshLambertMaterial({color:0x7c3aed});
-  var NS=Math.max(60,Math.round(L*3)), eAt=p.eAt;         // 連續梁要夠密才畫得出墩上反曲
+  var NS=Math.max(60,Math.round(L*3)), eAt=p.eAt, ti=0;   // 連續梁要夠密才畫得出墩上反曲
+  var clr=p.clr;                                          // 嚴格幾何檢核結果（每條腱一筆，順序同此迴圈）
   xs.forEach(function(xc,iw){
     var nThis=(lay.perWeb&&lay.perWeb[iw]!=null)?lay.perWeb[iw]:lay.nPerWeb, drawn=0;
     lay.rows.forEach(function(r){
       for(var j=0;j<r.count&&drawn<nThis;j++,drawn++){
-        var x=xc+lay.xOffsets[j]*s, dy=r.y*s-yc, arr=[], lo=Infinity, hi=-Infinity;
-        for(var k=0;k<=NS;k++){ var z=L*k/NS, y=yb-eAt(z)*s+dy;
-          if(y<lo)lo=y; if(y>hi)hi=y; arr.push(new T.Vector3(x,y,z)); }
-        // 沿全長判定：跨中可能穿出底緣、墩上可能穿出頂緣（單跨時等同只看跨中）
+        var x=xc+lay.xOffsets[j]*s, dy=r.y*s-yc, arr=[];
+        for(var k=0;k<=NS;k++){ var z=L*k/NS; arr.push(new T.Vector3(x, yb-eAt(z)*s+dy, z)); }
+        // 著色依 tendonClearance：對 12 條斷面邊界算最近距離，涵蓋腹板內外側與空腔，
+        // 不是只比頂/底緣（只比 y 會漏掉腱貼到腹板內側或頂板外伸的情形）。
+        var bad=clr&&clr.tendons[ti]?clr.tendons[ti].margin<p.cover-1e-6:false; ti++;
         gT.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(arr),NS*2,rad,10,false),
-                          (lo-rad<cov-1e-9||hi+rad>H-cov+1e-9)?matNG:matOK));
+                          bad?matNG:matOK));
         [0,L].forEach(function(z){
           var m=new T.Mesh(new T.BoxGeometry(rad*4.5,rad*4.5,0.14),matAn);
           m.position.set(x, yb-eAt(z)*s+dy, z<L/2?0.07:L-0.07); gA.add(m); });
@@ -1366,7 +1435,9 @@ function contTendonSegs(spans, eEnd, eMid, ePier, opt){
     return xs[i]+L/2;
   });
   var segs=[], infl=[];
-  function push(x1,x2,xv,ev,c,kind){ if(x2>x1+1e-9) segs.push({x1:x1,x2:x2,xv:xv,ev:ev,c:c,kind:kind}); }
+  // 各段曲率半徑 R = 1/|e''|；頂點式 e=ev+c(x−xv)²（x 以 m、e 以 mm）→ e''=2c×10⁻³ /m → R=10⁶/(2|c|) mm
+  function push(x1,x2,xv,ev,c,kind){ if(x2>x1+1e-9)
+    segs.push({x1:x1,x2:x2,xv:xv,ev:ev,c:c,kind:kind,R:Math.abs(c)>1e-12?1e6/(2*Math.abs(c)):Infinity}); }
   function halfToPier(xl, xp, L, dirLeftToRight){       // 低點↔墩心：墩頂段＋跨中段，坡度連續
     var s=Math.abs(xp-xl), b1=Math.min(kP*L, s*0.9), b2=s-b1, D=eMid-ePier;
     var h1=D*b1/s, h2=D*b2/s;
@@ -1394,7 +1465,8 @@ function contTendonSegs(spans, eEnd, eMid, ePier, opt){
       if(x>=g.x1-1e-9&&x<=g.x2+1e-9){ var d=x-g.xv; return g.ev+g.c*d*d; } }
     var q=segs[segs.length-1], d2=x-q.xv; return q.ev+q.c*d2*d2;
   }
-  return {segs:segs, eAt:eAt, sx:xs, lows:lows, infl:infl, total:acc, kPier:kP, rEnd:rE};
+  var Rmin=Math.min.apply(null, segs.map(function(g){return g.R}));
+  return {segs:segs, eAt:eAt, sx:xs, lows:lows, infl:infl, total:acc, kPier:kP, rEnd:rE, Rmin:Rmin};
 }
 // 等效載重：拋物線段 e=ev+c(x−xv)² 的曲率 e''=2c → 等效上揚 w = −P·e''（sag 段 c<0 → 上揚；
 // hog 段 c>0 → 向下）。段交界坡度連續故無集中角變化力；端錨的垂直分力直接進端支承、不生彎矩。
@@ -1404,9 +1476,9 @@ function contPrestressM2(C, PeN, eEnd, eMid, ePier, opt){
   var P=PeN/1e3;                                        // P: kN
   var tp=contTendonSegs(C.spans, eEnd, eMid, ePier, opt), eAt=tp.eAt;
   var segs=tp.segs.map(function(g){
-    return {x1:g.x1, x2:g.x2, kind:g.kind, w:-2*g.c*P/1000};   // w: kN/m，正＝上揚
+    return {x1:g.x1, x2:g.x2, kind:g.kind, R:g.R, w:-2*g.c*P/1000};   // w: kN/m，正＝上揚
   });
-  return {segs:segs, eAt:eAt, infl:tp.infl, lows:tp.lows,
+  return {segs:segs, eAt:eAt, infl:tp.infl, lows:tp.lows, Rmin:tp.Rmin,
     at:function(t){                                     // t＝節點索引
       var il=IL.solveIL(C.m,t,'M'), Mtot=0;
       segs.forEach(function(g){ Mtot+=(-g.w)*IL.ilAreaRange(C.m.nodes,il,g.x1,g.x2); });
@@ -1536,9 +1608,12 @@ function calc(){
              spans=C.spans; eAt=tp.eAt; sx=tp.sx; tot=tp.total; eMid=this.contEMid; }
       else { var L=this.L, e=this.e; spans=[L]; sx=[0,L]; tot=L; eMid=e;
              eAt=function(x){ return 4*e*x*(L-x)/(L*L) }; }
-      return {cont:!!C, spans:spans, eAt:eAt, sx:sx, tot:tot, eMid:eMid, yb:yb,
-              lay:window.BC.ductLayout(this.ntd,this.nWeb,yb-eMid,
-                {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h,rule:this.ductRule})};
+      var lay=window.BC.ductLayout(this.ntd,this.nWeb,yb-eMid,
+        {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h,rule:this.ductRule});
+      var geo={topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,
+               nWeb:this.nWeb,h:this.h,yb:yb,od:this.ductOD,cover:this.ductCover};
+      return {cont:!!C, spans:spans, eAt:eAt, sx:sx, tot:tot, eMid:eMid, yb:yb, lay:lay,
+              clr:tendonClearance(geo,lay,eAt,tot,200)};
     },
     // 跨中／墩頂斷面實配（⑦ 用；墩頂 e_pier 為負＝腱在形心上方，控制的是頂緣保護層）
     get DLmid(){ var yb=this.R.sec.yb;
@@ -1571,7 +1646,7 @@ function calc(){
       build3D({topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,
                nWeb:this.nWeb,h:this.h,L:q.tot,e:q.eMid,yb:q.yb,
                lay:q.lay,od:this.ductOD,cover:this.ductCover,vz:+this.v3d.vz||1,
-               eAt:q.eAt,sx:q.sx,pierH:this.seiH,pierD:this.seiColD/100}); this.apply3D(); },
+               eAt:q.eAt,sx:q.sx,pierH:this.seiH,pierD:this.seiColD/100,clr:q.clr}); this.apply3D(); },
     apply3D(){ apply3D(this.v3d); },
     // 視角快捷：等角用透視；平面/縱剖/橫斷用小視角角度近似平行投影（比例不失真）
     view3D(kind){

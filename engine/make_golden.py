@@ -54,9 +54,15 @@ sp = spiral_local_bearing(an.Pu, 2919, 8.47, 104044, 50, 380)   # 螺旋圍束 D
 ten21 = Tendon(8, 21, 1109)                                     # G1 HL-93 敘述軌
 w_DL_g1 = 8 * (M_DC + M_DW) * 1e6 / 40000 ** 2                  # = 144 kN/m
 g1 = tendon_profile(ten21.Pi, compute_losses(ten21, sec, M_DC, M_DW).Pe, 1109, 40000, w_DL_g1)
-# G1 管道實配：參考橋 8 組 / 2 腹板 / φ100 / 腹板 350 / 保護層 75 / 垂直淨距 100
-dl = duct_layout(8, 2, sec.yb - 1109, duct_od=100, web_t=350, cover=75, s_v=100, d_agg=25,
-                 y_b=sec.yb, h=2100)
+# G1 管道實配：參考橋 8 組 / 2 腹板 / φ100 / 腹板 350
+# dl  ＝台灣規範明文（§8.25.1 保護層 40、§8.25.2 淨距 max(40,1.5d_agg)）→ 兩列兩層，e=1109 排得下
+# dls ＝保守側（PTBG 實務保護層 75、淨距再取 ≥孔道外徑）→ 單列四層，同一配置就排不下
+dl = duct_layout(8, 2, sec.yb - 1109, duct_od=100, web_t=350, cover=40, s_v=40, d_agg=25,
+                 y_b=sec.yb, h=2100, rule="tw")
+dls = duct_layout(8, 2, sec.yb - 1109, duct_od=100, web_t=350, cover=75, s_v=100, d_agg=25,
+                  y_b=sec.yb, h=2100, rule="od")
+dlp = duct_layout(8, 2, sec.yb + 900, duct_od=100, web_t=350, cover=40, s_v=40, d_agg=25,
+                  y_b=sec.yb, h=2100, rule="tw")      # 墩頂 e_pier = −900（形心上方）
 f2 = general_zone_burst(14850e3, 1050, 2100, 150, L.Pe, sec.A, 540000, 12830e3, 40, 420)
 h8 = batched_transfer(29700e3, 8, 8, sec, 1109, 32)            # S2 全 PT
 h4 = batched_transfer(29700e3, 4, 8, sec, 1109, 32)            # S2 分批 4 組
@@ -190,7 +196,7 @@ golden = {
         "friction_dual_mid": round(g1.fric_dual_mid, 3), "R_ok": g1.R_ok,
         "_note": "拋物線等效荷載法 w_eq=8Pa/L²；對齊算例_鋼腱線形設計(8組×21股HL-93軌)；w_DL=8(M_DC+M_DW)/L²=144與參考橋自洽"},
     "duct_layout_G1": {
-        "config": "參考橋 8組/2腹板/φ100管/腹板350/保護層75/垂直淨距100/骨材25",
+        "config": "參考橋 8組/2腹板/φ100管/腹板350/保護層40/垂直淨距40/骨材25/rule=tw(台灣明文)",
         "n_col": dl.n_col, "n_row": dl.n_row,
         "s_req_mm": round(dl.s_req, 1), "s_h_mm": round(dl.s_h, 1),
         "web_avail_mm": round(dl.web_avail, 1), "pitch_v_mm": round(dl.pitch_v, 1),
@@ -199,7 +205,22 @@ golden = {
         "cover_bot_mm": round(dl.cover_bot, 1),
         "cover_ok": dl.cover_ok, "s_v_ok": dl.s_v_ok, "s_h_ok": dl.s_h_ok, "fits": dl.fits,
         "e_max_mm": round(dl.e_max, 1), "e_max_point_mm": round(dl.e_max_point, 1),
-        "_note": "實配排列：每腹板由下往上逐層填滿、整體平移使形心=分析用CGS。淨間距需求 max(40,1.5d_agg,OD) 台灣§8.25.2。e_max(實配) < e_max_point(單點簡化)——算例_鋼腱線形設計的1204是把8腱視為一點的上限"},
+        "_note": "實配排列：每腹板由下往上逐層填滿、整體平移使形心=分析用CGS。rule=tw 淨距需求 max(40,1.5d_agg)=40 → 兩列兩層，e=1109 排得下。e_max(實配) < e_max_point(單點簡化)"},
+    "duct_layout_G1_strict": {
+        "config": "同上但保守側：保護層75(PTBG實務)/垂直淨距100/rule=od(淨距再取≥孔道外徑)",
+        "n_col": dls.n_col, "n_row": dls.n_row,
+        "s_req_mm": round(dls.s_req, 1), "web_avail_mm": round(dls.web_avail, 1),
+        "pitch_v_mm": round(dls.pitch_v, 1), "rows_y_mm": [round(y, 1) for y, _ in dls.rows],
+        "cover_bot_mm": round(dls.cover_bot, 1), "cover_ok": dls.cover_ok, "fits": dls.fits,
+        "e_max_mm": round(dls.e_max, 1),
+        "_note": "同一配置在保守側排不下(單列四層、最底層管外緣落在梁底以下130)。兩案並列以顯示淨距規則的影響：φ100時 rule=od 使需求由40變100，直接決定腹板內排一列或兩列"},
+    "duct_layout_G1_pier": {
+        "config": "墩頂斷面 e_pier=-900(形心上方)/保護層40/垂直淨距40/rule=tw",
+        "n_col": dlp.n_col, "n_row": dlp.n_row,
+        "y_cgs_mm": round(dlp.y_cgs, 1), "y_top_mm": round(dlp.y_top, 1),
+        "top_ok": dlp.top_ok, "fits": dlp.fits,
+        "e_pier_limit_mm": round(sec.yb - 2100 + 40 + 50 + (dlp.y_top - dlp.y_cgs), 1),
+        "_note": "墩頂腱在形心上方，控制的是頂緣保護層。e_pier=-900 使頂層管外緣穿出梁頂；可行下限 = yb - h + cover + od/2 + (y_top - y_cgs)"},
     "stm_F2": {
         "config": "8組×19股 (參考橋, 端橫隔版 General Zone)",
         "sigma_pe_MPa": round(f2.sigma_pe, 2), "T_burst_kN": round(f2.T_burst / 1e3),

@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 136 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 145 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -134,25 +134,30 @@
   // ── 管道實配排列 G1（tendon_profile.duct_layout 移植）───
   // 分析用的 CGS 是「n 組腱視為一點」的簡化；實配要排 n_col 列 × n_row 層，最底層
   // 必低於 CGS。排完整體平移使實配形心 = y_cgs，故引擎在用的偏心 e 不因實配改變。
-  // 淨間距需求 max(40, 1.5·d_agg, 孔道外徑)：台灣 §8.25.2（公式卡 B3 §4-1）。
-  // ⚠ 公式卡 G1 §7.1 表列台灣僅「≥40 mm」未含孔道外徑，兩卡不一致 → 取嚴格者。
-  BC.ductSpacingRequired = function (od, dAgg) {
+  // 淨間距需求，兩種規則（⚠ 這個選擇直接決定腹板內排得下幾列）：
+  //   'tw'（預設）max(40, 1.5·d_agg)——台灣 §8.25.2 明文兩條件，同公式卡 G1 §7.1 表列
+  //   'od'         再取 max(…, 孔道外徑)——公式卡 B3 §4-1 台灣欄另列此條，與 AASHTO
+  //                「孔道 OD > 100 mm 時淨距 ≥ 孔道外徑」同義；兩卡不一致、原條文未查證，
+  //                 故做成可選，'od' 為保守側。
+  // φ100、腹板 350、保護層 40 時：'tw' → 兩列（需求 40）、'od' → 單列（需求 100）。
+  BC.ductSpacingRequired = function (od, dAgg, rule) {
     dAgg = dAgg == null ? 25 : dAgg;
-    return Math.max(40, 1.5 * dAgg, od);
+    var b = Math.max(40, 1.5 * dAgg);
+    return rule === 'od' ? Math.max(b, od) : b;
   };
   // 拋物線最小曲率半徑 R = L²/(8a)（mm）；台灣金屬波形管 ≥6,000、日本 ≥100×管道外徑
   BC.radiusOfCurvature = function (a, L) { return L * L / (8 * a); };
   BC.ductLayout = function (nTendons, nWeb, yCgs, o) {
     o = o || {};
     var od = o.od == null ? 100 : o.od, webT = o.webT == null ? 350 : o.webT,
-        cover = o.cover == null ? 75 : o.cover, sv = o.sv == null ? 100 : o.sv,
-        dAgg = o.dAgg == null ? 25 : o.dAgg, yb = o.yb, h = o.h;
+        cover = o.cover == null ? 40 : o.cover, sv = o.sv == null ? 40 : o.sv,
+        dAgg = o.dAgg == null ? 25 : o.dAgg, yb = o.yb, h = o.h, rule = o.rule || 'tw';
     nWeb = Math.max(1, nWeb | 0); var n = Math.max(1, nTendons | 0);
     var base = Math.floor(n / nWeb), rem = n % nWeb, perWeb = [], i, j;
     for (i = 0; i < nWeb; i++) perWeb.push(base + (i < rem ? 1 : 0));
     var nPerWeb = Math.max.apply(null, perWeb);
 
-    var sReq = BC.ductSpacingRequired(od, dAgg), avail = webT - 2 * cover;
+    var sReq = BC.ductSpacingRequired(od, dAgg, rule), avail = webT - 2 * cover;
     var nCol = avail >= od ? Math.floor((avail + sReq) / (od + sReq)) : 0;
     nCol = Math.max(1, nCol);                       // 至少畫一列；放不下時由 sHOk 報 ✗
     var sH = nCol > 1 ? (avail - nCol * od) / (nCol - 1) : avail - od;

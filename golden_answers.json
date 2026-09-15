@@ -159,11 +159,33 @@
     "_note": "拋物線等效荷載法 w_eq=8Pa/L²；對齊算例_鋼腱線形設計(8組×21股HL-93軌)；w_DL=8(M_DC+M_DW)/L²=144與參考橋自洽"
   },
   "duct_layout_G1": {
-    "config": "參考橋 8組/2腹板/φ100管/腹板350/保護層75/垂直淨距100/骨材25",
+    "config": "參考橋 8組/2腹板/φ100管/腹板350/保護層40/垂直淨距40/骨材25/rule=tw(台灣明文)",
+    "n_col": 2,
+    "n_row": 2,
+    "s_req_mm": 40.0,
+    "s_h_mm": 70.0,
+    "web_avail_mm": 270,
+    "pitch_v_mm": 140,
+    "rows_y_mm": [
+      150.0,
+      290.0
+    ],
+    "y_cgs_mm": 220,
+    "y_bot_mm": 150.0,
+    "cover_bot_mm": 100.0,
+    "cover_ok": true,
+    "s_v_ok": true,
+    "s_h_ok": true,
+    "fits": true,
+    "e_max_mm": 1169.0,
+    "e_max_point_mm": 1239.0,
+    "_note": "實配排列：每腹板由下往上逐層填滿、整體平移使形心=分析用CGS。rule=tw 淨距需求 max(40,1.5d_agg)=40 → 兩列兩層，e=1109 排得下。e_max(實配) < e_max_point(單點簡化)"
+  },
+  "duct_layout_G1_strict": {
+    "config": "同上但保守側：保護層75(PTBG實務)/垂直淨距100/rule=od(淨距再取≥孔道外徑)",
     "n_col": 1,
     "n_row": 4,
     "s_req_mm": 100,
-    "s_h_mm": 100,
     "web_avail_mm": 200,
     "pitch_v_mm": 200,
     "rows_y_mm": [
@@ -172,16 +194,22 @@
       320.0,
       520.0
     ],
-    "y_cgs_mm": 220,
-    "y_bot_mm": -80.0,
     "cover_bot_mm": -130.0,
     "cover_ok": false,
-    "s_v_ok": true,
-    "s_h_ok": true,
     "fits": false,
     "e_max_mm": 904.0,
-    "e_max_point_mm": 1204.0,
-    "_note": "實配排列：每腹板由下往上逐層填滿、整體平移使形心=分析用CGS。淨間距需求 max(40,1.5d_agg,OD) 台灣§8.25.2。e_max(實配) < e_max_point(單點簡化)——算例_鋼腱線形設計的1204是把8腱視為一點的上限"
+    "_note": "同一配置在保守側排不下(單列四層、最底層管外緣落在梁底以下130)。兩案並列以顯示淨距規則的影響：φ100時 rule=od 使需求由40變100，直接決定腹板內排一列或兩列"
+  },
+  "duct_layout_G1_pier": {
+    "config": "墩頂斷面 e_pier=-900(形心上方)/保護層40/垂直淨距40/rule=tw",
+    "n_col": 2,
+    "n_row": 2,
+    "y_cgs_mm": 2229,
+    "y_top_mm": 2299.0,
+    "top_ok": false,
+    "fits": false,
+    "e_pier_limit_mm": -611.0,
+    "_note": "墩頂腱在形心上方，控制的是頂緣保護層。e_pier=-900 使頂層管外緣穿出梁頂；可行下限 = yb - h + cover + od/2 + (y_top - y_cgs)"
   },
   "stm_F2": {
     "config": "8組×19股 (參考橋, 端橫隔版 General Zone)",

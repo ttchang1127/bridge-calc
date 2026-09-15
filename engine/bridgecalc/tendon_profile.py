@@ -111,19 +111,33 @@ class DuctLayoutResult:
     e_max_point: float     # 單點簡化上限 ȳb − cover − od/2 mm（對照用）
 
 
-def duct_spacing_required(duct_od: float, d_agg: float = 25.0) -> float:
-    """管道最小淨間距需求 = max(40, 1.5·d_agg, 孔道外徑)，mm（台灣 §8.25.2）。"""
-    return max(40.0, 1.5 * d_agg, duct_od)
+def duct_spacing_required(duct_od: float, d_agg: float = 25.0, rule: str = "tw") -> float:
+    """管道最小淨間距需求，mm。
+
+    rule="tw"（預設）：max(40, 1.5·d_agg)——台灣橋梁設計規範 §8.25.2 明文的兩個條件，
+        亦與公式卡_鋼腱線形設計 §7.1 表列一致。
+    rule="od"：再取 max(…, 孔道外徑)——公式卡_有效預力與鋼腱配置 §4-1 的台灣欄另列
+        「≥ 孔道外徑」，與 AASHTO「孔道 OD > 100 mm 時淨距 ≥ 孔道外徑」同義。兩卡敘述
+        不一致，原規範條文尚未查證，故做成可選；取 "od" 為保守側。
+
+    ⚠ 這個選擇直接決定腹板內排得下幾列：φ100 管、腹板 350、保護層 40 時，
+    "tw" → 兩列（淨距需求 40），"od" → 單列（淨距需求 100）。
+    """
+    base = max(40.0, 1.5 * d_agg)
+    return max(base, duct_od) if rule == "od" else base
 
 
 def duct_layout(n_tendons: int, n_web: int, y_cgs: float,
                 duct_od: float = 100.0, web_t: float = 350.0,
-                cover: float = 75.0, s_v: float = 100.0,
-                d_agg: float = 25.0, y_b: float = None, h: float = None) -> DuctLayoutResult:
+                cover: float = 40.0, s_v: float = 40.0,
+                d_agg: float = 25.0, y_b: float = None, h: float = None,
+                rule: str = "tw") -> DuctLayoutResult:
     """把 n 組鋼腱實際排進腹板，回傳排列幾何與構造檢核。
 
     n_tendons：鋼腱組數；n_web：腹板數；y_cgs[mm]：鋼腱合力中心距梁底（= ȳb − e）。
     duct_od/web_t/cover/s_v/d_agg[mm]：管道外徑、腹板厚、清保護層、採用垂直淨距、最大骨材粒徑。
+    預設 cover=40（台灣 §8.25.1 一般規定；PTBG 實務建議 75）、s_v=40、rule="tw"（見
+    duct_spacing_required）。
     y_b[mm]：形心距底（給了才回推 e_max）；h[mm]：梁深（給了才檢核頂側）。
 
     排列規則：每腹板由下往上逐層填滿，層距 = od + s_v；列數由腹板可用寬與淨間距
@@ -135,7 +149,7 @@ def duct_layout(n_tendons: int, n_web: int, y_cgs: float,
     per_web = [base + (1 if i < rem else 0) for i in range(n_web)]
     n_per_web = max(per_web)
 
-    s_req = duct_spacing_required(duct_od, d_agg)
+    s_req = duct_spacing_required(duct_od, d_agg, rule)
     avail = web_t - 2 * cover
     n_col = int((avail + s_req) // (duct_od + s_req)) if avail >= duct_od else 0
     n_col = max(1, n_col)                      # 至少畫一列（放不下時由 s_h_ok 報 ✗）

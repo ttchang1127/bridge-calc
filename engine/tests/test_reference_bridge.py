@@ -341,46 +341,74 @@ def test_load_standard_drives_strand_count():
 
 
 def test_duct_layout_G1():
-    """G1 管道實配排列：參考橋 8 組 / 2 腹板 / φ100 / 腹板 350。
+    """G1 管道實配：參考橋 8 組 / 2 腹板 / φ100 / 腹板 350。
 
-    分析用 CGS 是把 n 組視為一點；實配要排 n_col 列 × n_row 層，最底層必低於 CGS。
-    腹板可用寬 350−2×75=200，淨間距需求 max(40,1.5×25,100)=100 → 單列 4 層，
-    最底層管外緣落在梁底以下 130 mm ⇒ 此配置實際排不下（分析卻看不出來）。
+    淨距規則直接決定排得下幾列，兩案並列：
+    ・rule="tw"（台灣 §8.25.2 明文 max(40,1.5d_agg)=40，保護層 §8.25.1 的 40）
+      → 可用寬 270、兩列兩層，e=1109 的最底層管外緣還有 100 mm ✓
+    ・rule="od"（淨距再取 ≥孔道外徑=100，保護層取 PTBG 實務 75）
+      → 可用寬 200、單列四層，同一配置的最底層管外緣落在梁底以下 130 mm ✗
     """
-    d = duct_layout(8, 2, sec.yb - 1109, duct_od=100, web_t=350, cover=75,
-                    s_v=100, d_agg=25, y_b=sec.yb, h=2100)
-    assert duct_spacing_required(100, 25) == 100          # 孔道外徑控制（非 40）
-    assert (d.n_col, d.n_row) == (1, 4)
-    assert d.per_web == [4, 4]
-    _close(d.web_avail, 200, 0.1)
-    _close(d.pitch_v, 200, 0.1)
-    _close(d.y_bot, -80, 0.1)
-    _close(d.cover_bot, -130, 0.1)
-    assert not d.cover_ok and not d.fits
-    assert d.s_v_ok and d.s_h_ok
-    _close(d.e_max, 904, 0.5)                             # 實配上限
-    _close(d.e_max_point, 1204, 0.5)                      # 算例的單點簡化上限
-    assert d.e_max < d.e_max_point                        # 實配一定比單點嚴
+    d = duct_layout(8, 2, sec.yb - 1109, duct_od=100, web_t=350, cover=40,
+                    s_v=40, d_agg=25, y_b=sec.yb, h=2100, rule="tw")
+    assert duct_spacing_required(100, 25) == 40             # 預設 tw：骨材與 40 mm 控制
+    assert duct_spacing_required(100, 25, "od") == 100      # od：孔道外徑控制
+    assert (d.n_col, d.n_row) == (2, 2)
+    _close(d.web_avail, 270, 0.1)
+    _close(d.s_h, 70, 0.1)
+    _close(d.pitch_v, 140, 0.1)
+    _close(d.y_bot, 150, 0.1)
+    _close(d.cover_bot, 100, 0.1)
+    assert d.cover_ok and d.top_ok and d.fits
+    _close(d.e_max, 1169, 0.5)
+
+    ds = duct_layout(8, 2, sec.yb - 1109, duct_od=100, web_t=350, cover=75,
+                     s_v=100, d_agg=25, y_b=sec.yb, h=2100, rule="od")
+    assert (ds.n_col, ds.n_row) == (1, 4)
+    _close(ds.cover_bot, -130, 0.1)
+    assert not ds.cover_ok and not ds.fits
+    _close(ds.e_max, 904, 0.5)
+    _close(ds.e_max_point, 1204, 0.5)                       # 單點簡化上限（與規則無關）
+    assert ds.e_max < ds.e_max_point
+
+
+def test_duct_layout_pier_section():
+    """墩頂斷面：腱在形心上方，控制的是頂緣保護層而非底緣。
+
+    e_pier = −900（形心上方 900）使頂層管外緣穿出梁頂；可行下限由
+    y_cgs ≤ h − cover − od/2 − (y_top − y_cgs) 反推。
+    """
+    d = duct_layout(8, 2, sec.yb + 900, duct_od=100, web_t=350, cover=40,
+                    s_v=40, d_agg=25, y_b=sec.yb, h=2100, rule="tw")
+    assert not d.top_ok and not d.fits                      # 穿出頂緣
+    assert d.cover_ok                                       # 底緣反而很寬裕
+    lim = sec.yb - 2100 + 40 + 50 + (d.y_top - d.y_cgs)
+    _close(lim, -611, 0.5)
+    ok = duct_layout(8, 2, sec.yb - lim, duct_od=100, web_t=350, cover=40,
+                     s_v=40, d_agg=25, y_b=sec.yb, h=2100, rule="tw")
+    _close(2100 - (ok.y_top + 50), 40, 0.5)                 # 恰落在頂緣保護層上
+    assert ok.fits
 
 
 def test_duct_layout_centroid_preserved():
     """實配形心必須恰等於分析用的 CGS——3D 畫多腱不得改變引擎在用的偏心 e。
 
     含餘數層（5 腱 / 2 列 → 2+2+1）；不對稱填充時平移量不是層距的整數倍。
+    採 rule="od" 使 φ90 的淨距需求為 90，才排得出兩列的餘數情形。
     """
     for n, nw, wt, sv in ((8, 2, 350, 100), (5, 1, 500, 100), (12, 3, 600, 60), (7, 2, 450, 50)):
-        d = duct_layout(n, nw, 260, duct_od=90, web_t=wt, cover=50, s_v=sv, d_agg=20)
+        d = duct_layout(n, nw, 260, duct_od=90, web_t=wt, cover=50, s_v=sv, d_agg=20, rule="od")
         ys = [y for y, c in d.rows for _ in range(c)]
         assert len(ys) == d.n_per_web
         _close(sum(ys) / len(ys), 260, 1e-6)              # 形心守恆
         assert d.rows[0][0] == min(ys) and d.rows[-1][0] == max(ys)
-    d5 = duct_layout(5, 1, 260, duct_od=90, web_t=500, cover=50, s_v=100, d_agg=20)
+    d5 = duct_layout(5, 1, 260, duct_od=90, web_t=500, cover=50, s_v=100, d_agg=20, rule="od")
     assert [c for _, c in d5.rows] == [2, 2, 1]           # 由下往上逐層填滿
 
 
 def test_duct_layout_checks():
-    """三項構造檢核各自可獨立觸發，且 e_max 反推自洽。"""
-    base = dict(duct_od=100, web_t=500, cover=75, d_agg=25, y_b=1329, h=2100)
+    """三項構造檢核各自可獨立觸發，且 e_max 反推自洽（採 rule="od" 保守側，需求 100）。"""
+    base = dict(duct_od=100, web_t=500, cover=75, d_agg=25, y_b=1329, h=2100, rule="od")
     wide = duct_layout(8, 2, 1329 - 1109, s_v=100, **base)
     assert wide.n_col == 2 and wide.n_row == 2            # 腹板加厚 → 兩列兩層
     _close(wide.s_h, 150, 0.1)
@@ -390,7 +418,7 @@ def test_duct_layout_checks():
     assert loose.cover_ok                                 # 但層距變小 → 保護層反而過
 
     thin = duct_layout(8, 2, 1329 - 1109, s_v=100, duct_od=100, web_t=220,
-                       cover=75, d_agg=25, y_b=1329, h=2100)
+                       cover=75, d_agg=25, y_b=1329, h=2100, rule="od")
     assert not thin.s_h_ok                                # 可用寬 70 < 管徑 100
 
     # e = e_max 時，最底層管外緣恰落在保護層上
@@ -398,7 +426,7 @@ def test_duct_layout_checks():
     _close(at_max.cover_bot, 75, 0.5)
 
     tall = duct_layout(8, 1, 1329, s_v=100, duct_od=100, web_t=250,
-                       cover=75, d_agg=25, y_b=1329, h=2100)
+                       cover=75, d_agg=25, y_b=1329, h=2100, rule="od")
     assert (tall.n_col, tall.n_row) == (1, 8)             # 薄腹板單列 → 8 腱疊 8 層
     assert not tall.top_ok                                # 疊高 1,400 → 頂層穿出斷面頂緣
 

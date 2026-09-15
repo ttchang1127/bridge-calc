@@ -483,6 +483,14 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           <div class="v" :class="DLpier.topOk?'':'ng'" x-text="fmt(h-(R.sec.yb-contEPier))+' mm'"></div></div>
       </template>
     </div>
+    <div class="hint no-print" x-show="contLine&&!DLpier.topOk" x-cloak style="color:var(--ng)">
+      ✗ 墩頂鋼腱已穿出梁頂 <b x-text="fmt(-(h-(R.sec.yb-contEPier)-ductCover-ductOD/2-(DLpier.yTop-DLpier.yCgs)))"></b> mm（含保護層與管壁）。
+      <button class="btn" style="margin-left:6px" @click="applyEPier()">套用可行上限 e_pier = <span x-text="ePierMax"></span> mm</button>
+    </div>
+    <div class="hint no-print" x-show="!DL.coverOk" x-cloak style="color:var(--ng)">
+      ✗ <span x-text="contLine?'跨中':'跨中'"></span>鋼腱最底層管外緣距梁底僅 <b x-text="fmt(DL.coverBot)"></b> mm（需 ≥ <span x-text="ductCover"></span>）。
+      <button class="btn" style="margin-left:6px" @click="applyEMax()">套用可行上限 <span x-text="contLine?'e_mid':'e'"></span> = <span x-text="Math.floor(DL.eMax)"></span> mm</button>
+    </div>
     <div class="hint" style="color:var(--ng)" x-show="R.cgsBot<0">✗ 鋼腱合力中心已超出斷面底緣——e 大於 ȳb，請調整偏心。</div>
     <div class="hint" style="color:var(--ng)" x-show="R.cgsBot>=0&&R.cgsBot<100">⚠ 鋼腱合力中心距梁底不足 100 mm，請確認保護層與管道尺寸是否容得下。</div>
     <div class="cite" x-show="!contLine">線形與引擎一致：D1 的 Vp 用斜率 (4e/L)(1−2x/L)、C2/C3 預拱用 w<sub>eq</sub>。垂直向放大繪製，實際斜率以數值為準。紅虛線＝腱束實際上下緣（含管壁），實線為其形心 CGS。</div>
@@ -1791,7 +1799,7 @@ function calc(){
       var self0=this;
       window.addEventListener('beforeprint',function(){ self0.refreshSummary(); });
       setTimeout(function(){ self0.refreshSummary(); },300);
-      try{ var s=localStorage.getItem(STORE_KEY); if(s){ applyParams(this,JSON.parse(s)); this.msgIO='已載入上次存檔'; } }catch(e){}
+      try{ var s=localStorage.getItem(STORE_KEY); if(s){ applyParams(this,JSON.parse(s)); this.msgIO='已載入上次存檔'+this.migrateParams(); } }catch(e){}
       var self=this;
       Alpine.effect(function(){
         var json=JSON.stringify(paramsOf(self));                // 讀到全部參數→任一改動即重跑
@@ -1800,6 +1808,21 @@ function calc(){
           try{ localStorage.setItem(STORE_KEY,json); self.saved=new Date().toLocaleTimeString(); }catch(e){}
         },400);
       });
+    },
+    // 存檔遷移：早期版本的預設值（管道保護層 75／垂直淨距 100／淨距含孔道外徑、
+    // e_pier −900）會讓鋼腱穿出斷面——那是本工具當初給錯的預設，不是使用者的設計選擇，
+    // 故載入舊存檔時就地修正並明確告知；使用者仍可自行改回。
+    migrateParams(){
+      var msg=[];
+      if(this.ductCover===75&&this.ductSv===100){        // 舊版預設的精確組合
+        this.ductCover=40; this.ductSv=40; this.ductRule='tw';
+        msg.push('管道保護層 75→40、垂直淨距 100→40、淨距規則改台灣明文（舊版預設已撤回）');
+      }
+      if(this.contEPier<this.ePierMax){                  // 負值：更負＝更高，穿出梁頂
+        var o=this.contEPier; this.contEPier=this.ePierMax;
+        msg.push('e_pier '+o+'→'+this.ePierMax+' mm（原值使墩頂鋼腱穿出梁頂）');
+      }
+      return msg.length?('；已自動修正：'+msg.join('、')):'';
     },
     exportParams(){
       var blob=new Blob([JSON.stringify(paramsOf(this),null,2)],{type:'application/json'});

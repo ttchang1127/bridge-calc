@@ -205,7 +205,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <div><div class="hint">B-B 端部斷面（e ≈ 0，鋼腱錨於形心）</div>
         <svg viewBox="0 0 270 80" style="width:270px;max-width:100%;height:auto" x-html="R.svgSecEnd"></svg></div>
     </div>
-    <div class="cite">斷面性質由引擎 <code>sectionFromDims</code> 算出，圖只讀其結果；端部 e=0 與引擎 Vp／預拱所用的拋物線線形假設一致。<span x-show="contLine" x-cloak>　⚠ 本圖為<b>單跨示意</b>（② 的 L＝<span x-text="L"></span> m）；已勾選連續梁線形時，實際的多跨分段線形請看 §十三 3D 或 ⑦ 的包絡圖。</span></div>
+    <div class="cite">斷面性質由引擎 <code>sectionFromDims</code> 算出，圖只讀其結果；端部 e=0 與引擎 Vp／預拱所用的拋物線線形假設一致。<span x-show="contLine" x-cloak>　已勾選連續梁線形，本圖畫的是 ⑦ 的多跨分段線形；A＝第一跨低點、B＝端部。</span></div>
   </div>
   <div class="card"><h2>3D 視圖（箱梁＋鋼腱）</h2>
     <div x-show="!v3d.on" class="no-print">
@@ -460,14 +460,33 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
   <div class="card"><h2>鋼腱縱剖面（G1・拋物線）</h2>
     <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElev"></svg></div>
     <div class="grid" style="margin-top:10px">
-      <div class="metric"><div class="l">線形</div><div class="v" style="font-size:14px">e(x) = 4e·x(L−x)/L²</div></div>
-      <div class="metric"><div class="l">等效上揚載重 w<sub>eq</sub> = 8P<sub>e</sub>e/L²</div><div class="v" x-text="fmt(R.weq,1)+' kN/m'"></div></div>
-      <div class="metric"><div class="l">d<sub>v</sub> 處斜率（引擎 Vp 用）</div><div class="v" x-text="R.shSlope.toFixed(4)"></div></div>
-      <div class="metric"><div class="l">CGS 距梁底</div><div class="v" :class="R.cgsBot<0?'ng':(R.cgsBot<100?'ng':'')" x-text="fmt(R.cgsBot)+' mm'"></div></div>
+      <div class="metric"><div class="l">線形</div>
+        <div class="v" style="font-size:13.5px" x-text="contLine?'分段拋物線 e = e_v + c(x−x_v)²':'e(x) = 4e·x(L−x)/L²'"></div></div>
+      <template x-if="!contLine">
+        <div class="metric"><div class="l">等效上揚載重 w<sub>eq</sub> = 8P<sub>e</sub>e/L²</div><div class="v" x-text="fmt(R.weq,1)+' kN/m'"></div></div>
+      </template>
+      <template x-if="contLine">
+        <div class="metric"><div class="l">等效載重（跨中段↑／墩頂段↓）</div>
+          <div class="v" style="font-size:14px" x-text="CB&&CB.m2?(fmt(Math.max.apply(null,CB.m2.segs.filter(g=>g.kind==='sag').map(g=>g.w)),1)+' ↑ / '+fmt(Math.min.apply(null,CB.m2.segs.filter(g=>g.kind==='hog').map(g=>g.w)),1)+' ↓ kN/m'):'（⑦ 未計入 M₂）'"></div></div>
+      </template>
+      <template x-if="!contLine">
+        <div class="metric"><div class="l">d<sub>v</sub> 處斜率（引擎 Vp 用）</div><div class="v" x-text="R.shSlope.toFixed(4)"></div></div>
+      </template>
+      <template x-if="contLine">
+        <div class="metric"><div class="l">反曲點 里程</div>
+          <div class="v" style="font-size:14px" x-text="P3D.tp?P3D.tp.infl.map(v=>fmt(v,1)).join('、')+' m':'—'"></div></div>
+      </template>
+      <div class="metric"><div class="l" x-text="contLine?'跨中 CGS 距梁底':'CGS 距梁底'"></div>
+        <div class="v" :class="R.cgsBot<0?'ng':(R.cgsBot<100?'ng':'')" x-text="fmt(R.cgsBot)+' mm'"></div></div>
+      <template x-if="contLine">
+        <div class="metric"><div class="l">墩頂 CGS 距梁頂</div>
+          <div class="v" :class="DLpier.topOk?'':'ng'" x-text="fmt(h-(R.sec.yb-contEPier))+' mm'"></div></div>
+      </template>
     </div>
     <div class="hint" style="color:var(--ng)" x-show="R.cgsBot<0">✗ 鋼腱合力中心已超出斷面底緣——e 大於 ȳb，請調整偏心。</div>
     <div class="hint" style="color:var(--ng)" x-show="R.cgsBot>=0&&R.cgsBot<100">⚠ 鋼腱合力中心距梁底不足 100 mm，請確認保護層與管道尺寸是否容得下。</div>
-    <div class="cite">線形與引擎一致：D1 的 Vp 用斜率 (4e/L)(1−2x/L)、C2/C3 預拱用 w<sub>eq</sub>。垂直向放大繪製，實際斜率以數值為準。</div>
+    <div class="cite" x-show="!contLine">線形與引擎一致：D1 的 Vp 用斜率 (4e/L)(1−2x/L)、C2/C3 預拱用 w<sub>eq</sub>。垂直向放大繪製，實際斜率以數值為準。紅虛線＝腱束實際上下緣（含管壁），實線為其形心 CGS。</div>
+    <div class="cite" x-show="contLine" x-cloak>連續梁線形：<b>分段拋物線</b>（G1 §五之補・FHWA Eqn. 3.30–3.35）——墩頂段頂點在墩心（圓滑高點）、長 k×該側跨長；跨中段頂點在低點（端跨低點 r×跨長、內跨中點）；兩段坡度連續 h₁/b₁＝h₂/b₂，<b>反曲點</b>落在交界（圖中紫色虛線）。與 ⑦ 的次彎矩 M₂ <b>共用同一個 <code>contTendonSegs</code></b>，畫的就是算的。紅虛線＝腱束實際上下緣（含管壁），實線為其形心 CGS。垂直向放大繪製，實際斜率以數值為準。⚠ 上方「d<sub>v</sub> 處斜率」與 w<sub>eq</sub>＝8P<sub>e</sub>e/L² 為單跨式，連續梁模式不適用故不顯示。</div>
   </div>
   <div class="card"><h2>有效預力與損失</h2>
     <div class="grid" style="margin-bottom:10px">
@@ -1112,24 +1131,55 @@ function secSVG(d,sec,eDraw){
 }
 // 側視／鋼腱縱剖面：引擎假設拋物線 e(x)=4e·x(L−x)/L²（兩端 e=0）
 function elevSVG(d,sec,o){
-  var x0=40, W=560, y0=26, Hd=86, Lm=d.L*1000, vs=Hd/d.h, ve=(Hd/d.h)/(W/Lm);
-  var X=function(xm){return x0+xm/d.L*W}, Y=function(yFromTop){return y0+yFromTop*vs};
+  o=o||{};
+  var cont=o.cont, band=o.band;                          // cont＝連續梁線形；band＝腱束上下緣（mm，相對 CGS）
+  var x0=40, W=560, y0=26, Hd=86;
+  var L=cont?cont.tot:d.L, Lm=L*1000, vs=Hd/d.h, ve=(Hd/d.h)/(W/Lm);
+  var X=function(xm){return x0+xm/L*W}, Y=function(yFromTop){return y0+yFromTop*vs};
   var yC=Y(sec.yt), yB=Y(d.h);
+  var eOf=cont?cont.eAt:function(xm){return 4*d.e*xm*(d.L-xm)/(d.L*d.L)};
+  var sup=cont?cont.sx:[0,d.L], N=cont?240:80;
   var g='<rect x="'+x0+'" y="'+y0+'" width="'+W+'" height="'+Hd+'" fill="#eff6ff" stroke="#1d4ed8"/>'+
     '<line x1="'+x0+'" y1="'+Y(d.topT)+'" x2="'+(x0+W)+'" y2="'+Y(d.topT)+'" stroke="#93c5fd"/>'+
     '<line x1="'+x0+'" y1="'+Y(d.h-d.botT)+'" x2="'+(x0+W)+'" y2="'+Y(d.h-d.botT)+'" stroke="#93c5fd"/>'+
-    '<line x1="'+(x0-6)+'" y1="'+yC+'" x2="'+(x0+W+6)+'" y2="'+yC+'" stroke="#16a34a" stroke-dasharray="4 3"/><text x="'+(x0+W+8)+'" y="'+(yC+3)+'" font-size="9" fill="#16a34a">形心</text>'+
-    '<path d="M'+x0+','+yB+' l-7,11 h14z M'+(x0+W)+','+yB+' l-7,11 h14z" fill="#94a3b8"/>'+
-    '<text x="'+(x0+W/2)+'" y="'+(yB+24)+'" font-size="10" fill="#555" text-anchor="middle">L = '+fmt(d.L,1)+' m（垂直放大 ×'+fmt(ve,1)+'）</text>';
-  var tp=[]; for(var k=0;k<=80;k++){ var xm=d.L*k/80; tp.push({x:xm, e:4*d.e*xm*(d.L-xm)/(d.L*d.L)}); }
-  g+=polyline(tp,function(p){return X(p.x)},function(p){return Y(sec.yt+p.e)},'stroke="#dc2626" stroke-width="1.6"');
+    '<line x1="'+(x0-6)+'" y1="'+yC+'" x2="'+(x0+W+6)+'" y2="'+yC+'" stroke="#16a34a" stroke-dasharray="4 3"/><text x="'+(x0+W+8)+'" y="'+(yC+3)+'" font-size="9" fill="#16a34a">形心</text>';
+  sup.forEach(function(sx){ g+='<path d="M'+X(sx)+','+yB+' l-7,11 h14z" fill="#94a3b8"/>'; });
+  g+='<text x="'+(x0+W/2)+'" y="'+(yB+24)+'" font-size="10" fill="#555" text-anchor="middle">'+
+     (cont?('L = '+cont.spans.map(function(v){return fmt(v,0)}).join('＋')+' = '+fmt(L,1)):('L = '+fmt(d.L,1)))+
+     ' m（垂直放大 ×'+fmt(ve,1)+'）</text>';
+  var pts=[]; for(var k=0;k<=N;k++){ var xm=L*k/N; pts.push({x:xm, e:eOf(xm)}); }
+  if(band){                                              // 腱束實際上下緣（含管壁），CGS 只是它的形心
+    g+=polyline(pts,function(p){return X(p.x)},function(p){return Y(sec.yt+p.e-band.up)},
+                'stroke="#dc2626" stroke-width="0.7" stroke-dasharray="3 2" opacity="0.7"')+
+       polyline(pts,function(p){return X(p.x)},function(p){return Y(sec.yt+p.e+band.dn)},
+                'stroke="#dc2626" stroke-width="0.7" stroke-dasharray="3 2" opacity="0.7"');
+  }
+  g+=polyline(pts,function(p){return X(p.x)},function(p){return Y(sec.yt+p.e)},'stroke="#dc2626" stroke-width="1.6"');
   if(o.mode==='cut'){
-    [[d.L/2,'A'],[d.L*0.04,'B']].forEach(function(c){ var xx=X(c[0]);
+    var cA=cont?cont.lows[0]:d.L/2, cB=cont?0:d.L*0.04;
+    [[cA,'A'],[cB,'B']].forEach(function(c){ var xx=X(c[0]);
       g+='<line x1="'+xx+'" y1="'+(y0-10)+'" x2="'+xx+'" y2="'+(yB+4)+'" stroke="#555" stroke-dasharray="5 2 1 2"/>'+
          '<text x="'+xx+'" y="'+(y0-13)+'" font-size="10" font-weight="600" fill="#333" text-anchor="middle">'+c[1]+'</text>'; });
     return g;
   }
-  // 標註：跨中 e、L/4 處 0.75e、端部斜率、d_v 臨界斷面斜率（＝引擎 Vp 所用）
+  if(cont){                                              // 連續梁標註：低點 e_mid、墩頂 e_pier、反曲點
+    cont.lows.forEach(function(xl){ var xx=X(xl), yy=Y(sec.yt+cont.eMid);
+      g+='<line x1="'+xx+'" y1="'+yC+'" x2="'+xx+'" y2="'+yy+'" stroke="#dc2626" stroke-dasharray="2 2"/>'+
+         '<text x="'+(xx+4)+'" y="'+(yy-4)+'" font-size="9" fill="#dc2626">e_mid = '+fmt(cont.eMid)+'</text>'; });
+    sup.slice(1,-1).forEach(function(xp){ var xx=X(xp), yy=Y(sec.yt+cont.ePier);
+      g+='<line x1="'+xx+'" y1="'+yC+'" x2="'+xx+'" y2="'+yy+'" stroke="#dc2626" stroke-dasharray="2 2"/>'+
+         '<text x="'+(xx+4)+'" y="'+(yy-4)+'" font-size="9" fill="#dc2626">e_pier = '+fmt(cont.ePier)+'</text>'; });
+    cont.infl.forEach(function(xi,i){ var xx=X(xi);
+      g+='<line x1="'+xx+'" y1="'+(y0-8)+'" x2="'+xx+'" y2="'+(yB+4)+'" stroke="#7c3aed" stroke-dasharray="3 2"/>'+
+         (i===0?'<text x="'+(xx-3)+'" y="'+(y0-10)+'" font-size="9" fill="#7c3aed" text-anchor="end">反曲點</text>':'')+
+         '<text x="'+xx+'" y="'+(yB+34)+'" font-size="8.5" fill="#7c3aed" text-anchor="middle">'+fmt(xi,1)+'</text>'; });
+    var th=(eOf(L*0.002)-eOf(0))/(L*0.002*1000);
+    g+='<text x="'+(x0+10)+'" y="'+(yB+12)+'" font-size="9" fill="#dc2626">端部 θ₀ = '+th.toFixed(4)+
+       '　墩頂段 k = '+fmt(cont.kPier,2)+'×L、低點 r = '+fmt(cont.rEnd,2)+'×L</text>';
+    if(band) g+='<text x="'+(x0+W)+'" y="'+(yB+12)+'" font-size="8.5" fill="#dc2626" text-anchor="end">虛線＝腱束上下緣（含管壁）</text>';
+    return g;
+  }
+  // 單跨標註：跨中 e、L/4 處 0.75e、d_v 臨界斷面斜率（＝引擎 Vp 所用）
   var xm=X(d.L/2), xq=X(d.L/4), xd=X(o.dv/1000);
   g+='<line x1="'+xm+'" y1="'+yC+'" x2="'+xm+'" y2="'+Y(sec.yt+d.e)+'" stroke="#dc2626" stroke-dasharray="2 2"/>'+
      '<text x="'+(xm+5)+'" y="'+(Y(sec.yt+d.e)-4)+'" font-size="9" fill="#dc2626">e = '+fmt(d.e)+'</text>'+
@@ -1137,7 +1187,8 @@ function elevSVG(d,sec,o){
      '<text x="'+(xq+5)+'" y="'+(Y(sec.yt+0.75*d.e)-4)+'" font-size="9" fill="#dc2626">0.75e = '+fmt(0.75*d.e)+'</text>'+
      '<line x1="'+xd+'" y1="'+(y0-8)+'" x2="'+xd+'" y2="'+(yB+4)+'" stroke="#7c3aed" stroke-dasharray="3 2"/>'+
      '<text x="'+(xd+3)+'" y="'+(y0-10)+'" font-size="9" fill="#7c3aed">d_v 斜率 '+o.slope.toFixed(4)+'</text>'+
-     '<text x="'+(x0+12)+'" y="'+(yB+12)+'" font-size="9" fill="#dc2626">端部 θ₀ = 4e/L = '+(4*d.e/Lm).toFixed(4)+'</text>';
+     '<text x="'+(x0+12)+'" y="'+(yB+12)+'" font-size="9" fill="#dc2626">端部 θ₀ = 4e/L = '+(4*d.e/Lm).toFixed(4)+'</text>'+
+     (band?'<text x="'+(x0+W)+'" y="'+(yB+12)+'" font-size="8.5" fill="#dc2626" text-anchor="end">虛線＝腱束上下緣（含管壁）</text>':'');
   return g;
 }
 // ── §十三 3D 視覺化（Three.js）──────────────────────────────
@@ -1994,8 +2045,24 @@ function calc(){
       var f1=function(n){return (+n).toFixed(1)};
       var dd={topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,h:this.h,L:this.L,e:this.e};
       var svgSec=secSVG(dd,sec,this.e), svgSecEnd=secSVG(dd,sec,0);
-      var svgElevCut=elevSVG(dd,sec,{mode:'cut'}), svgElev=elevSVG(dd,sec,{mode:'tendon',dv:dv,slope:sh.slope});
-      var cgsBot=sec.yb-this.e;
+      // 縱剖圖的線形來源：勾「連續梁」則走分段線形（與 M₂／3D 同一個 contTendonSegs）。
+      // ⚠ 這裡不可讀 this.P3D／this.DL——它們會讀 this.R，形成 getter 循環；故就地重算。
+      var eCtl=this.contLine?this.contEMid:this.e, contLine=null;
+      var layE=window.BC.ductLayout(this.ntd,this.nWeb,sec.yb-eCtl,
+        {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:sec.yb,h:this.h,rule:this.ductRule});
+      var bandE={up:(layE.yTop-layE.yCgs)+this.ductOD/2, dn:(layE.yCgs-layE.yBot)+this.ductOD/2};
+      if(this.contLine){
+        var spE=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
+        if(spE.length>=2){
+          var tpE=contTendonSegs(spE,this.contEEnd,this.contEMid,this.contEPier,
+                                 {kPier:this.contKPier,rEnd:this.contREnd});
+          contLine={eAt:tpE.eAt, tot:tpE.total, sx:tpE.sx, infl:tpE.infl, lows:tpE.lows, spans:spE,
+                    eMid:this.contEMid, ePier:this.contEPier, kPier:tpE.kPier, rEnd:tpE.rEnd};
+        }
+      }
+      var svgElevCut=elevSVG(dd,sec,{mode:'cut',cont:contLine,band:bandE}),
+          svgElev=elevSVG(dd,sec,{mode:'tendon',dv:dv,slope:sh.slope,cont:contLine,band:bandE});
+      var cgsBot=sec.yb-eCtl;                            // 連續梁模式取跨中 e_mid（墩頂另由 ⑦／③ 檢核表看）
       var sH=110, sox=34, soy=14, zx=sox+72, pps=6, ptx=zx+serv.st*pps, pbx=zx+serv.sb*pps;
       var svgStr='<line x1="'+sox+'" y1="'+soy+'" x2="'+sox+'" y2="'+(soy+sH)+'" stroke="#999"/><text x="'+(sox-3)+'" y="'+(soy+4)+'" font-size="7" fill="#999" text-anchor="end">頂</text><text x="'+(sox-3)+'" y="'+(soy+sH)+'" font-size="7" fill="#999" text-anchor="end">底</text>'+
         '<line x1="'+zx+'" y1="'+(soy-4)+'" x2="'+zx+'" y2="'+(soy+sH+4)+'" stroke="#888" stroke-dasharray="2 2"/><text x="'+zx+'" y="'+(soy+sH+15)+'" font-size="7" fill="#888" text-anchor="middle">σ=0（拉→）</text>'+

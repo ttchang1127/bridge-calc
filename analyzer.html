@@ -535,6 +535,8 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <label>端部偏心 e_end (mm)<input type="number" x-model.number="contEEnd" step="50"></label>
       <label>跨中偏心 e_mid (mm，正=形心下)<input type="number" x-model.number="contEMid" step="50"></label>
       <label>中墩偏心 e_pier (mm，負=形心上)<input type="number" x-model.number="contEPier" step="50"></label>
+      <label title="FHWA Ch.5：0.10~0.15×相鄰跨徑">墩頂段長比 k（×跨長）<input type="number" x-model.number="contKPier" step="0.01" min="0.02" max="0.3"></label>
+      <label title="FHWA Ch.5：0.35~0.45×跨長，自橋端量起">端跨低點比 r（×跨長）<input type="number" x-model.number="contREnd" step="0.01" min="0.2" max="0.5"></label>
       <template x-if="!contPeAuto"><label>有效預力 P_e (kN)<input type="number" x-model.number="contPe" step="500"></label></template>
     </div>
     <div class="hint"><label style="display:inline-flex;gap:5px;align-items:center">
@@ -550,20 +552,22 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
   <div class="card" x-show="CB" x-cloak><h2>鋼腱線形實配（跨中／墩頂兩控制斷面）</h2>
     <table>
-      <thead><tr><th>控制斷面</th><th>偏心 e</th><th>實配排列</th><th>最底層管外緣</th><th>最頂層距梁頂</th><th style="width:44px">判定</th></tr></thead>
+      <thead><tr><th>控制斷面</th><th>偏心 e</th><th>實配排列</th><th>最底層管外緣</th><th>最頂層距梁頂</th><th style="width:44px">判定</th><th class="no-print" style="width:60px"></th></tr></thead>
       <tbody>
         <tr><td>跨中（正彎矩區，腱在形心下）</td>
             <td x-text="fmt(contEMid)+' mm'"></td>
             <td x-text="DLmid.nCol+' 列 × '+DLmid.nRow+' 層'"></td>
             <td :class="DLmid.coverOk?'':'ng'" x-text="fmt(DLmid.coverBot)+' mm'"></td>
             <td :class="DLmid.topOk?'':'ng'" x-text="fmt(h-(DLmid.yTop+ductOD/2))+' mm'"></td>
-            <td style="text-align:center" :class="DLmid.fits?'ok':'ng'" x-text="DLmid.fits?'✓':'✗'"></td></tr>
+            <td style="text-align:center" :class="DLmid.fits?'ok':'ng'" x-text="DLmid.fits?'✓':'✗'"></td>
+            <td class="no-print"></td></tr>
         <tr><td>墩頂（負彎矩區，腱在形心上）</td>
             <td x-text="fmt(contEPier)+' mm'"></td>
             <td x-text="DLpier.nCol+' 列 × '+DLpier.nRow+' 層'"></td>
             <td :class="DLpier.coverOk?'':'ng'" x-text="fmt(DLpier.coverBot)+' mm'"></td>
             <td :class="DLpier.topOk?'':'ng'" x-text="fmt(h-(DLpier.yTop+ductOD/2))+' mm'"></td>
-            <td style="text-align:center" :class="DLpier.fits?'ok':'ng'" x-text="DLpier.fits?'✓':'✗'"></td></tr>
+            <td style="text-align:center" :class="DLpier.fits?'ok':'ng'" x-text="DLpier.fits?'✓':'✗'"></td>
+            <td class="no-print"><button class="btn" style="margin-left:0" @click="applyEPier()" :disabled="Math.abs(contEPier-ePierMax)<1">套用</button></td></tr>
       </tbody>
     </table>
     <div class="hint" x-show="!DLpier.topOk" x-cloak style="color:var(--ng)">✗ 墩頂鋼腱已穿出頂緣保護層。以<b>等斷面</b>計，形心以上僅 <b x-text="fmt(h-R.sec.yb)+' mm'"></b>，故 |e<sub>pier</sub>| 上限約 <b x-text="fmt(h-R.sec.yb-ductCover-ductOD/2-(DLpier.yTop-DLpier.yCgs))+' mm'"></b>。</div>
@@ -580,12 +584,15 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <div class="hint" style="margin-top:10px">彎矩包絡（kN·m；藍＝Service I、紅＝Strength I、灰虛＝靜載；▲＝支承）</div>
     <div class="figbox"><svg viewBox="0 0 640 230" style="width:100%;max-width:640px;height:auto" x-html="CB?cbSvg:''"></svg></div>
     <div class="grid" style="margin-top:10px" x-show="CB&&CB.m2" x-cloak>
-      <div class="metric"><div class="l">等效上揚 w_eq（各跨）</div><div class="v" style="font-size:15px" x-text="CB&&CB.m2?CB.m2.segs.map(g=>fmt(g.w,1)).join(' / ')+' kN/m':''"></div></div>
+      <div class="metric"><div class="l">等效載重 w（跨中段↑／墩頂段↓）</div><div class="v" style="font-size:15px"
+        x-text="CB&&CB.m2?(fmt(Math.max.apply(null,CB.m2.segs.filter(g=>g.kind==='sag').map(g=>g.w)),1)+' ↑ / '+fmt(Math.min.apply(null,CB.m2.segs.filter(g=>g.kind==='hog').map(g=>g.w)),1)+' ↓ kN/m（'+CB.m2.segs.length+' 段）'):''"></div></div>
+      <div class="metric"><div class="l">反曲點／低點 里程</div><div class="v" style="font-size:15px"
+        x-text="CB&&CB.m2?(CB.m2.infl.map(v=>fmt(v,1)).join('、')+' ｜ '+CB.m2.lows.map(v=>fmt(v,1)).join('、')+' m'):''"></div></div>
       <div class="metric"><div class="l">中墩 M₁（主彎矩）</div><div class="v" x-text="CB&&CB.pier.M1!=null?fmt(CB.pier.M1)+' kN·m':''"></div></div>
       <div class="metric"><div class="l">中墩 M_total（等效載重）</div><div class="v" x-text="CB&&CB.pier.Mtot!=null?fmt(CB.pier.Mtot)+' kN·m':''"></div></div>
       <div class="metric"><div class="l">中墩 M₂（次彎矩）</div><div class="v" :class="CB&&CB.pier.M2>0?'ok':''" x-text="CB&&CB.pier.M2!=null?fmt(CB.pier.M2)+' kN·m':''"></div></div>
     </div>
-    <div class="cite" x-show="CB&&CB.m2" x-cloak>M₂ 以<b>等效載重法</b>實算：每跨鋼腱為通過（e_end／e_mid／e_pier）的拋物線 → 等效上揚 w=8P·a/L²（a＝相對弦線垂度）→ 施於同一連續梁模型得 M_total；M₁＝−P·e(x)；<b>M₂＝M_total−M₁</b>，支承間呈直線（可用以自我檢核）。M₂ 已以因數 1.0 計入上方 Service I／Strength I。</div>
+    <div class="cite" x-show="CB&&CB.m2" x-cloak>M₂ 以<b>等效載重法</b>實算。線形為<b>分段拋物線</b>（G1 §五之補・FHWA Eqn. 3.30–3.35）：墩頂段頂點在墩心（該處斜率 0 → <b>圓滑高點而非折角</b>）、長度 k×該側跨長；跨中段頂點在低點（端跨低點 r×跨長、內跨在中點）；兩段以<b>坡度連續</b> h₁/b₁＝h₂/b₂ 銜接，由 h₁+h₂＝Δ、b₁+b₂＝s 唯一決定 → <b>反曲點</b>即落在交界。各段 e(x)＝e<sub>v</sub>+c(x−x<sub>v</sub>)²，曲率 e″＝2c → 等效載重 w＝−P·e″（跨中段上揚、墩頂段下壓）→ 施於同一連續梁模型得 M_total；M₁＝−P·e(x)；<b>M₂＝M_total−M₁</b>，支承間呈直線（可用以自我檢核）。段交界坡度連續故無集中角變化力；端錨垂直分力直接進端支承。⚠ 端錨偏心彎矩 M＝P·e<sub>end</sub> 未計入（e<sub>end</sub> 預設 0）。M₂ 已以因數 1.0 計入上方 Service I／Strength I。</div>
     <table style="margin-top:10px">
       <thead><tr><th>斷面</th><th>靜載 M_DL</th><th>活載 M_LL+IM</th><th>M₂</th><th>Service I</th><th>Strength I</th></tr></thead>
       <tbody>
@@ -1296,7 +1303,7 @@ function contEnvelope(spans,wDC,wDW,lanes,pt){
   var pierIdx=m.sIdx.slice(1,-1);                       // 內支承（中墩）
   var C={m:m, IM:IM, rows:rows, tot:tot, ne:ne, spans:spans, nPier:pierIdx.length};
   if(pt && pt.Pe>0){                                    // 預力次彎矩（含入組合，載重因數 1.0）
-    var m2=contPrestressM2(C, pt.Pe, pt.eEnd, pt.eMid, pt.ePier);
+    var m2=contPrestressM2(C, pt.Pe, pt.eEnd, pt.eMid, pt.ePier, {kPier:pt.kPier, rEnd:pt.rEnd});
     rows.forEach(function(r,t){ var q=m2.at(t);
       r.e=q.e; r.M1=q.M1; r.Mtot=q.Mtot; r.M2=q.M2;
       r.MsP+=q.M2; r.MsN+=q.M2; r.MuP+=q.M2; r.MuN+=q.M2; });
@@ -1332,32 +1339,69 @@ function scanInputs(tabNames){
 }
 // ── 連續梁預力次彎矩 M₂（等效載重法）───────────────────────
 // 鋼腱線形 e(x)：每跨為通過（端 e_L、跨中 e_mid、端 e_R）的拋物線，e 正＝形心下方。
-// 等效上揚 w_i = 8·P·a_i/L_i²（a_i＝相對弦線垂度）；支承處線形折角產生的集中力直接進支承、不生彎矩。
-// M_total = Σ(−w_i)×∫_span η dp（上揚＝負的向下載重）；M₁ = −P·e(x)；M₂ = M_total − M₁（支承間為直線）。
-// 連續梁鋼腱線形（純幾何）：每跨為通過（端 e_L、跨中 e_mid、端 e_R）的拋物線，e 正＝形心下方。
-// M₂（等效載重法）與 3D 共用這一份 → 3D 畫出來的線形就是算 M₂ 用的線形，不會漂移。
-function contTendonSegs(spans, eEnd, eMid, ePier){
-  var xs=[0], acc=0;
+// 連續梁鋼腱線形（純幾何・分段拋物線）——M₂（等效載重法）與 3D 共用這一份，只有一份故不會漂移。
+//
+// 單一拋物線通過（端／跨中／墩）三點是錯的：墩上會形成折角、且全跨凹向一致沒有反曲點。
+// 實際線形由多段拋物線拼接（G1 §五之補，FHWA Eqn. 3.30–3.35）：
+//   ・墩頂段：頂點在墩心（該處斜率 0 → 圓滑高點，不是尖角），長度 b₁ = kPier×該側跨長
+//     （FHWA Ch.5 §10.3：0.10~0.15×相鄰跨徑）
+//   ・跨中段：頂點在低點（斜率 0）；端跨低點在 rEnd×跨長（FHWA 0.35~0.45），內跨在中點
+//   ・坡度連續條件 h₁/b₁ = h₂/b₂ → 由 h₁+h₂=Δ、b₁+b₂=s 解得 h_i = Δ·b_i/s（唯一決定）
+//   ・反曲點即落在墩頂段與跨中段的交界（曲率由 hog 轉 sag）
+// 各段以頂點式 e(x) = ev + c·(x−xv)² 表示；e 正＝形心下方。
+function contTendonSegs(spans, eEnd, eMid, ePier, opt){
+  opt=opt||{};
+  var kP=opt.kPier==null?0.12:opt.kPier, rE=opt.rEnd==null?0.42:opt.rEnd;
+  var xs=[0], acc=0, n=spans.length, i;
   spans.forEach(function(L){ acc+=L; xs.push(acc); });
-  var segs=spans.map(function(L,i){
-    var eL=(i===0?eEnd:ePier), eR=(i===spans.length-1?eEnd:ePier);
-    return {x1:xs[i], x2:xs[i+1], L:L, eL:eL, eR:eR, a:(eMid-(eL+eR)/2)/1000};  // a: m（相對弦線垂度，正＝下垂）
+  var lows=spans.map(function(L,i){                     // 各跨低點里程
+    if(n===1) return xs[0]+L/2;
+    if(i===0) return xs[0]+rE*L;
+    if(i===n-1) return xs[n-1]+(1-rE)*L;
+    return xs[i]+L/2;
   });
+  var segs=[], infl=[];
+  function push(x1,x2,xv,ev,c,kind){ if(x2>x1+1e-9) segs.push({x1:x1,x2:x2,xv:xv,ev:ev,c:c,kind:kind}); }
+  function halfToPier(xl, xp, L, dirLeftToRight){       // 低點↔墩心：墩頂段＋跨中段，坡度連續
+    var s=Math.abs(xp-xl), b1=Math.min(kP*L, s*0.9), b2=s-b1, D=eMid-ePier;
+    var h1=D*b1/s, h2=D*b2/s;
+    if(dirLeftToRight){                                 // 低點在左、墩在右
+      push(xl, xp-b1, xl, eMid, -h2/(b2*b2), 'sag');
+      push(xp-b1, xp, xp, ePier, h1/(b1*b1), 'hog');
+      infl.push(xp-b1);
+    }else{                                              // 墩在左、低點在右
+      push(xp, xp+b1, xp, ePier, h1/(b1*b1), 'hog');
+      push(xp+b1, xl, xl, eMid, -h2/(b2*b2), 'sag');
+      infl.push(xp+b1);
+    }
+  }
+  for(i=0;i<n;i++){
+    var L=spans[i], xa=xs[i], xb=xs[i+1], xl=lows[i], be, he;
+    if(i===0){ be=xl-xa; he=eMid-eEnd;                   // 端錨 → 低點：單段，頂點在低點
+               push(xa, xl, xl, eMid, -he/(be*be), 'sag'); }
+    else       halfToPier(xl, xa, L, false);
+    if(i===n-1){ be=xb-xl; he=eMid-eEnd;
+                 push(xl, xb, xl, eMid, -he/(be*be), 'sag'); }
+    else         halfToPier(xl, xb, L, true);
+  }
   function eAt(x){                                      // 該里程的鋼腱偏心（mm，正＝形心下方）
     for(var i=0;i<segs.length;i++){ var g=segs[i];
-      if(x>=g.x1-1e-9&&x<=g.x2+1e-9){ var t=(x-g.x1)/g.L;
-        return g.eL+(g.eR-g.eL)*t+4*(eMid-(g.eL+g.eR)/2)*t*(1-t); } }
-    return 0;
+      if(x>=g.x1-1e-9&&x<=g.x2+1e-9){ var d=x-g.xv; return g.ev+g.c*d*d; } }
+    var q=segs[segs.length-1], d2=x-q.xv; return q.ev+q.c*d2*d2;
   }
-  return {segs:segs, eAt:eAt, sx:xs, total:acc};
+  return {segs:segs, eAt:eAt, sx:xs, lows:lows, infl:infl, total:acc, kPier:kP, rEnd:rE};
 }
-function contPrestressM2(C, PeN, eEnd, eMid, ePier){
+// 等效載重：拋物線段 e=ev+c(x−xv)² 的曲率 e''=2c → 等效上揚 w = −P·e''（sag 段 c<0 → 上揚；
+// hog 段 c>0 → 向下）。段交界坡度連續故無集中角變化力；端錨的垂直分力直接進端支承、不生彎矩。
+// ⚠ 端錨偏心彎矩 M=P·e_end 未計入（e_end 預設 0）。
+// M_total = Σ(−w_i)×∫_seg η dp；M₁ = −P·e(x)；M₂ = M_total − M₁（支承間為直線，可自我檢核）。
+function contPrestressM2(C, PeN, eEnd, eMid, ePier, opt){
   var P=PeN/1e3;                                        // P: kN
-  var tp=contTendonSegs(C.spans, eEnd, eMid, ePier), eAt=tp.eAt;
+  var tp=contTendonSegs(C.spans, eEnd, eMid, ePier, opt), eAt=tp.eAt;
   var segs=tp.segs.map(function(g){
-    return {x1:g.x1, x2:g.x2, L:g.L, eL:g.eL, eR:g.eR, a:g.a, w:8*P*g.a/(g.L*g.L)};  // w: kN/m 上揚
+    return {x1:g.x1, x2:g.x2, kind:g.kind, w:-2*g.c*P/1000};   // w: kN/m，正＝上揚
   });
-  return {segs:segs, eAt:eAt,
+  return {segs:segs, eAt:eAt, infl:tp.infl, lows:tp.lows,
     at:function(t){                                     // t＝節點索引
       var il=IL.solveIL(C.m,t,'M'), Mtot=0;
       segs.forEach(function(g){ Mtot+=(-g.w)*IL.ilAreaRange(C.m.nodes,il,g.x1,g.x2); });
@@ -1380,7 +1424,7 @@ var PARAM_KEYS=[
   'Tu','dMfat','deltaS','jointSh',
   // ⑦ 連續梁
   'contMuP','contApsTop','contSpans','contAuto','contB','contHf','contBw','contDp',
-  'contM2On','contPeAuto','contPe','contEEnd','contEMid','contEPier','lbrTarget','sigLimBot',
+  'contM2On','contPeAuto','contPe','contEEnd','contEMid','contEPier','contKPier','contREnd','lbrTarget','sigLimBot',
   // ⑧ 施工
   'cFci','cBridge','cNBatch','cHpier','cHmid','cHalf','cXq','cFtLoad','cFtArm','cDelas','cPhi',
   'cW','cLc','cL4','cA4','cZb4','cSigRes','cPper','cMu','cWtot','cRbrg','cAbrg',
@@ -1411,8 +1455,10 @@ function calc(){
       var wDC=sec.A/1e6*24.5;
       var ten=window.BC.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu);
       var PeC=this.contPeAuto ? window.BC.computeLosses(ten,sec,0,0).Pe : this.contPe*1e3;
-      var pt={Pe:this.contM2On?PeC:0, eEnd:this.contEEnd, eMid:this.contEMid, ePier:this.contEPier};
-      var key=[sp.join('+'),this.lanes,wDC.toFixed(3),this.wDW,pt.Pe.toFixed(0),pt.eEnd,pt.eMid,pt.ePier].join('|');
+      var pt={Pe:this.contM2On?PeC:0, eEnd:this.contEEnd, eMid:this.contEMid, ePier:this.contEPier,
+              kPier:this.contKPier, rEnd:this.contREnd};
+      var key=[sp.join('+'),this.lanes,wDC.toFixed(3),this.wDW,pt.Pe.toFixed(0),pt.eEnd,pt.eMid,pt.ePier,
+               pt.kPier,pt.rEnd].join('|');
       if(cbCache.key!==key){ cbCache.key=key; cbCache.val=contEnvelope(sp,wDC,this.wDW,this.lanes,pt); }
       return cbCache.val;
     },
@@ -1480,7 +1526,8 @@ function calc(){
     // 3D 幾何來源：單跨走 ① 的拋物線；勾「連續梁」則走 ⑦ 的多跨線形（與 M₂ 同一個 eAt）
     get P3D(){
       var yb=this.R.sec.yb, C=this.v3d.cont?this.CB:null, spans, eAt, sx, tot, eMid;
-      if(C){ var tp=contTendonSegs(C.spans,this.contEEnd,this.contEMid,this.contEPier);
+      if(C){ var tp=contTendonSegs(C.spans,this.contEEnd,this.contEMid,this.contEPier,
+                                   {kPier:this.contKPier,rEnd:this.contREnd});
              spans=C.spans; eAt=tp.eAt; sx=tp.sx; tot=tp.total; eMid=this.contEMid; }
       else { var L=this.L, e=this.e; spans=[L]; sx=[0,L]; tot=L; eMid=e;
              eAt=function(x){ return 4*e*x*(L-x)/(L*L) }; }
@@ -1495,6 +1542,11 @@ function calc(){
     get DLpier(){ var yb=this.R.sec.yb;
       return window.BC.ductLayout(this.ntd,this.nWeb,yb-this.contEPier,
         {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h}); },
+    // 墩頂可行的最負偏心（腱束頂層管外緣恰落在頂緣保護層上）
+    get ePierMax(){ var d=this.DLpier;
+      return Math.ceil(this.R.sec.yb-this.h+this.ductCover+this.ductOD/2+(d.yTop-d.yCgs)); },
+    applyEPier(){ this.contEPier=this.ePierMax;
+      this.msgIO='已套用墩頂偏心上限 e_pier='+this.contEPier+' mm（腱束頂層管外緣恰落在頂緣保護層上）'; },
     get cut3d(){ var q=this.P3D, tot=q.tot, x=this.v3d.cutT*tot, d=Math.max(1e-3,tot*0.001);
       var x1=Math.max(0,x-d), x2=Math.min(tot,x+d), ex=q.eAt(x);
       return {x:x, e:ex, cgs:this.R.sec.yb-ex, slope:(q.eAt(x2)-q.eAt(x1))/((x2-x1)*1000)}; },   // 同 M₂／引擎 Vp 所用線形
@@ -1605,7 +1657,7 @@ function calc(){
     contMuP:75337, contApsTop:11292,
     contSpans:'40,40', contAuto:true,
     contM2On:true, contPeAuto:true, contPe:23724,        // ⑦ 次彎矩：是否計入、Pe 來源（自動＝依③鋼腱配置）
-    contEEnd:0, contEMid:1109, contEPier:-900,          // 鋼腱線形控制點（mm，正＝形心下方）         // ⑦ 連續梁：跨長組成、Mu 自動由包絡帶入
+    contEEnd:0, contEMid:1109, contEPier:-900, contKPier:0.12, contREnd:0.42,          // 鋼腱線形控制點（mm，正＝形心下方）         // ⑦ 連續梁：跨長組成、Mu 自動由包絡帶入
     contB:1400, contHf:200, contBw:700, contDp:1950,   // 中墩受壓區（底板寬/厚、腹板合計寬、d_p）
     lbrTarget:0.985, sigLimBot:0,      // 反解設計目標：荷重平衡率、底緣容許拉應力（台灣零拉=0）
     // ⑩ 補強（既有 RC 構材，中國 JTG）——預設＝R1/R2/R4 算例（重現 golden）

@@ -29,7 +29,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         n_tendons, jacking_force, bearing_stress,
                         segment_weight, joint_min_prestress, joint_compression,
                         shear_key_design_capacity, shear_key_utilization, bonded_pt_ratio,
-                        min_tendon_groups, required_drape, min_section_modulus_Sb)
+                        min_tendon_groups, required_drape, min_section_modulus_Sb,
+                        duct_layout, duct_spacing_required)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -53,6 +54,9 @@ sp = spiral_local_bearing(an.Pu, 2919, 8.47, 104044, 50, 380)   # 螺旋圍束 D
 ten21 = Tendon(8, 21, 1109)                                     # G1 HL-93 敘述軌
 w_DL_g1 = 8 * (M_DC + M_DW) * 1e6 / 40000 ** 2                  # = 144 kN/m
 g1 = tendon_profile(ten21.Pi, compute_losses(ten21, sec, M_DC, M_DW).Pe, 1109, 40000, w_DL_g1)
+# G1 管道實配：參考橋 8 組 / 2 腹板 / φ100 / 腹板 350 / 保護層 75 / 垂直淨距 100
+dl = duct_layout(8, 2, sec.yb - 1109, duct_od=100, web_t=350, cover=75, s_v=100, d_agg=25,
+                 y_b=sec.yb, h=2100)
 f2 = general_zone_burst(14850e3, 1050, 2100, 150, L.Pe, sec.A, 540000, 12830e3, 40, 420)
 h8 = batched_transfer(29700e3, 8, 8, sec, 1109, 32)            # S2 全 PT
 h4 = batched_transfer(29700e3, 4, 8, sec, 1109, 32)            # S2 分批 4 組
@@ -185,6 +189,17 @@ golden = {
         "LBR_service": round(g1.LBR_service, 3), "friction_single_end": round(g1.fric_single_end, 3),
         "friction_dual_mid": round(g1.fric_dual_mid, 3), "R_ok": g1.R_ok,
         "_note": "拋物線等效荷載法 w_eq=8Pa/L²；對齊算例_鋼腱線形設計(8組×21股HL-93軌)；w_DL=8(M_DC+M_DW)/L²=144與參考橋自洽"},
+    "duct_layout_G1": {
+        "config": "參考橋 8組/2腹板/φ100管/腹板350/保護層75/垂直淨距100/骨材25",
+        "n_col": dl.n_col, "n_row": dl.n_row,
+        "s_req_mm": round(dl.s_req, 1), "s_h_mm": round(dl.s_h, 1),
+        "web_avail_mm": round(dl.web_avail, 1), "pitch_v_mm": round(dl.pitch_v, 1),
+        "rows_y_mm": [round(y, 1) for y, _ in dl.rows],
+        "y_cgs_mm": round(dl.y_cgs, 1), "y_bot_mm": round(dl.y_bot, 1),
+        "cover_bot_mm": round(dl.cover_bot, 1),
+        "cover_ok": dl.cover_ok, "s_v_ok": dl.s_v_ok, "s_h_ok": dl.s_h_ok, "fits": dl.fits,
+        "e_max_mm": round(dl.e_max, 1), "e_max_point_mm": round(dl.e_max_point, 1),
+        "_note": "實配排列：每腹板由下往上逐層填滿、整體平移使形心=分析用CGS。淨間距需求 max(40,1.5d_agg,OD) 台灣§8.25.2。e_max(實配) < e_max_point(單點簡化)——算例_鋼腱線形設計的1204是把8腱視為一點的上限"},
     "stm_F2": {
         "config": "8組×19股 (參考橋, 端橫隔版 General Zone)",
         "sigma_pe_MPa": round(f2.sigma_pe, 2), "T_burst_kN": round(f2.T_burst / 1e3),

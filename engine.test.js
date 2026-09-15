@@ -48,6 +48,30 @@ function chkEq(name, got, exp) {
   chk('設計 最小鋼腱組數', BC.minTendonGroups(Pe_min, 19, L.fpe), g.design_inverse.min_tendon_groups, 0);
   chk('設計 所需垂度(LBR0.985)', BC.requiredDrape(0.985, w_DL, 40000, Pe21), g.design_inverse.required_drape_LBR0985_mm, 2);
   chk('設計 最小 Sb', BC.minSectionModulusSb(L.Pe, sec.A, t.e, c.Service_I, 0) / 1e9, g.design_inverse.min_Sb_zero_tension_e9mm3, 0.01);
+  // G1 管道實配（duct_layout 移植）：對 duct_layout_G1 golden ＋ 形心守恆自檢
+  (function () {
+    var dg = g.duct_layout_G1;
+    var d = BC.ductLayout(8, 2, sec.yb - 1109, { od: 100, webT: 350, cover: 75, sv: 100, dAgg: 25, yb: sec.yb, h: 2100 });
+    chk('G1 曲率半徑 R(m)', BC.radiusOfCurvature(1109, 40000) / 1000, g.tendon_profile_G1.R_m, 0.5);
+    chkEq('G1 實配 列數', d.nCol, dg.n_col);
+    chkEq('G1 實配 層數', d.nRow, dg.n_row);
+    chk('G1 實配 淨間距需求', d.sReq, dg.s_req_mm, 0.1);
+    chk('G1 實配 腹板可用寬', d.webAvail, dg.web_avail_mm, 0.1);
+    chk('G1 實配 層距', d.pitchV, dg.pitch_v_mm, 0.1);
+    chk('G1 實配 最底層 y', d.yBot, dg.y_bot_mm, 0.1);
+    chk('G1 實配 底層管外緣', d.coverBot, dg.cover_bot_mm, 0.1);
+    chkEq('G1 實配 保護層 OK', d.coverOk, dg.cover_ok);
+    chkEq('G1 實配 可排下', d.fits, dg.fits);
+    chk('G1 實配 e_max', d.eMax, dg.e_max_mm, 0.5);
+    chk('G1 單點簡化 e_max', d.eMaxPoint, dg.e_max_point_mm, 0.5);
+    d.rows.forEach(function (r, i) { chk('G1 實配 第' + (i + 1) + '層 y', r.y, dg.rows_y_mm[i], 0.1); });
+    // 形心守恆：3D 畫多腱不得改變引擎在用的偏心 e（含餘數層的不對稱填充）
+    [[8, 2, 350, 100], [5, 1, 500, 100], [12, 3, 600, 60], [7, 2, 450, 50]].forEach(function (cs) {
+      var q = BC.ductLayout(cs[0], cs[1], 260, { od: 90, webT: cs[2], cover: 50, sv: cs[3], dAgg: 20 }), tot = 0, cnt = 0;
+      q.rows.forEach(function (r) { tot += r.y * r.count; cnt += r.count; });
+      chk('G1 實配 形心守恆 n=' + cs[0] + '/web' + cs[1], tot / cnt, 260, 1e-6);
+    });
+  })();
   chk('C1 底緣σ', s.sb, g.service.sigma_bot_MPa, 0.06);
   chk('C1 頂緣σ', s.st, g.service.sigma_top_MPa, 0.06);
   chk('D1 fpc', sh.fpc, g.shear_D1.fpc_MPa, 0.05);

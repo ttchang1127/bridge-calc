@@ -31,7 +31,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         launching_bottom_stress, n_tendons, jacking_force, bearing_stress,
                         segment_weight, joint_min_prestress, joint_compression,
                         shear_key_design_capacity, shear_key_utilization, bonded_pt_ratio,
-                        min_tendon_groups, required_drape, min_section_modulus_Sb)
+                        min_tendon_groups, required_drape, min_section_modulus_Sb,
+                        duct_layout, duct_spacing_required)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -337,6 +338,69 @@ def test_load_standard_drives_strand_count():
     assert L19.Pe < Pe_min_zero_tension(sec, ten.e, M_HL93)       # → HL-93 需 21 股
     _, sb_hs20 = stresses(L19.Pe, sec, ten.e, combinations(M_DC, M_DW, M_LL_IM)["Service_I"])
     assert sb_hs20 <= 0                                           # HS20-44 下底緣全壓（19 股足夠）
+
+
+def test_duct_layout_G1():
+    """G1 管道實配排列：參考橋 8 組 / 2 腹板 / φ100 / 腹板 350。
+
+    分析用 CGS 是把 n 組視為一點；實配要排 n_col 列 × n_row 層，最底層必低於 CGS。
+    腹板可用寬 350−2×75=200，淨間距需求 max(40,1.5×25,100)=100 → 單列 4 層，
+    最底層管外緣落在梁底以下 130 mm ⇒ 此配置實際排不下（分析卻看不出來）。
+    """
+    d = duct_layout(8, 2, sec.yb - 1109, duct_od=100, web_t=350, cover=75,
+                    s_v=100, d_agg=25, y_b=sec.yb, h=2100)
+    assert duct_spacing_required(100, 25) == 100          # 孔道外徑控制（非 40）
+    assert (d.n_col, d.n_row) == (1, 4)
+    assert d.per_web == [4, 4]
+    _close(d.web_avail, 200, 0.1)
+    _close(d.pitch_v, 200, 0.1)
+    _close(d.y_bot, -80, 0.1)
+    _close(d.cover_bot, -130, 0.1)
+    assert not d.cover_ok and not d.fits
+    assert d.s_v_ok and d.s_h_ok
+    _close(d.e_max, 904, 0.5)                             # 實配上限
+    _close(d.e_max_point, 1204, 0.5)                      # 算例的單點簡化上限
+    assert d.e_max < d.e_max_point                        # 實配一定比單點嚴
+
+
+def test_duct_layout_centroid_preserved():
+    """實配形心必須恰等於分析用的 CGS——3D 畫多腱不得改變引擎在用的偏心 e。
+
+    含餘數層（5 腱 / 2 列 → 2+2+1）；不對稱填充時平移量不是層距的整數倍。
+    """
+    for n, nw, wt, sv in ((8, 2, 350, 100), (5, 1, 500, 100), (12, 3, 600, 60), (7, 2, 450, 50)):
+        d = duct_layout(n, nw, 260, duct_od=90, web_t=wt, cover=50, s_v=sv, d_agg=20)
+        ys = [y for y, c in d.rows for _ in range(c)]
+        assert len(ys) == d.n_per_web
+        _close(sum(ys) / len(ys), 260, 1e-6)              # 形心守恆
+        assert d.rows[0][0] == min(ys) and d.rows[-1][0] == max(ys)
+    d5 = duct_layout(5, 1, 260, duct_od=90, web_t=500, cover=50, s_v=100, d_agg=20)
+    assert [c for _, c in d5.rows] == [2, 2, 1]           # 由下往上逐層填滿
+
+
+def test_duct_layout_checks():
+    """三項構造檢核各自可獨立觸發，且 e_max 反推自洽。"""
+    base = dict(duct_od=100, web_t=500, cover=75, d_agg=25, y_b=1329, h=2100)
+    wide = duct_layout(8, 2, 1329 - 1109, s_v=100, **base)
+    assert wide.n_col == 2 and wide.n_row == 2            # 腹板加厚 → 兩列兩層
+    _close(wide.s_h, 150, 0.1)
+
+    loose = duct_layout(8, 2, 1329 - 1109, s_v=40, **base)
+    assert not loose.s_v_ok                               # 40 < 需求 100
+    assert loose.cover_ok                                 # 但層距變小 → 保護層反而過
+
+    thin = duct_layout(8, 2, 1329 - 1109, s_v=100, duct_od=100, web_t=220,
+                       cover=75, d_agg=25, y_b=1329, h=2100)
+    assert not thin.s_h_ok                                # 可用寬 70 < 管徑 100
+
+    # e = e_max 時，最底層管外緣恰落在保護層上
+    at_max = duct_layout(8, 2, 1329 - wide.e_max, s_v=100, **base)
+    _close(at_max.cover_bot, 75, 0.5)
+
+    tall = duct_layout(8, 1, 1329, s_v=100, duct_od=100, web_t=250,
+                       cover=75, d_agg=25, y_b=1329, h=2100)
+    assert (tall.n_col, tall.n_row) == (1, 8)             # 薄腹板單列 → 8 腱疊 8 層
+    assert not tall.top_ok                                # 疊高 1,400 → 頂層穿出斷面頂緣
 
 
 def test_tendon_profile_G1():

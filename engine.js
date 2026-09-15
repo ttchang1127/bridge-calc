@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 116 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 136 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -129,6 +129,54 @@
   BC.minSectionModulusSb = function (Pe, A, e, M_kNm, sigma_tension_limit) {
     var lim = sigma_tension_limit == null ? 0 : sigma_tension_limit;
     return (M_kNm * 1e6 - Pe * e) / (lim + Pe / A);
+  };
+
+  // ── 管道實配排列 G1（tendon_profile.duct_layout 移植）───
+  // 分析用的 CGS 是「n 組腱視為一點」的簡化；實配要排 n_col 列 × n_row 層，最底層
+  // 必低於 CGS。排完整體平移使實配形心 = y_cgs，故引擎在用的偏心 e 不因實配改變。
+  // 淨間距需求 max(40, 1.5·d_agg, 孔道外徑)：台灣 §8.25.2（公式卡 B3 §4-1）。
+  // ⚠ 公式卡 G1 §7.1 表列台灣僅「≥40 mm」未含孔道外徑，兩卡不一致 → 取嚴格者。
+  BC.ductSpacingRequired = function (od, dAgg) {
+    dAgg = dAgg == null ? 25 : dAgg;
+    return Math.max(40, 1.5 * dAgg, od);
+  };
+  // 拋物線最小曲率半徑 R = L²/(8a)（mm）；台灣金屬波形管 ≥6,000、日本 ≥100×管道外徑
+  BC.radiusOfCurvature = function (a, L) { return L * L / (8 * a); };
+  BC.ductLayout = function (nTendons, nWeb, yCgs, o) {
+    o = o || {};
+    var od = o.od == null ? 100 : o.od, webT = o.webT == null ? 350 : o.webT,
+        cover = o.cover == null ? 75 : o.cover, sv = o.sv == null ? 100 : o.sv,
+        dAgg = o.dAgg == null ? 25 : o.dAgg, yb = o.yb, h = o.h;
+    nWeb = Math.max(1, nWeb | 0); var n = Math.max(1, nTendons | 0);
+    var base = Math.floor(n / nWeb), rem = n % nWeb, perWeb = [], i, j;
+    for (i = 0; i < nWeb; i++) perWeb.push(base + (i < rem ? 1 : 0));
+    var nPerWeb = Math.max.apply(null, perWeb);
+
+    var sReq = BC.ductSpacingRequired(od, dAgg), avail = webT - 2 * cover;
+    var nCol = avail >= od ? Math.floor((avail + sReq) / (od + sReq)) : 0;
+    nCol = Math.max(1, nCol);                       // 至少畫一列；放不下時由 sHOk 報 ✗
+    var sH = nCol > 1 ? (avail - nCol * od) / (nCol - 1) : avail - od;
+    var sHOk = avail >= od && (nCol === 1 || sH >= sReq - 1e-9);
+
+    var nRow = Math.ceil(nPerWeb / nCol), pitchV = od + sv, counts = [];
+    for (i = 0; i < nRow; i++) counts.push(Math.min(nCol, nPerWeb - i * nCol));
+    var sum = 0; for (i = 0; i < nRow; i++) sum += counts[i] * i * pitchV;
+    var relCgs = sum / nPerWeb, shift = yCgs - relCgs, rows = [];
+    for (i = 0; i < nRow; i++) rows.push({ y: i * pitchV + shift, count: counts[i] });
+
+    var pitchH = od + (nCol > 1 ? sH : 0), xs = [];
+    for (j = 0; j < nCol; j++) xs.push((j - (nCol - 1) / 2) * pitchH);
+
+    var yBot = rows[0].y, yTop = rows[nRow - 1].y, coverBot = yBot - od / 2;
+    var coverOk = coverBot >= cover - 1e-9, svOk = sv >= sReq - 1e-9;
+    var topOk = h == null ? true : (yTop + od / 2 <= h - cover + 1e-9);
+    return { nPerWeb: nPerWeb, perWeb: perWeb, nCol: nCol, nRow: nRow, rows: rows,
+             xOffsets: xs, pitchV: pitchV, sReq: sReq, sH: sH, sv: sv, webAvail: avail,
+             yCgs: yCgs, yBot: yBot, yTop: yTop, coverBot: coverBot,
+             coverOk: coverOk, svOk: svOk, sHOk: sHOk, topOk: topOk,
+             fits: coverOk && svOk && sHOk && topOk,
+             eMax: yb == null ? null : yb - (cover + od / 2 + relCgs),
+             eMaxPoint: yb == null ? null : yb - cover - od / 2 };
   };
 
   // ── 腹板抗剪 D1 ───────────────────────────────────────

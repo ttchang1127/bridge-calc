@@ -130,7 +130,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <tr><th>跨徑／斷面</th><td x-text="L+' m　｜　頂寬 '+topW+' × 高 '+h+' mm　｜　f\'c = '+fc+' MPa'"></td></tr>
     <tr><th>箱梁檢核結果</th><td x-text="R.npass+' / '+R.ntot+' 通過'+(R.matchGolden?'（對齊 40m 黃金範例）':'')"></td></tr>
   </table>
-  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 116 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
+  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 136 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
 </div>
 
 <!-- 送審計算書：目錄 -->
@@ -150,7 +150,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <div class="bar no-print">
   <div class="bar-row">
-    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 116 項驗證）</div></div>
+    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 136 項驗證）</div></div>
   </div>
   <div class="bar-row" style="margin-top:8px">
     <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
@@ -219,6 +219,11 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <label><input type="checkbox" x-model="v3d.anchor" @change="apply3D()"> 錨頭</label>
         <label><input type="checkbox" x-model="v3d.cutOn" @change="apply3D()"> 剖切</label>
         <label><input type="checkbox" x-model="v3d.axes" @change="apply3D()"> 座標軸</label>
+        <label><input type="checkbox" x-model="v3d.cover" @change="apply3D()"> 保護層界線</label>
+        <label>垂直放大
+          <select x-model.number="v3d.vz" style="height:26px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:12px">
+            <template x-for="z in [1,2,3,5,8]" :key="z"><option :value="z" x-text="'×'+z"></option></template>
+          </select></label>
         <span class="vbtns">
           <template x-for="b in [['iso','等角'],['plan','平面'],['elev','縱剖'],['sect','橫斷']]" :key="b[0]">
             <button class="vbtn" :class="{'on':v3d.view===b[0]}" @click="view3D(b[0])" x-text="b[1]"></button>
@@ -232,9 +237,11 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <div class="metric"><div class="l">剖切處偏心 e(x)</div><div class="v" x-text="fmt(cut3d.e)+' mm'"></div></div>
         <div class="metric"><div class="l">該處 CGS 距梁底</div><div class="v" x-text="fmt(cut3d.cgs)+' mm'"></div></div>
         <div class="metric"><div class="l">該處鋼腱斜率</div><div class="v" x-text="cut3d.slope.toFixed(4)"></div></div>
-        <div class="metric"><div class="l">腹板數／鋼腱管</div><div class="v" x-text="nWeb+' 腹板'"></div></div>
+        <div class="metric"><div class="l">實配排列</div><div class="v" x-text="nWeb+' 腹板 × '+DL.nCol+'列'+DL.nRow+'層'"></div></div>
+        <div class="metric"><div class="l">管道外徑／最底層外緣</div>
+          <div class="v" :class="DL.coverOk?'':'ng'" x-text="'φ'+ductOD+' / '+fmt(DL.coverBot)+' mm'"></div></div>
       </div>
-      <div class="cite">左鍵拖曳旋轉、<b>中鍵（或 Shift＋左鍵、右鍵）拖曳平移</b>、滾輪縮放，〔等角〕可歸位；〔平面〕〔縱剖〕〔橫斷〕為近似平行投影的標準視圖。座標軸：X 橫向、Y 自梁底向上、Z 沿橋長（0＝起點）。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；鋼腱每腹板畫一條<b>合力中心 CGS</b>（引擎 Vp 亦按 P<sub>e</sub>/腹板數計）。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
+      <div class="cite">左鍵拖曳旋轉、<b>中鍵（或 Shift＋左鍵、右鍵）拖曳平移</b>、滾輪縮放，〔等角〕可歸位；〔平面〕〔縱剖〕〔橫斷〕為近似平行投影的標準視圖。座標軸：X 橫向、Y 自梁底向上、Z 沿橋長（0＝起點）。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；鋼腱依 <code>BC.ductLayout</code> 的<b>實配排列逐條畫</b>（<span x-text="ntd"></span> 組分到 <span x-text="nWeb"></span> 腹板，每腹板 <span x-text="DL.nCol"></span> 列 × <span x-text="DL.nRow"></span> 層，管徑＝輸入的 φ<span x-text="ductOD"></span>）；各腱＝CGS 拋物線加固定偏移，<b>實配形心恆等於引擎在用的 e</b>（引擎 Vp 仍按 P<sub>e</sub>/腹板數計）。<b>橘色管</b>＝該腱最低點已低於清保護層；綠線＝保護層下限。〔垂直放大〕只放大 Y 向以看清分層，<b>該狀態下斷面比例失真</b>，量測請回 2D 斷面圖。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
      </div>
     </template>
   </div>
@@ -304,6 +311,51 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </div>
     <div class="hint">每股面積 Ap = <b x-text="strandAp"></b> mm²（型號自動帶）・f_pu = <b x-text="strandFpu"></b> MPa　→　總鋼腱面積 A_ps = <span x-text="ntd"></span>組×<span x-text="strands"></span>股×<span x-text="strandAp"></span> = <b x-text="(ntd*strands*strandAp).toLocaleString('en-US')"></b> mm²・初拉力 P_i = <b x-text="(R.tenPi/1e3).toLocaleString('en-US',{maximumFractionDigits:0})"></b> kN</div>
   </div>
+  <div class="card"><h2>管道實配與構造檢核（G1 §7）</h2>
+    <div class="grid no-print" style="margin-bottom:10px">
+      <label>管道外徑 φ (mm)<input type="number" x-model.number="ductOD" step="5"></label>
+      <label>腱間垂直淨距 s_v (mm)<input type="number" x-model.number="ductSv" step="5"></label>
+      <label>管道清保護層 (mm)<input type="number" x-model.number="ductCover" step="5"></label>
+      <label>最大骨材粒徑 (mm)<input type="number" x-model.number="dAgg" step="1"></label>
+    </div>
+    <table>
+      <thead><tr><th>檢核項目</th><th>實配</th><th>需求</th><th style="width:44px">判定</th><th class="no-print" style="width:60px"></th></tr></thead>
+      <tbody>
+        <tr><td>腹板內排列</td>
+            <td x-text="DL.nCol+' 列 × '+DL.nRow+' 層'"></td>
+            <td x-text="ntd+' 組 / '+nWeb+' 腹板 → 每腹板 '+DL.perWeb.join('、')+' 腱'"></td>
+            <td style="text-align:center" class="mut">—</td><td class="no-print"></td></tr>
+        <tr><td>水平淨距 s<sub>h</sub>（腹板可用寬 <span x-text="fmt(DL.webAvail)"></span> mm）</td>
+            <td x-text="DL.nCol>1 ? fmt(DL.sH)+' mm' : '單列（餘裕 '+fmt(DL.sH)+' mm）'"></td>
+            <td x-text="'≥ '+fmt(DL.sReq)+' mm'"></td>
+            <td style="text-align:center" :class="DL.sHOk?'ok':'ng'" x-text="DL.sHOk?'✓':'✗'"></td><td class="no-print"></td></tr>
+        <tr><td>垂直淨距 s<sub>v</sub>（層距 <span x-text="fmt(DL.pitchV)"></span> mm）</td>
+            <td x-text="fmt(ductSv)+' mm'"></td>
+            <td x-text="'≥ '+fmt(DL.sReq)+' mm'"></td>
+            <td style="text-align:center" :class="DL.svOk?'ok':'ng'" x-text="DL.svOk?'✓':'✗'"></td><td class="no-print"></td></tr>
+        <tr><td>最底層管外緣距梁底</td>
+            <td x-text="fmt(DL.coverBot)+' mm'"></td>
+            <td x-text="'≥ '+fmt(ductCover)+' mm（清保護層）'"></td>
+            <td style="text-align:center" :class="DL.coverOk?'ok':'ng'" x-text="DL.coverOk?'✓':'✗'"></td><td class="no-print"></td></tr>
+        <tr><td>最頂層管外緣距梁頂</td>
+            <td x-text="fmt(h-(DL.yTop+ductOD/2))+' mm'"></td>
+            <td x-text="'≥ '+fmt(ductCover)+' mm'"></td>
+            <td style="text-align:center" :class="DL.topOk?'ok':'ng'" x-text="DL.topOk?'✓':'✗'"></td><td class="no-print"></td></tr>
+        <tr><td>最小曲率半徑 R ＝ L²/(8a)</td>
+            <td x-text="fmt(ductR.R/1000,1)+' m'"></td>
+            <td x-text="'≥ 6.0 m（台灣金屬波形管）；日本 ≥ '+fmt(ductR.reqJP/1000,1)+' m（100φ）'"></td>
+            <td style="text-align:center" :class="ductR.okTW?'ok':'ng'" x-text="ductR.okTW?'✓':'✗'"></td><td class="no-print"></td></tr>
+        <tr><td>偏心 e（受實配排列控制）</td>
+            <td x-text="fmt(e)+' mm'"></td>
+            <td x-text="'≤ '+fmt(DL.eMax)+' mm（實配上限）'"></td>
+            <td style="text-align:center" :class="e<=DL.eMax+0.5?'ok':'ng'" x-text="e<=DL.eMax+0.5?'✓':'✗'"></td>
+            <td class="no-print"><button class="btn" style="margin-left:0" @click="applyEMax()" :disabled="Math.abs(e-Math.floor(DL.eMax))<1">套用</button></td></tr>
+      </tbody>
+    </table>
+    <div class="hint" :class="DL.fits?'':'no-print'" x-show="!DL.fits" x-cloak style="color:var(--ng)">✗ 此配置實際排不下。可行對策：①降低偏心至 <b x-text="fmt(DL.eMax)+' mm'"></b>（上方「套用」）②加厚腹板至可排兩列（需 <b x-text="fmt(2*ductOD+DL.sReq+2*ductCover)+' mm'"></b>）③增加腹板數 ④減少每組股數改用較小管徑。</div>
+    <div class="hint">單點簡化上限 ȳ<sub>b</sub>−c−φ/2 ＝ <b x-text="fmt(DL.eMaxPoint)+' mm'"></b>（算例_鋼腱線形設計的 1,204 即此式）；<b>考慮實際 <span x-text="DL.nRow"></span> 層排列後降為 <span x-text="fmt(DL.eMax)"></span> mm</b>——兩者差 <span x-text="fmt(DL.eMaxPoint-DL.eMax)"></span> mm 即分層的代價。</div>
+    <div class="cite">實配由 <code>engine.js</code> 的 <code>BC.ductLayout</code> 計算（＝Python <code>bridgecalc.duct_layout</code>，對 <code>duct_layout_G1</code> golden 驗證）：每腹板由下往上逐層填滿、層距＝φ+s<sub>v</sub>，排完<b>整體平移使實配形心恰等於分析用的 CGS</b>，故上游應力／剪力計算所用的 e 不因實配改變。淨間距需求 max(40, 1.5×骨材粒徑, 孔道外徑)＝台灣規範 §8.25.2（公式卡 B3 §4-1）；⚠ 公式卡 G1 §7.1 表列台灣僅「≥40 mm」未含孔道外徑，兩卡敘述不一致，本工具取嚴格者。<b>第一版假設全部鋼腱配置於腹板內</b>；實務跨中可下探至底板腋部橫向鋪開，該情形尚未建模。</div>
+  </div>
   <div class="card"><h2>反解設計（給目標 → 算所需配置）</h2>
     <div class="grid no-print" style="margin-bottom:10px">
       <label>目標荷重平衡率 LBR<input type="number" x-model.number="lbrTarget" step="0.005"></label>
@@ -336,7 +388,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </table>
     <div class="hint" x-show="DS.lossBad" x-cloak style="color:var(--ng)">✗ 預力損失已達 <b x-text="fmt(DS.lossPct,1)+'%'"></b>（f<sub>pe</sub> 過低）——此配置不合理，反解結果不可用，請先加大斷面或減少鋼腱。</div>
     <div class="hint no-print" x-show="DS.cgsBot<100" x-cloak style="color:var(--ng)">⚠ 套用該垂度後 CGS 距梁底僅 <b x-text="fmt(DS.cgsBot)"></b> mm，請確認保護層與管道尺寸。</div>
-    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 42/42・JS 116/116）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
+    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 45/45・JS 136/136）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
   </div>
   <div class="card"><h2>鋼腱縱剖面（G1・拋物線）</h2>
     <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElev"></svg></div>
@@ -1075,6 +1127,7 @@ function bindOrbit(el){
 function fitView(target){
   var T=G3.T, g=G3.grp.box, cam=G3.cam; if(!T||!g||!cam) return;
   target=target||0.86;
+  G3.scene.updateMatrixWorld(true);                    // 垂直放大剛改時 world matrix 需先更新，否則框景漏算
   var bb=new T.Box3().setFromObject(g), pts=[];
   [bb.min.x,bb.max.x].forEach(function(x){ [bb.min.y,bb.max.y].forEach(function(y){
     [bb.min.z,bb.max.z].forEach(function(z){ pts.push(new T.Vector3(x,y,z)) }) }) });
@@ -1103,7 +1156,8 @@ function disposeGroups(){ var sc=G3.scene; if(!sc) return;
 function build3D(p){
   var T=G3.T, sc=G3.scene; if(!sc) return;
   disposeGroups();
-  var s=1/1000, H=p.h*s, L=p.L, yb=p.yb*s, e=p.e*s;
+  var s=1/1000, H=p.h*s, L=p.L, yb=p.yb*s, e=p.e*s, vz=p.vz||1;
+  var root=new T.Group(); root.scale.y=vz; sc.add(root); G3.grp.root=root;   // 垂直放大：看得出鋼腱分層
   var clip=G3.clip=new T.Plane(new T.Vector3(0,0,-1), L+1);
   var shape=sectionShape(T,p);
   var geo=new T.ExtrudeGeometry(shape,{depth:L,bevelEnabled:false,curveSegments:1});
@@ -1111,26 +1165,44 @@ function build3D(p){
   gBox.add(new T.Mesh(geo,new T.MeshLambertMaterial({color:0xbcd4f6,side:T.DoubleSide,clippingPlanes:[clip],
                      transparent:true,opacity:0.42})));  // 半透明：看得見腹板內鋼腱
   gBox.add(new T.LineSegments(new T.EdgesGeometry(geo,25),new T.LineBasicMaterial({color:0x1d4ed8,clippingPlanes:[clip]})));
-  sc.add(gBox); G3.grp.box=gBox;
-  var xs=webCenters(p), gT=new T.Group(), gA=new T.Group();
-  xs.forEach(function(xc){
-    var arr=[]; for(var k=0;k<=60;k++){ var z=L*k/60; arr.push(new T.Vector3(xc, yb-4*e*z*(L-z)/(L*L), z)); }
-    gT.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(arr),120,0.075,10,false),
-                      new T.MeshLambertMaterial({color:0xdc2626,clippingPlanes:[clip]})));
-    [0.07,L-0.07].forEach(function(z){
-      var m=new T.Mesh(new T.BoxGeometry(0.45,0.45,0.14),new T.MeshLambertMaterial({color:0x7c3aed}));
-      m.position.set(xc,yb,z); gA.add(m); });
+  root.add(gBox); G3.grp.box=gBox;
+  // 鋼腱：依 BC.ductLayout 的實配排列逐條畫（非一束 CGS）。每條 = CGS 拋物線 + 該腱
+  // 相對 CGS 的固定偏移；端部錨頭因此也分層，與端橫隔版上的錨頭陣列一致。
+  var xs=webCenters(p), lay=p.lay, gT=new T.Group(), gA=new T.Group();
+  var rad=(p.od||100)/2*s, cov=(p.cover||75)*s, yc=yb-e;
+  var matOK=new T.MeshLambertMaterial({color:0xdc2626,clippingPlanes:[clip]}),
+      matNG=new T.MeshLambertMaterial({color:0xf59e0b,clippingPlanes:[clip]}),   // 低於保護層
+      matAn=new T.MeshLambertMaterial({color:0x7c3aed});
+  xs.forEach(function(xc,iw){
+    var nThis=(lay.perWeb&&lay.perWeb[iw]!=null)?lay.perWeb[iw]:lay.nPerWeb, drawn=0;
+    lay.rows.forEach(function(r){
+      for(var j=0;j<r.count&&drawn<nThis;j++,drawn++){
+        var x=xc+lay.xOffsets[j]*s, yMid=r.y*s, dy=yMid-yc;
+        var arr=[]; for(var k=0;k<=60;k++){ var z=L*k/60; arr.push(new T.Vector3(x, yb-4*e*z*(L-z)/(L*L)+dy, z)); }
+        gT.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(arr),120,rad,10,false),
+                          yMid-rad<cov-1e-9?matNG:matOK));
+        [0.07,L-0.07].forEach(function(z){
+          var m=new T.Mesh(new T.BoxGeometry(rad*4.5,rad*4.5,0.14),matAn);
+          m.position.set(x,yb+dy,z); gA.add(m); });
+      }
+    });
   });
-  sc.add(gT); G3.grp.tendon=gT; sc.add(gA); G3.grp.anchor=gA;
+  root.add(gT); G3.grp.tendon=gT; root.add(gA); G3.grp.anchor=gA;
+  var gV=new T.Group();                                   // 保護層下限：管外緣不得低於此線
+  xs.forEach(function(xc){
+    gV.add(new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(xc,cov,0),new T.Vector3(xc,cov,L)]),
+                      new T.LineBasicMaterial({color:0x16a34a}))); });
+  root.add(gV); G3.grp.cover=gV;
   var gC=new T.Group();                                   // 剖切面外框（視覺封口）
   [shape.getPoints(1)].concat(shape.holes.map(function(h){return h.getPoints(1)})).forEach(function(loop){
     gC.add(new T.LineLoop(new T.BufferGeometry().setFromPoints(loop.map(function(q){return new T.Vector3(q.x,q.y,0)})),
                           new T.LineBasicMaterial({color:0x7c3aed}))); });
-  sc.add(gC); G3.grp.cut=gC;
-  var gX=buildAxes(T,p); sc.add(gX); G3.grp.axes=gX;
-  G3.L=L; G3.center={tx:0,ty:H/2,tz:L/2};
-  G3.view.tx=0; G3.view.ty=H/2; G3.view.tz=L/2;
-  if(!G3.inited){ G3.view.r=L; fitView(); G3.inited=true; }
+  root.add(gC); G3.grp.cut=gC;
+  var gX=buildAxes(T,p); sc.add(gX); G3.grp.axes=gX;      // 座標軸不隨垂直放大變形
+  G3.L=L; G3.center={tx:0,ty:H*vz/2,tz:L/2};
+  G3.view.tx=0; G3.view.ty=H*vz/2; G3.view.tz=L/2;
+  if(!G3.inited||G3.vz!==vz){ G3.view.r=Math.max(L,H*vz*2.5); fitView(); G3.inited=true; }   // 換放大倍率要重新框景
+  G3.vz=vz;
   draw3D();
 }
 // 列印：WebGL canvas 常印成空白 → 列印前換成靜態 PNG，列印後還原
@@ -1154,6 +1226,7 @@ function apply3D(o){
   if(G3.grp.tendon) G3.grp.tendon.visible=o.tendon;
   if(G3.grp.anchor) G3.grp.anchor.visible=o.anchor;
   if(G3.grp.axes) G3.grp.axes.visible=!!o.axes;
+  if(G3.grp.cover) G3.grp.cover.visible=!!o.cover;
   var z=o.cutOn ? o.cutT*G3.L : G3.L+1;
   if(G3.clip) G3.clip.constant=z;
   if(G3.grp.cut){ G3.grp.cut.visible=!!o.cutOn; G3.grp.cut.position.z=Math.min(z,G3.L); }
@@ -1245,7 +1318,7 @@ var PARAM_KEYS=[
   // ② 載重
   'L','lanes','wDW',
   // ③ 預力
-  'strandType','customAp','customFpu','ntd','strands','e',
+  'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductSv','ductCover','dAgg',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu',
   // ⑥ 細部檢核
@@ -1273,7 +1346,7 @@ function calc(){
   return {
     tab:'①', open:null,
     // ── §十三 3D（只存旗標；THREE 物件放 G3 closure，不進 reactive proxy）──
-    v3d:{on:false,box:true,tendon:true,anchor:true,axes:true,cutOn:false,cutT:0.5,msg:'',view:'iso'},
+    v3d:{on:false,box:true,tendon:true,anchor:true,axes:true,cover:true,vz:1,cutOn:false,cutT:0.5,msg:'',view:'iso'},
     // ── ⑦ 連續梁：真實多跨包絡（記憶化：僅在跨長/車道/自重改變時重算）──
     get CB(){
       var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
@@ -1323,6 +1396,8 @@ function calc(){
               lossBad:lossBad, lossPct:R.loss.loss_pct*100, cgsBot:sec.yb-aReq};
     },
     // 組數↑→預力↑→彈縮/潛變損失↑→f_pe↓→仍需更多組：迭代到滿足為止（固定點）
+    applyEMax(){ var v=Math.floor(this.DL.eMax); if(v>0) this.e=v;
+      this.msgIO='已套用實配偏心上限 e='+v+' mm（最底層管外緣恰落在保護層上）'; },
     applyNReq(){
       var n0=this.ntd, it=0, ok=false;
       for(; it<8; it++){
@@ -1337,7 +1412,14 @@ function calc(){
         this.msgIO='反解發散：加鋼腱→預力↑→彈縮/潛變損失↑→f_pe↓，此跨度／斷面無法以增加鋼腱達成目標。請加大梁深（S_b 不足）或縮短跨度。'; }
     },
     applyDrape(){ this.e=Math.round(this.DS.aReq); this.msgIO='已套用反解垂度 e='+this.e+' mm'; },
-    get key3d(){ return [this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h,this.L,this.e].join('|'); },
+    // 管道實配：把 ntd 組排進腹板（引擎算，形心恆等於 e）；3D 與 ③ 檢核共用同一結果
+    get DL(){ var yb=this.R.sec.yb;
+      return window.BC.ductLayout(this.ntd,this.nWeb,yb-this.e,
+        {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h}); },
+    get ductR(){ var R=window.BC.radiusOfCurvature(this.e,this.L*1000);
+      return {R:R, reqTW:6000, reqJP:100*this.ductOD, okTW:R>=6000, okJP:R>=100*this.ductOD}; },
+    get key3d(){ return [this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h,this.L,this.e,
+                         this.ntd,this.ductOD,this.ductSv,this.ductCover,this.dAgg,this.v3d.vz].join('|'); },
     get cut3d(){ var L=this.L, x=this.v3d.cutT*L, e=this.e, ex=4*e*x*(L-x)/(L*L);
       return {x:x, e:ex, cgs:this.R.sec.yb-ex, slope:(4*e/(L*1000))*(1-2*x/L)}; },   // 同引擎 Vp 所用線形
     enable3D(){
@@ -1353,7 +1435,8 @@ function calc(){
       }).catch(function(err){ self.v3d.on=false; self.v3d.msg='Three.js 載入失敗（需連線）：'+err.message; });
     },
     rebuild3D(){ build3D({topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,
-                          nWeb:this.nWeb,h:this.h,L:this.L,e:this.e,yb:this.R.sec.yb}); this.apply3D(); },
+                          nWeb:this.nWeb,h:this.h,L:this.L,e:this.e,yb:this.R.sec.yb,
+                          lay:this.DL,od:this.ductOD,cover:this.ductCover,vz:+this.v3d.vz||1}); this.apply3D(); },
     apply3D(){ apply3D(this.v3d); },
     // 視角快捷：等角用透視；平面/縱剖/橫斷用小視角角度近似平行投影（比例不失真）
     view3D(kind){
@@ -1437,6 +1520,7 @@ function calc(){
     L:40, fc:40, lanes:2, wDW:20,
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, sv:250, Vu:2069,
+    ductOD:100, ductSv:100, ductCover:75, dAgg:25,   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／最大骨材粒徑
     strandType:'15.2', customAp:140, customFpu:1860,
     fcGrade:'40', stirrupBar:'D16', stirrupLegs:2, customAv:397.4,
     Tu:1900, dMfat:3222, deltaS:40, jointSh:29.4,

@@ -158,6 +158,31 @@
     "R_ok": true,
     "_note": "拋物線等效荷載法 w_eq=8Pa/L²；對齊算例_鋼腱線形設計(8組×21股HL-93軌)；w_DL=8(M_DC+M_DW)/L²=144與參考橋自洽"
   },
+  "duct_layout_G1": {
+    "config": "參考橋 8組/2腹板/φ100管/腹板350/保護層75/垂直淨距100/骨材25",
+    "n_col": 1,
+    "n_row": 4,
+    "s_req_mm": 100,
+    "s_h_mm": 100,
+    "web_avail_mm": 200,
+    "pitch_v_mm": 200,
+    "rows_y_mm": [
+      -80.0,
+      120.0,
+      320.0,
+      520.0
+    ],
+    "y_cgs_mm": 220,
+    "y_bot_mm": -80.0,
+    "cover_bot_mm": -130.0,
+    "cover_ok": false,
+    "s_v_ok": true,
+    "s_h_ok": true,
+    "fits": false,
+    "e_max_mm": 904.0,
+    "e_max_point_mm": 1204.0,
+    "_note": "實配排列：每腹板由下往上逐層填滿、整體平移使形心=分析用CGS。淨間距需求 max(40,1.5d_agg,OD) 台灣§8.25.2。e_max(實配) < e_max_point(單點簡化)——算例_鋼腱線形設計的1204是把8腱視為一點的上限"
+  },
   "stm_F2": {
     "config": "8組×19股 (參考橋, 端橫隔版 General Zone)",
     "sigma_pe_MPa": 4.68,

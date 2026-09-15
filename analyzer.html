@@ -34,6 +34,7 @@ h1{font-size:20px;margin:0 0 2px}.sub{color:var(--mut);font-size:13px}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
 label{font-size:12px;color:var(--mut);display:block}
 input{width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;padding:0 7px;font-size:14px;font-variant-numeric:tabular-nums}
+input[type=checkbox]{width:auto;height:auto;flex:0 0 auto;margin:0}   /* 否則吃到上面的 100%/30px 變成巨大方塊 */
 table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
 th,td{padding:5px 6px;text-align:right;border-bottom:0.5px solid var(--line)}
 th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:left}
@@ -221,7 +222,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <label><input type="checkbox" x-model="v3d.axes" @change="apply3D()"> 座標軸</label>
         <label><input type="checkbox" x-model="v3d.cover" @change="apply3D()"> 保護層界線</label>
         <label><input type="checkbox" x-model="v3d.pier" @change="apply3D()"> 橋墩</label>
-        <label title="改吃 ⑦ 的跨長與 e_end/e_mid/e_pier"><input type="checkbox" x-model="v3d.cont"> 連續梁（⑦）</label>
+        <label title="與 ③、⑦ 同一個旗標"><input type="checkbox" x-model="contLine"> 連續梁線形</label>
         <label>垂直放大
           <select x-model.number="v3d.vz" style="height:26px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:12px">
             <template x-for="z in [1,2,3,5,8]" :key="z"><option :value="z" x-text="'×'+z"></option></template>
@@ -325,6 +326,44 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <label>自訂 f_pu (MPa)<input type="number" x-model.number="customFpu" step="10"></label>
       </template>
     </div>
+    <div class="card-sub" style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+      <label style="display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--ink)">
+        <input type="checkbox" x-model="contLine"> <b>本案為連續梁</b>
+        <span class="mut" style="font-size:12px">（下列線形參數與 ⑦ 同一份；勾選後 ③ 的實配檢核改以跨中 e<sub>mid</sub> 為準，3D 也一併切換）</span>
+      </label>
+      <template x-if="contLine">
+       <div>
+        <div class="grid" style="margin-top:10px">
+          <label>各跨長 (m，逗號分隔)<input type="text" x-model="contSpans"></label>
+          <label>端部偏心 e_end (mm)<input type="number" x-model.number="contEEnd" step="50"></label>
+          <label>跨中偏心 e_mid (mm，正=形心下)<input type="number" x-model.number="contEMid" step="25"></label>
+          <label>中墩偏心 e_pier (mm，負=形心上)<input type="number" x-model.number="contEPier" step="25"></label>
+          <label title="FHWA Ch.5：0.10~0.15×相鄰跨徑">墩頂段長比 k（×跨長）<input type="number" x-model.number="contKPier" step="0.01" min="0.02" max="0.3"></label>
+          <label title="FHWA Ch.5：0.35~0.45×跨長，自橋端量起">端跨低點比 r（×跨長）<input type="number" x-model.number="contREnd" step="0.01" min="0.2" max="0.5"></label>
+        </div>
+        <div class="grid" style="margin-top:10px">
+          <div class="metric"><div class="l">跨中／墩頂 實配</div>
+            <div class="v" style="font-size:15px">
+              <span :class="DLmid.fits?'ok':'ng'" x-text="DLmid.fits?'✓ 跨中':'✗ 跨中'"></span>
+              <span :class="DLpier.fits?'ok':'ng'" x-text="DLpier.fits?'　✓ 墩頂':'　✗ 墩頂'"></span></div></div>
+          <div class="metric"><div class="l">最小保護層餘裕（全腱全長）</div>
+            <div class="v" :class="P3D.clr.ok?'ok':'ng'" style="font-size:15px"
+              x-text="fmt(P3D.clr.minMargin)+' mm ＠'+fmt(P3D.clr.worst.z,1)+' m'"></div></div>
+          <div class="metric"><div class="l">各段最小曲率半徑 R</div>
+            <div class="v" :class="ductR.okTW?'ok':'ng'" style="font-size:15px"
+              x-text="P3D.tp?fmt(P3D.tp.Rmin/1000,1)+' m':'—'"></div></div>
+          <div class="metric"><div class="l">反曲點／低點 里程</div>
+            <div class="v" style="font-size:14px"
+              x-text="P3D.tp?(P3D.tp.infl.map(v=>fmt(v,1)).join('、')+' ｜ '+P3D.tp.lows.map(v=>fmt(v,1)).join('、')+' m'):'—'"></div></div>
+        </div>
+        <div class="hint" style="margin-top:8px">
+          <button class="btn" style="margin-left:0" @click="applyEPier()" :disabled="contEPier===ePierMax">
+            套用墩頂上限 e_pier = <span x-text="ePierMax"></span> mm</button>
+          <span class="mut">　墩頂受<b>頂緣</b>保護層控制、跨中受<b>底緣</b>控制；線形為分段拋物線（墩頂段頂點在墩心＝圓滑高點，反曲點落在墩頂段與跨中段交界）。</span>
+        </div>
+       </div>
+      </template>
+    </div>
     <div class="hint">每股面積 Ap = <b x-text="strandAp"></b> mm²（型號自動帶）・f_pu = <b x-text="strandFpu"></b> MPa　→　總鋼腱面積 A_ps = <span x-text="ntd"></span>組×<span x-text="strands"></span>股×<span x-text="strandAp"></span> = <b x-text="(ntd*strands*strandAp).toLocaleString('en-US')"></b> mm²・初拉力 P_i = <b x-text="(R.tenPi/1e3).toLocaleString('en-US',{maximumFractionDigits:0})"></b> kN</div>
   </div>
   <div class="card"><h2>管道實配與構造檢核（G1 §7）</h2>
@@ -362,15 +401,22 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
             <td x-text="fmt(h-(DL.yTop+ductOD/2))+' mm'"></td>
             <td x-text="'≥ '+fmt(ductCover)+' mm'"></td>
             <td style="text-align:center" :class="DL.topOk?'ok':'ng'" x-text="DL.topOk?'✓':'✗'"></td><td class="no-print"></td></tr>
-        <tr><td>最小曲率半徑 R ＝ L²/(8a)</td>
+        <tr><td x-text="ductR.seg?'最小曲率半徑 R（各段 10⁶/2|c| 取小）':'最小曲率半徑 R ＝ L²/(8a)'"></td>
             <td x-text="fmt(ductR.R/1000,1)+' m'"></td>
             <td x-text="'≥ 6.0 m（台灣金屬波形管）；日本 ≥ '+fmt(ductR.reqJP/1000,1)+' m（100φ）'"></td>
             <td style="text-align:center" :class="ductR.okTW?'ok':'ng'" x-text="ductR.okTW?'✓':'✗'"></td><td class="no-print"></td></tr>
-        <tr><td>偏心 e（受實配排列控制）</td>
-            <td x-text="fmt(e)+' mm'"></td>
+        <tr><td x-text="contLine?'跨中偏心 e_mid（受實配排列控制）':'偏心 e（受實配排列控制）'"></td>
+            <td x-text="fmt(eCtrl)+' mm'+(contLine?'（⑦ 線形）':'')"></td>
             <td x-text="'≤ '+fmt(DL.eMax)+' mm（實配上限）'"></td>
-            <td style="text-align:center" :class="e<=DL.eMax+0.5?'ok':'ng'" x-text="e<=DL.eMax+0.5?'✓':'✗'"></td>
-            <td class="no-print"><button class="btn" style="margin-left:0" @click="applyEMax()" :disabled="Math.abs(e-Math.floor(DL.eMax))<1">套用</button></td></tr>
+            <td style="text-align:center" :class="eCtrl<=DL.eMax+0.5?'ok':'ng'" x-text="eCtrl<=DL.eMax+0.5?'✓':'✗'"></td>
+            <td class="no-print"><button class="btn" style="margin-left:0" @click="applyEMax()" :disabled="Math.abs(eCtrl-Math.floor(DL.eMax))<1">套用</button></td></tr>
+        <template x-if="contLine">
+          <tr><td>中墩偏心 e<sub>pier</sub>（受<b>頂緣</b>保護層控制）</td>
+              <td x-text="fmt(contEPier)+' mm'"></td>
+              <td x-text="'≥ '+fmt(ePierMax)+' mm（負值，實配上限）'"></td>
+              <td style="text-align:center" :class="DLpier.topOk?'ok':'ng'" x-text="DLpier.topOk?'✓':'✗'"></td>
+              <td class="no-print"><button class="btn" style="margin-left:0" @click="applyEPier()" :disabled="contEPier===ePierMax">套用</button></td></tr>
+        </template>
       </tbody>
     </table>
     <div class="hint" :class="DL.fits?'':'no-print'" x-show="!DL.fits" x-cloak style="color:var(--ng)">✗ 此配置實際排不下。可行對策：①降低偏心至 <b x-text="fmt(DL.eMax)+' mm'"></b>（上方「套用」）②加厚腹板至可排兩列（需 <b x-text="fmt(2*ductOD+DL.sReq+2*ductCover)+' mm'"></b>）③增加腹板數 ④減少每組股數改用較小管徑。</div>
@@ -556,6 +602,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <label title="FHWA Ch.5：0.35~0.45×跨長，自橋端量起">端跨低點比 r（×跨長）<input type="number" x-model.number="contREnd" step="0.01" min="0.2" max="0.5"></label>
       <template x-if="!contPeAuto"><label>有效預力 P_e (kN)<input type="number" x-model.number="contPe" step="500"></label></template>
     </div>
+    <div class="hint" style="color:var(--mut)">線形參數（各跨長、e<sub>end</sub>/e<sub>mid</sub>/e<sub>pier</sub>、k、r）與 <b>③ 預力輸入卡的「本案為連續梁」區塊是同一份</b>，兩處皆可調整、即時同步；③ 那邊另有跨中／墩頂實配與最小保護層餘裕的即時回饋。</div>
     <div class="hint"><label style="display:inline-flex;gap:5px;align-items:center">
       <input type="checkbox" x-model="contM2On"> 計入預力次彎矩 M₂（載重因數 1.0）</label>
       　<label style="display:inline-flex;gap:5px;align-items:center">
@@ -1501,7 +1548,7 @@ var PARAM_KEYS=[
   'Tu','dMfat','deltaS','jointSh',
   // ⑦ 連續梁
   'contMuP','contApsTop','contSpans','contAuto','contB','contHf','contBw','contDp',
-  'contM2On','contPeAuto','contPe','contEEnd','contEMid','contEPier','contKPier','contREnd','lbrTarget','sigLimBot',
+  'contM2On','contPeAuto','contPe','contEEnd','contEMid','contEPier','contKPier','contREnd','contLine','lbrTarget','sigLimBot',
   // ⑧ 施工
   'cFci','cBridge','cNBatch','cHpier','cHmid','cHalf','cXq','cFtLoad','cFtArm','cDelas','cPhi',
   'cW','cLc','cL4','cA4','cZb4','cSigRes','cPper','cMu','cWtot','cRbrg','cAbrg',
@@ -1522,7 +1569,8 @@ function calc(){
   return {
     tab:'①', open:null,
     // ── §十三 3D（只存旗標；THREE 物件放 G3 closure，不進 reactive proxy）──
-    v3d:{on:false,box:true,tendon:true,anchor:true,axes:true,cover:true,pier:true,cont:false,vz:1,cutOn:false,cutT:0.5,msg:'',view:'iso'},
+    v3d:{on:false,box:true,tendon:true,anchor:true,axes:true,cover:true,pier:true,vz:1,cutOn:false,cutT:0.5,msg:'',view:'iso'},
+    contLine:false,          // 線形模式：false＝① 單跨拋物線、true＝⑦ 多跨分段線形（③ 檢核與 3D 共用此旗標）
     // ── ⑦ 連續梁：真實多跨包絡（記憶化：僅在跨長/車道/自重改變時重算）──
     get CB(){
       var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
@@ -1574,8 +1622,9 @@ function calc(){
               lossBad:lossBad, lossPct:R.loss.loss_pct*100, cgsBot:sec.yb-aReq};
     },
     // 組數↑→預力↑→彈縮/潛變損失↑→f_pe↓→仍需更多組：迭代到滿足為止（固定點）
-    applyEMax(){ var v=Math.floor(this.DL.eMax); if(v>0) this.e=v;
-      this.msgIO='已套用實配偏心上限 e='+v+' mm（最底層管外緣恰落在保護層上）'; },
+    applyEMax(){ var v=Math.floor(this.DL.eMax); if(!(v>0)) return;
+      if(this.contLine){ this.contEMid=v; this.msgIO='已套用跨中偏心上限 e_mid='+v+' mm（最底層管外緣恰落在保護層上）'; }
+      else { this.e=v; this.msgIO='已套用實配偏心上限 e='+v+' mm（最底層管外緣恰落在保護層上）'; } },
     applyNReq(){
       var n0=this.ntd, it=0, ok=false;
       for(; it<8; it++){
@@ -1590,21 +1639,26 @@ function calc(){
         this.msgIO='反解發散：加鋼腱→預力↑→彈縮/潛變損失↑→f_pe↓，此跨度／斷面無法以增加鋼腱達成目標。請加大梁深（S_b 不足）或縮短跨度。'; }
     },
     applyDrape(){ this.e=Math.round(this.DS.aReq); this.msgIO='已套用反解垂度 e='+this.e+' mm'; },
-    // 管道實配：把 ntd 組排進腹板（引擎算，形心恆等於 e）；3D 與 ③ 檢核共用同一結果
+    // 控制偏心：單跨取 ③ 的 e，連續梁取 ⑦ 的跨中 e_mid（墩頂另由 DLpier 檢核）
+    get eCtrl(){ return this.contLine ? this.contEMid : this.e; },
+    // 管道實配：把 ntd 組排進腹板（引擎算，形心恆等於控制偏心）；3D 與 ③ 檢核共用同一結果
     get DL(){ var yb=this.R.sec.yb;
-      return window.BC.ductLayout(this.ntd,this.nWeb,yb-this.e,
+      return window.BC.ductLayout(this.ntd,this.nWeb,yb-this.eCtrl,
         {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h,rule:this.ductRule}); },
-    get ductR(){ var R=window.BC.radiusOfCurvature(this.e,this.L*1000);
-      return {R:R, reqTW:6000, reqJP:100*this.ductOD, okTW:R>=6000, okJP:R>=100*this.ductOD}; },
+    get ductR(){ var q=this.contLine?this.P3D:null;
+      var R=(q&&q.tp)?q.tp.Rmin:window.BC.radiusOfCurvature(this.e,this.L*1000);
+      return {R:R, seg:!!(q&&q.tp), reqTW:6000, reqJP:100*this.ductOD,
+              okTW:R>=6000, okJP:R>=100*this.ductOD}; },
     get key3d(){ return [this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h,this.L,this.e,
                          this.ntd,this.ductOD,this.ductSv,this.ductCover,this.dAgg,this.v3d.vz,
-                         this.v3d.cont,this.contSpans,this.contEEnd,this.contEMid,this.contEPier,
+                         this.contLine,this.contSpans,this.contEEnd,this.contEMid,this.contEPier,
                          this.seiH,this.seiColD].join('|'); },
     // 3D 幾何來源：單跨走 ① 的拋物線；勾「連續梁」則走 ⑦ 的多跨線形（與 M₂ 同一個 eAt）
     get P3D(){
-      var yb=this.R.sec.yb, C=this.v3d.cont?this.CB:null, spans, eAt, sx, tot, eMid;
-      if(C){ var tp=contTendonSegs(C.spans,this.contEEnd,this.contEMid,this.contEPier,
-                                   {kPier:this.contKPier,rEnd:this.contREnd});
+      var yb=this.R.sec.yb, C=this.contLine?this.CB:null, spans, eAt, sx, tot, eMid;
+      var tp=null;
+      if(C){ tp=contTendonSegs(C.spans,this.contEEnd,this.contEMid,this.contEPier,
+                               {kPier:this.contKPier,rEnd:this.contREnd});
              spans=C.spans; eAt=tp.eAt; sx=tp.sx; tot=tp.total; eMid=this.contEMid; }
       else { var L=this.L, e=this.e; spans=[L]; sx=[0,L]; tot=L; eMid=e;
              eAt=function(x){ return 4*e*x*(L-x)/(L*L) }; }
@@ -1612,7 +1666,7 @@ function calc(){
         {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h,rule:this.ductRule});
       var geo={topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,
                nWeb:this.nWeb,h:this.h,yb:yb,od:this.ductOD,cover:this.ductCover};
-      return {cont:!!C, spans:spans, eAt:eAt, sx:sx, tot:tot, eMid:eMid, yb:yb, lay:lay,
+      return {cont:!!C, spans:spans, eAt:eAt, sx:sx, tot:tot, eMid:eMid, yb:yb, lay:lay, tp:tp,
               clr:tendonClearance(geo,lay,eAt,tot,200)};
     },
     // 跨中／墩頂斷面實配（⑦ 用；墩頂 e_pier 為負＝腱在形心上方，控制的是頂緣保護層）

@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 145 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 176 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -77,7 +77,10 @@
         EpEci = o.Ep_Eci == null ? 7.33 : o.Ep_Eci;
     var Pi = t.Pi, e = t.e, fcgp = Pi / sec.A + Pi * e * e / sec.I - M_DC * 1e6 * e / sec.I;
     var fcds = M_DW * 1e6 * e / sec.I;
-    var friction = t.fpj * (1 - exp(-(K * x + mu * alpha)));
+    // fricRatio 給定時直接採用（由 BC.frictionAt 依張拉端配置與線形算得），
+    // 否則走原本的單點 α/x_ctrl 式——不傳即與既有結果完全相同。
+    var fr = o.fricRatio == null ? (1 - exp(-(K * x + mu * alpha))) : o.fricRatio;
+    var friction = t.fpj * fr;
     var shrink = 0.8 * (1195 - 10.55 * RH) * 0.0981;
     var ES = (t.n - 1) / (2 * t.n) * EpEci * fcgp;
     var creep = 12 * fcgp - 7 * fcds;
@@ -129,6 +132,44 @@
   BC.minSectionModulusSb = function (Pe, A, e, M_kNm, sigma_tension_limit) {
     var lim = sigma_tension_limit == null ? 0 : sigma_tension_limit;
     return (M_kNm * 1e6 - Pe * e) / (lim + Pe / A);
+  };
+
+  // ── 摩擦損失沿長度分佈 G1（tendon_profile.friction_* 移植）──
+  // ΔP/P = 1 − e^−(μ·α + K·x)：α 是自張拉端累積到該斷面的角變化、x 是該段路徑長，
+  // 兩者都從張拉端起算 → 張拉端配置直接決定每個斷面的損失。
+  // α(x)=∫|e″|dx，反曲時 e″ 變號必須逐段取絕對值累加（用斜率差會相消）。
+  // 'both' 雙端：該點取損失小者；'alt' 交錯：半數腱自左半數自右 → 取兩者平均。
+  // ⚠ 跨中在四種配置下同值（左右對稱、路徑各半），差異在其餘斷面。
+  BC.parabolicCurvSegs = function (L, a) {     // 單跨拋物線 κ=|e″|=8a/(L²·1000) rad/m
+    return [[0, L, 8 * a / (L * L * 1000)]];
+  };
+  BC.frictionAngle = function (segs, x, L, fromEnd) {
+    var t = 0;
+    for (var i = 0; i < segs.length; i++) {
+      var a = segs[i][0], b = segs[i][1], k = segs[i][2];
+      var lo = fromEnd ? Math.max(a, x) : Math.max(a, 0), hi = fromEnd ? Math.min(b, L) : Math.min(b, x);
+      if (hi > lo) t += k * (hi - lo);
+    }
+    return t;
+  };
+  BC.frictionAt = function (x, L, segs, mu, K, jack) {
+    mu = mu == null ? 0.25 : mu; K = K == null ? 0.003 : K; jack = jack || 'both';
+    var lS = 1 - exp(-(mu * BC.frictionAngle(segs, x, L, false) + K * x));
+    var lE = 1 - exp(-(mu * BC.frictionAngle(segs, x, L, true) + K * (L - x)));
+    if (jack === 'start') return lS;
+    if (jack === 'end') return lE;
+    if (jack === 'both') return Math.min(lS, lE);
+    return 0.5 * (lS + lE);
+  };
+  BC.frictionProfile = function (L, segs, mu, K, jack, n) {
+    n = n || 20; jack = jack || 'both';
+    var xs = [], rs = [], i, area = 0, imax = 0;
+    for (i = 0; i <= n; i++) { xs.push(L * i / n); rs.push(BC.frictionAt(xs[i], L, segs, mu, K, jack)); }
+    for (i = 0; i < n; i++) area += (rs[i] + rs[i + 1]) / 2 * (xs[i + 1] - xs[i]);
+    for (i = 0; i <= n; i++) if (rs[i] > rs[imax]) imax = i;
+    return { xs: xs, ratios: rs, at_mid: BC.frictionAt(L / 2, L, segs, mu, K, jack),
+             at_start: rs[0], at_end: rs[n], avg: area / L,
+             max_ratio: rs[imax], x_max: xs[imax], jack: jack };
   };
 
   // ── 管道實配排列 G1（tendon_profile.duct_layout 移植）───

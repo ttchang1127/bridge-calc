@@ -32,7 +32,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         segment_weight, joint_min_prestress, joint_compression,
                         shear_key_design_capacity, shear_key_utilization, bonded_pt_ratio,
                         min_tendon_groups, required_drape, min_section_modulus_Sb,
-                        duct_layout, duct_spacing_required)
+                        duct_layout, duct_spacing_required,
+                        parabolic_curv_segs, friction_angle, friction_at, friction_profile)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -338,6 +339,49 @@ def test_load_standard_drives_strand_count():
     assert L19.Pe < Pe_min_zero_tension(sec, ten.e, M_HL93)       # → HL-93 需 21 股
     _, sb_hs20 = stresses(L19.Pe, sec, ten.e, combinations(M_DC, M_DW, M_LL_IM)["Service_I"])
     assert sb_hs20 <= 0                                           # HS20-44 下底緣全壓（19 股足夠）
+
+
+def test_friction_profile_G1():
+    """摩擦損失沿長度分佈：張拉端配置決定每個斷面的 α 與路徑長。
+
+    交叉驗證既有 G1 值：跨中（雙端）= friction_dual_mid 0.084、
+    單端遠端 = friction_single_end 0.161——同一組 μ/K/a/L 由兩條路徑算出同值。
+    """
+    sg = parabolic_curv_segs(40, 1109)
+    _close(sg[0][2], 8 * 1109 / (40 * 40 * 1000), 1e-9)       # κ = 8a/(L²·1000)
+    _close(friction_angle(sg, 20, 40), 0.1109, 1e-4)          # 跨中累積 = θ_end
+    _close(friction_angle(sg, 40, 40), 0.2218, 1e-4)          # 全長 = 2θ_end
+    _close(friction_at(20, 40, sg, jack="both"), 0.0840, 5e-4)
+    _close(friction_at(40, 40, sg, jack="start"), 0.1609, 5e-4)
+
+    p = {jk: friction_profile(40, sg, jack=jk) for jk in ("both", "start", "end", "alt")}
+    for jk in p:                                              # 跨中四配置同值（左右對稱）
+        _close(p[jk].at_mid, 0.0840, 5e-4)
+    _close(p["both"].at_start, 0.0, 1e-9)                     # 雙端：兩端都是張拉端
+    _close(p["both"].at_end, 0.0, 1e-9)
+    _close(p["both"].avg, 0.0426, 5e-4)
+    _close(p["start"].at_end, 0.1609, 5e-4)                   # 單端：遠端損失最大
+    _close(p["start"].at_start, 0.0, 1e-9)
+    _close(p["end"].at_start, 0.1609, 5e-4)                   # 鏡像
+    _close(p["start"].avg, p["end"].avg, 1e-9)
+    _close(p["alt"].avg, p["start"].avg, 1e-9)                # 交錯＝半數各走一端，平均相同
+    _close(p["alt"].at_start, 0.0805, 5e-4)                   # 但端部是兩者平均，不是 0 也不是 0.161
+    assert p["both"].avg < p["alt"].avg                       # 雙端張拉最省
+    assert p["both"].x_max == 20.0 and p["start"].x_max == 40.0
+
+
+def test_friction_into_losses():
+    """fric_ratio 接進 compute_losses：不傳＝原式，傳了就用該配置的損失率。"""
+    base = compute_losses(ten, sec, M_DC, M_DW)
+    sg = parabolic_curv_segs(40, 1109)
+    same = compute_losses(ten, sec, M_DC, M_DW,
+                          fric_ratio=friction_at(20, 40, sg, jack="both"))
+    _close(same.Pe, base.Pe, 3e3)                             # 跨中雙端 ≡ 預設 α/x_ctrl 式
+    far = compute_losses(ten, sec, M_DC, M_DW,
+                         fric_ratio=friction_at(40, 40, sg, jack="start"))
+    assert far.Pe < base.Pe                                   # 單端遠端損失大 → Pe 低
+    _close(far.friction - base.friction,
+           ten.fpj * (0.1609 - 0.0840), 2.0)                  # 差額＝損失率差×fpj
 
 
 def test_duct_layout_G1():

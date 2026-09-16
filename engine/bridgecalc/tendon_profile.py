@@ -182,3 +182,72 @@ def duct_layout(n_tendons: int, n_web: int, y_cgs: float,
         cover_ok=cover_ok, s_v_ok=s_v_ok, s_h_ok=s_h_ok, top_ok=top_ok,
         fits=(cover_ok and s_v_ok and s_h_ok and top_ok),
         e_max=e_max, e_max_point=e_max_point)
+
+
+# ── 摩擦損失沿長度分佈（張拉端配置）────────────────────────────
+# ΔP/P = 1 − e^−(μ·α + K·x)：α 是**自張拉端累積到該斷面**的角變化、x 是該段路徑長。
+# 兩者都從張拉端起算，所以張拉端配置直接決定每個斷面的損失。
+#   α(x) = ∫|e″|dx——反曲時 e″ 變號，必須逐段取絕對值累加，不能用斜率差（那會相消）。
+# 配置：'start'/'end' 單端；'both' 雙端（每腱兩端都拉，該點取損失小者）；
+#      'alt' 交錯端（半數腱自左、半數自右 → 該斷面取兩者平均）。
+# ⚠ 跨中在四種配置下數值相同（左右對稱、路徑各半），差異出現在其餘斷面——
+#   單端張拉的遠端損失最大。
+
+
+@dataclass
+class FrictionProfileResult:
+    xs: list            # 取樣里程 m
+    ratios: list        # 各點摩擦損失率
+    at_mid: float       # 跨中
+    at_start: float     # 起點端
+    at_end: float       # 終點端
+    avg: float          # 全長平均（梯形積分）
+    max_ratio: float    # 最大損失率
+    x_max: float        # 其位置 m
+    jack: str
+
+
+def parabolic_curv_segs(L: float, a: float) -> list:
+    """單跨拋物線 e=4a·x(L−x)/L² 的曲率段：κ=|e″|=8a/(L²·1000) rad/m（常數）。
+
+    L[m]、a[mm]（垂度）。回傳 [(x1, x2, kappa)]，供 friction_angle 累加。
+    """
+    return [(0.0, L, 8 * a / (L * L * 1000.0))]
+
+
+def friction_angle(segs: list, x: float, L: float, from_end: bool = False) -> float:
+    """自張拉端累積到里程 x 的角變化 α（rad）。segs: [(x1, x2, κ[rad/m])]。"""
+    tot = 0.0
+    for (a, b, k) in segs:
+        lo, hi = (max(a, x), min(b, L)) if from_end else (max(a, 0.0), min(b, x))
+        if hi > lo:
+            tot += k * (hi - lo)
+    return tot
+
+
+def friction_at(x: float, L: float, segs: list, mu: float = 0.25,
+                K: float = 0.003, jack: str = "both") -> float:
+    """里程 x 的摩擦損失率（0~1）。jack: 'start'|'end'|'both'|'alt'。"""
+    lS = 1 - math.exp(-(mu * friction_angle(segs, x, L, False) + K * x))
+    lE = 1 - math.exp(-(mu * friction_angle(segs, x, L, True) + K * (L - x)))
+    if jack == "start":
+        return lS
+    if jack == "end":
+        return lE
+    if jack == "both":
+        return min(lS, lE)
+    return 0.5 * (lS + lE)                      # alt
+
+
+def friction_profile(L: float, segs: list, mu: float = 0.25, K: float = 0.003,
+                     jack: str = "both", n: int = 20) -> FrictionProfileResult:
+    """沿全長取樣的摩擦損失分佈與統計（平均以梯形積分）。"""
+    xs = [L * i / n for i in range(n + 1)]
+    rs = [friction_at(x, L, segs, mu, K, jack) for x in xs]
+    area = sum((rs[i] + rs[i + 1]) / 2 * (xs[i + 1] - xs[i]) for i in range(n))
+    imax = max(range(n + 1), key=lambda i: rs[i])
+    return FrictionProfileResult(
+        xs=xs, ratios=rs,
+        at_mid=friction_at(L / 2, L, segs, mu, K, jack),
+        at_start=rs[0], at_end=rs[-1], avg=area / L,
+        max_ratio=rs[imax], x_max=xs[imax], jack=jack)

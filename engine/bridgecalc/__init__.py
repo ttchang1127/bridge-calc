@@ -31,7 +31,9 @@ from .continuous import (secondary_moment, primary_moment, flexural_strength_T,
                         TFlexureResult, pier_service_stress)
 from .tendon_profile import (tendon_profile, TendonProfileResult, equivalent_load,
                             end_slope, radius_of_curvature, balance_ratio, friction_loss,
-                            duct_layout, duct_spacing_required, DuctLayoutResult)
+                            duct_layout, duct_spacing_required, DuctLayoutResult,
+                            parabolic_curv_segs, friction_angle, friction_at,
+                            friction_profile, FrictionProfileResult)
 from .stm import (general_zone_burst, STMResult, burst_force, burst_depth, f_cu,
                  strut_capacity, node_capacity, tie_reinforcement,
                  BETA_NODE, BETA_STRUT)
@@ -82,6 +84,8 @@ __all__ = [
     "tendon_profile", "TendonProfileResult", "equivalent_load", "end_slope",
     "radius_of_curvature", "balance_ratio", "friction_loss",
     "duct_layout", "duct_spacing_required", "DuctLayoutResult",
+    "parabolic_curv_segs", "friction_angle", "friction_at",
+    "friction_profile", "FrictionProfileResult",
     "general_zone_burst", "STMResult", "burst_force", "burst_depth", "f_cu",
     "strut_capacity", "node_capacity", "tie_reinforcement", "BETA_NODE", "BETA_STRUT",
     "grout_qc_check", "GroutQCResult", "rebar_stress_limit", "rebar_stress_ok",

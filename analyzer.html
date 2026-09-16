@@ -131,7 +131,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <tr><th>跨徑／斷面</th><td x-text="L+' m　｜　頂寬 '+topW+' × 高 '+h+' mm　｜　f\'c = '+fc+' MPa'"></td></tr>
     <tr><th>箱梁檢核結果</th><td x-text="R.npass+' / '+R.ntot+' 通過'+(R.matchGolden?'（對齊 40m 黃金範例）':'')"></td></tr>
   </table>
-  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 145 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
+  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 176 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
 </div>
 
 <!-- 送審計算書：目錄 -->
@@ -151,7 +151,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <div class="bar no-print">
   <div class="bar-row">
-    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 145 項驗證）</div></div>
+    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 176 項驗證）</div></div>
   </div>
   <div class="bar-row" style="margin-top:8px">
     <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
@@ -384,6 +384,9 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <label>腱間垂直淨距 s_v (mm)<input type="number" x-model.number="ductSv" step="5"></label>
       <label>管道清保護層 (mm)<input type="number" x-model.number="ductCover" step="5"></label>
       <label>最大骨材粒徑 (mm)<input type="number" x-model.number="dAgg" step="1"></label>
+      <label title="corrugated 鋼管 0.25；PE 管較低">摩擦係數 μ (/rad)<input type="number" x-model.number="fricMu" step="0.01"></label>
+      <label title="搖擺（偏差）係數，每公尺">搖擺係數 K (/m)<input type="number" x-model.number="fricK" step="0.0005"></label>
+      <label title="摩擦損失取哪個斷面的值供上游檢核使用；預設跨中">摩擦控制斷面 x/L<input type="number" x-model.number="fricX" step="0.05" min="0" max="1"></label>
       <label title="兩卡敘述不一致，原條文待查；od 為保守側">淨間距規則
         <select x-model="ductRule" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:13px">
           <option value="tw">台灣 §8.25.2 明文：max(40, 1.5×粒徑)</option>
@@ -495,7 +498,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </table>
     <div class="hint" x-show="DS.lossBad" x-cloak style="color:var(--ng)">✗ 預力損失已達 <b x-text="fmt(DS.lossPct,1)+'%'"></b>（f<sub>pe</sub> 過低）——此配置不合理，反解結果不可用，請先加大斷面或減少鋼腱。</div>
     <div class="hint no-print" x-show="DS.cgsBot<100" x-cloak style="color:var(--ng)">⚠ 套用該垂度後 CGS 距梁底僅 <b x-text="fmt(DS.cgsBot)"></b> mm，請確認保護層與管道尺寸。</div>
-    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 46/46・JS 145/145）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
+    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 48/48・JS 176/176）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
   </div>
   <div class="card"><h2>鋼腱縱剖面（G1・拋物線）</h2>
     <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElev"></svg></div>
@@ -541,6 +544,29 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <div class="metric"><div class="l">有效預力 Pe</div><div class="v" x-text="(R.loss.Pe/1e3).toFixed(0)+' kN'"></div></div>
       <div class="metric"><div class="l">總損失</div><div class="v" x-text="(R.loss.loss_pct*100).toFixed(1)+' %'"></div></div>
     </div>
+    <div class="hint" style="margin-bottom:6px">摩擦損失沿長度分佈（張拉端配置：<b x-text="{alt:'交錯端',both:'雙端張拉',start:'全部自起點',end:'全部自終點'}[jackEnd]"></b>；μ=<span x-text="fricMu"></span>、K=<span x-text="fricK"></span>/m）</div>
+    <table style="margin-bottom:10px">
+      <thead><tr><th>位置</th><th>x (m)</th><th>α 自起點 (rad)</th><th>α 自終點 (rad)</th><th>摩擦損失率</th><th>f_pe (MPa)</th><th>Pe (kN)</th></tr></thead>
+      <tbody>
+        <template x-for="r in fricTable" :key="r.t">
+          <tr :style="Math.abs(r.t-fricX)<1e-9?'background:#eff6ff;font-weight:600':''">
+            <td x-text="r.t===0?'起點':(r.t===1?'終點':(r.t===0.5?'跨中':(r.t*100)+'% L'))+(Math.abs(r.t-fricX)<1e-9?'（控制）':'')"></td>
+            <td x-text="fmt(r.x,1)"></td>
+            <td x-text="r.aS.toFixed(4)"></td>
+            <td x-text="r.aE.toFixed(4)"></td>
+            <td x-text="(r.ratio*100).toFixed(2)+' %'"></td>
+            <td x-text="fmt(r.fpe,0)"></td>
+            <td x-text="fmt(r.Pe,0)"></td></tr>
+        </template>
+        <tr style="border-top:1.5px solid var(--line)"><td colspan="4">全長平均／最大</td>
+          <td x-text="(FRP.avg*100).toFixed(2)+' % ／ '+(FRP.max_ratio*100).toFixed(2)+' %'"></td>
+          <td colspan="2" x-text="'最大位於 x = '+fmt(FRP.x_max,1)+' m'"></td></tr>
+      </tbody>
+    </table>
+    <div class="cite">Δf<sub>pF</sub> ＝ f<sub>pj</sub>(1−e<sup>−(μα+Kx)</sup>)，<b>α 與 x 都自張拉端起算</b>，故張拉端配置直接決定每個斷面的損失。α(x)＝∫|e″|dx——反曲時 e″ 變號，<b>必須逐段取絕對值累加</b>（用斜率差會相消）。〔雙端〕該點取損失小者；〔交錯端〕半數腱自左、半數自右，表列為該斷面<b>兩者的平均</b>，個別腱仍是單端分佈。
+      ⚠ <b>跨中在四種配置下同值</b>（左右對稱、路徑各半）——這是物理結果不是程式沒接上；差異在其餘斷面，單端張拉的遠端損失最大。
+      上游檢核（服務性／剪力／撓度）採<b>控制斷面 x/L＝<span x-text="fricX"></span></b> 的 Pe＝<b x-text="fmt(R.loss.Pe/1e3,0)+' kN'"></b>；改 ③ 的「摩擦控制斷面」即可換位置。
+      🔧 <b>2026-09-16 修正</b>：先前 α 寫死 0.111（只對 e=1,109／L=40 正確），改 e 或 L 都不會跟著變；現由 <code>BC.frictionAt</code> 依實際線形算出。對 <code>friction_profile_G1</code> golden 驗證。</div>
     <template x-for="r in R.rows.filter(x=>x[4]==='③')" :key="r[0]">
       <div class="chk">
         <div class="chk-h" @click="r[5]&&(open=open===r[0]?null:r[0])" :style="r[5]?'cursor:pointer':''">
@@ -1745,7 +1771,7 @@ var PARAM_KEYS=[
   // ② 載重
   'L','lanes','wDW',
   // ③ 預力
-  'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductSv','ductCover','dAgg','ductRule','jackEnd',
+  'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductSv','ductCover','dAgg','ductRule','jackEnd','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu',
   // ⑥ 細部檢核
@@ -1783,7 +1809,8 @@ function calc(){
       var sec=window.BC.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
       var wDC=sec.A/1e6*24.5;
       var ten=window.BC.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu);
-      var PeC=this.contPeAuto ? window.BC.computeLosses(ten,sec,0,0).Pe : this.contPe*1e3;
+      var PeC=this.contPeAuto ? window.BC.computeLosses(ten,sec,0,0,
+        {mu:this.fricMu,K:this.fricK,fricRatio:this.fricRatio}).Pe : this.contPe*1e3;
       var pt={Pe:this.contM2On?PeC:0, eEnd:this.contEEnd, eMid:this.contEMid, ePier:this.contEPier,
               kPier:this.contKPier, rEnd:this.contREnd};
       var key=[sp.join('+'),this.lanes,wDC.toFixed(3),this.wDW,pt.Pe.toFixed(0),pt.eEnd,pt.eMid,pt.ePier,
@@ -1865,6 +1892,34 @@ function calc(){
         }
       }
       return out;
+    },
+    // 摩擦：線形曲率段（單跨解析／連續梁由分段拋物線的 c 轉 κ=2|c|/1000）
+    get fricGeom(){
+      if(this.contLine){
+        var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
+        if(sp.length>=2){
+          var tp=contTendonSegs(sp,this.contEEnd,this.contEMid,this.contEPier,
+                                {kPier:this.contKPier,rEnd:this.contREnd});
+          return {L:tp.total, segs:tp.segs.map(function(g){return [g.x1,g.x2,2*Math.abs(g.c)/1000]})};
+        }
+      }
+      return {L:this.L, segs:window.BC.parabolicCurvSegs(this.L,this.e)};
+    },
+    get FRP(){ var q=this.fricGeom;
+      return window.BC.frictionProfile(q.L,q.segs,this.fricMu,this.fricK,this.jackEnd,20); },
+    get fricRatio(){ var q=this.fricGeom;
+      return window.BC.frictionAt(this.fricX*q.L,q.L,q.segs,this.fricMu,this.fricK,this.jackEnd); },
+    // 摩擦分佈表：各位置的損失率與該處 f_pe／Pe（非摩擦損失各項不隨位置變）
+    get fricTable(){
+      var q=this.fricGeom, L=q.L, B=window.BC, R=this.R, self=this;
+      var ten=B.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu);
+      var other=R.loss.total-R.loss.friction, fpj=ten.fpj, Aps=ten.Aps;
+      return [0,0.25,0.5,0.75,1].map(function(t){
+        var x=t*L, fr=B.frictionAt(x,L,q.segs,self.fricMu,self.fricK,self.jackEnd);
+        var fpe=fpj-fpj*fr-other;
+        return {t:t, x:x, aS:B.frictionAngle(q.segs,x,L,false), aE:B.frictionAngle(q.segs,x,L,true),
+                ratio:fr, fpe:fpe, Pe:fpe*Aps/1e3};
+      });
     },
     get ductR(){ var q=this.contLine?this.P3D:null;
       var R=(q&&q.tp)?q.tp.Rmin:window.BC.radiusOfCurvature(this.e,this.L*1000);
@@ -2021,7 +2076,8 @@ function calc(){
     L:40, fc:40, lanes:2, wDW:20,
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, sv:250, Vu:2069,
-    ductOD:100, ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'alt',   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／骨材粒徑／淨距規則
+    ductOD:100, ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'alt',
+    fricMu:0.25, fricK:0.003, fricX:0.5,   // 摩擦：μ、搖擺 K(/m)、控制斷面 x/L   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／骨材粒徑／淨距規則
     strandType:'15.2', customAp:140, customFpu:1860,
     fcGrade:'40', stirrupBar:'D16', stirrupLegs:2, customAv:397.4,
     Tu:1900, dMfat:3222, deltaS:40, jointSh:29.4,
@@ -2181,7 +2237,9 @@ function calc(){
       var wsw=sec.A/1e6*24.5, Mdc=wsw*this.L*this.L/8, Mdw=this.wDW*this.L*this.L/8;
       var IM=B.taiwanImpact(this.L), perLane=B.taiwanPerLaneMoment(this.L);
       var Mll=B.laneLiveLoad(perLane,this.lanes,1.0);
-      var loss=B.computeLosses(ten,sec,Mdc,Mdw);
+      // 摩擦損失改由線形＋張拉端配置算（B.frictionAt）——原本 α 寫死 0.111，改 e 或 L
+      // 都不會跟著變；現在 α=∫|e″|dx 自張拉端累積，控制斷面位置由 fricX 指定。
+      var loss=B.computeLosses(ten,sec,Mdc,Mdw,{mu:this.fricMu,K:this.fricK,fricRatio:this.fricRatio});
       var comb=B.combinations(Mdc,Mdw,Mll);
       var serv=B.stresses(loss.Pe,sec,this.e,comb.Service_I);
       var peMin=B.PeMinZeroTension(sec,this.e,comb.Service_I);

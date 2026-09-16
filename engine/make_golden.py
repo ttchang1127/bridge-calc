@@ -30,7 +30,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         segment_weight, joint_min_prestress, joint_compression,
                         shear_key_design_capacity, shear_key_utilization, bonded_pt_ratio,
                         min_tendon_groups, required_drape, min_section_modulus_Sb,
-                        duct_layout, duct_spacing_required)
+                        duct_layout, duct_spacing_required,
+                        parabolic_curv_segs, friction_angle, friction_at, friction_profile)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -61,6 +62,9 @@ dl = duct_layout(8, 2, sec.yb - 1109, duct_od=100, web_t=350, cover=40, s_v=40, 
                  y_b=sec.yb, h=2100, rule="tw")
 dls = duct_layout(8, 2, sec.yb - 1109, duct_od=100, web_t=350, cover=75, s_v=100, d_agg=25,
                   y_b=sec.yb, h=2100, rule="od")
+# 摩擦損失沿長度分佈：四種張拉端配置（參考橋 L=40 m、a=1109）
+fsg = parabolic_curv_segs(40, 1109)
+fps = {jk: friction_profile(40, fsg, jack=jk) for jk in ('both', 'start', 'end', 'alt')}
 dlp = duct_layout(8, 2, sec.yb + 900, duct_od=100, web_t=350, cover=40, s_v=40, d_agg=25,
                   y_b=sec.yb, h=2100, rule="tw")      # 墩頂 e_pier = −900（形心上方）
 f2 = general_zone_burst(14850e3, 1050, 2100, 150, L.Pe, sec.A, 540000, 12830e3, 40, 420)
@@ -221,6 +225,24 @@ golden = {
         "top_ok": dlp.top_ok, "fits": dlp.fits,
         "e_pier_limit_mm": round(sec.yb - 2100 + 40 + 50 + (dlp.y_top - dlp.y_cgs), 1),
         "_note": "墩頂腱在形心上方，控制的是頂緣保護層。e_pier=-900 使頂層管外緣穿出梁頂；可行下限 = yb - h + cover + od/2 + (y_top - y_cgs)"},
+    "friction_profile_G1": {
+        "config": "參考橋 L=40m / a=1109 / mu=0.25 / K=0.003",
+        "kappa_rad_per_m": round(fsg[0][2], 6),
+        "alpha_mid_rad": round(friction_angle(fsg, 20, 40), 5),
+        "alpha_full_rad": round(friction_angle(fsg, 40, 40), 5),
+        "both":  {"start": round(fps["both"].at_start, 4),  "mid": round(fps["both"].at_mid, 4),
+                  "end": round(fps["both"].at_end, 4),      "avg": round(fps["both"].avg, 4),
+                  "max": round(fps["both"].max_ratio, 4),   "x_max_m": round(fps["both"].x_max, 1)},
+        "start": {"start": round(fps["start"].at_start, 4), "mid": round(fps["start"].at_mid, 4),
+                  "end": round(fps["start"].at_end, 4),     "avg": round(fps["start"].avg, 4),
+                  "max": round(fps["start"].max_ratio, 4),  "x_max_m": round(fps["start"].x_max, 1)},
+        "end":   {"start": round(fps["end"].at_start, 4),   "mid": round(fps["end"].at_mid, 4),
+                  "end": round(fps["end"].at_end, 4),       "avg": round(fps["end"].avg, 4),
+                  "max": round(fps["end"].max_ratio, 4),    "x_max_m": round(fps["end"].x_max, 1)},
+        "alt":   {"start": round(fps["alt"].at_start, 4),   "mid": round(fps["alt"].at_mid, 4),
+                  "end": round(fps["alt"].at_end, 4),       "avg": round(fps["alt"].avg, 4),
+                  "max": round(fps["alt"].max_ratio, 4),    "x_max_m": round(fps["alt"].x_max, 1)},
+        "_note": "1−e^−(μα+Kx)，α 自張拉端累積(∫|e″|dx，反曲須逐段取絕對值)。跨中四配置同值(左右對稱、路徑各半)=0.0840 與 tendon_profile_G1.friction_dual_mid 一致；單端遠端 0.1609 與 friction_single_end 一致。alt 為該斷面半數腱自左半數自右的平均，個別腱仍是單端分佈"},
     "stm_F2": {
         "config": "8組×19股 (參考橋, 端橫隔版 General Zone)",
         "sigma_pe_MPa": round(f2.sigma_pe, 2), "T_burst_kN": round(f2.T_burst / 1e3),

@@ -31,7 +31,8 @@ def compute_losses(tendon: Tendon, section: Section,
                    M_D_kNm: float, M_SDL_kNm: float,
                    mu: float = 0.25, K: float = 0.003, alpha: float = 0.111,
                    x_ctrl: float = 20.0, RH: float = 75.0,
-                   relax: float = 10.0, Ep_Eci: float = 7.33) -> LossResult:
+                   relax: float = 10.0, Ep_Eci: float = 7.33,
+                   fric_ratio: float = None) -> LossResult:
     """計算總損失與有效預力 Pe（各損失由第一原理參數推導）。
 
     摩擦  ΔfpF = fpj·(1−e^(−(K·x+μ·α)))           （公式卡_後張預力短期損失 §一）
@@ -40,6 +41,8 @@ def compute_losses(tendon: Tendon, section: Section,
     鬆弛  relax：低鬆弛型 ~8–10 MPa（AASHTO 5.9.5.4.2c 簡化 8；本庫取 10），
                 量小且公式分歧，保留為參數。錨具滑移跨中=0（影響長度未達 L/2）。
     參數 μ/K/α/x_ctrl/RH 預設為 40m 參考橋值（雙端張拉、跨中控制 x=L/2=20m）。
+    fric_ratio：直接指定摩擦損失率（見 tendon_profile.friction_at，依張拉端配置與
+    線形算出該控制斷面的值）；不給則沿用 α/x_ctrl 的單點式。
     """
     Pi = tendon.Pi
     e = tendon.e
@@ -50,7 +53,10 @@ def compute_losses(tendon: Tendon, section: Section,
     fcir = fcgp
     fcds = M_SDL * e / section.I
 
-    friction = tendon.fpj * (1 - exp(-(K * x_ctrl + mu * alpha)))   # ΔfpF（摩擦+偏折）
+    # fric_ratio 給定時直接採用（由 tendon_profile.friction_at 依張拉端配置與線形算得），
+    # 否則走原本的單點 α/x_ctrl 式——不傳即與既有結果完全相同。
+    fr = (1 - exp(-(K * x_ctrl + mu * alpha))) if fric_ratio is None else fric_ratio
+    friction = tendon.fpj * fr                                      # ΔfpF（摩擦+偏折）
     shrink = 0.8 * (1195 - 10.55 * RH) * 0.0981                     # SH（kgf/cm²→MPa）
 
     N = tendon.n_tendons

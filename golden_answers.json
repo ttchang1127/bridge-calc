@@ -211,6 +211,45 @@
     "e_pier_limit_mm": -611.0,
     "_note": "墩頂腱在形心上方，控制的是頂緣保護層。e_pier=-900 使頂層管外緣穿出梁頂；可行下限 = yb - h + cover + od/2 + (y_top - y_cgs)"
   },
+  "friction_profile_G1": {
+    "config": "參考橋 L=40m / a=1109 / mu=0.25 / K=0.003",
+    "kappa_rad_per_m": 0.005545,
+    "alpha_mid_rad": 0.1109,
+    "alpha_full_rad": 0.2218,
+    "both": {
+      "start": 0.0,
+      "mid": 0.084,
+      "end": 0.0,
+      "avg": 0.0426,
+      "max": 0.084,
+      "x_max_m": 20.0
+    },
+    "start": {
+      "start": 0.0,
+      "mid": 0.084,
+      "end": 0.1609,
+      "avg": 0.0828,
+      "max": 0.1609,
+      "x_max_m": 40.0
+    },
+    "end": {
+      "start": 0.1609,
+      "mid": 0.084,
+      "end": 0.0,
+      "avg": 0.0828,
+      "max": 0.1609,
+      "x_max_m": 0.0
+    },
+    "alt": {
+      "start": 0.0805,
+      "mid": 0.084,
+      "end": 0.0805,
+      "avg": 0.0828,
+      "max": 0.084,
+      "x_max_m": 20.0
+    },
+    "_note": "1−e^−(μα+Kx)，α 自張拉端累積(∫|e″|dx，反曲須逐段取絕對值)。跨中四配置同值(左右對稱、路徑各半)=0.0840 與 tendon_profile_G1.friction_dual_mid 一致；單端遠端 0.1609 與 friction_single_end 一致。alt 為該斷面半數腱自左半數自右的平均，個別腱仍是單端分佈"
+  },
   "stm_F2": {
     "config": "8組×19股 (參考橋, 端橫隔版 General Zone)",
     "sigma_pe_MPa": 4.68,

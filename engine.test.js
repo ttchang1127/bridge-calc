@@ -51,6 +51,34 @@ function chkEq(name, got, exp) {
   // G1 管道實配（duct_layout 移植）：對三組 golden ＋ 形心守恆自檢
   (function () {
     chk('G1 曲率半徑 R(m)', BC.radiusOfCurvature(1109, 40000) / 1000, g.tendon_profile_G1.R_m, 0.5);
+    // 摩擦損失沿長度分佈：對 friction_profile_G1 golden ＋ 與 tendon_profile_G1 交叉驗證
+    (function () {
+      var fg = g.friction_profile_G1, sg = BC.parabolicCurvSegs(40, 1109);
+      chk('G1 摩擦 κ', sg[0][2], fg.kappa_rad_per_m, 1e-6);
+      chk('G1 摩擦 α跨中', BC.frictionAngle(sg, 20, 40, false), fg.alpha_mid_rad, 1e-4);
+      chk('G1 摩擦 α全長', BC.frictionAngle(sg, 40, 40, false), fg.alpha_full_rad, 1e-4);
+      ['both', 'start', 'end', 'alt'].forEach(function (jk) {
+        var p = BC.frictionProfile(40, sg, 0.25, 0.003, jk), e = fg[jk];
+        chk('G1 摩擦 ' + jk + ' 起點', p.at_start, e.start, 5e-4);
+        chk('G1 摩擦 ' + jk + ' 跨中', p.at_mid, e.mid, 5e-4);
+        chk('G1 摩擦 ' + jk + ' 終點', p.at_end, e.end, 5e-4);
+        chk('G1 摩擦 ' + jk + ' 平均', p.avg, e.avg, 5e-4);
+        chk('G1 摩擦 ' + jk + ' 最大', p.max_ratio, e.max, 5e-4);
+        chk('G1 摩擦 ' + jk + ' 最大位置', p.x_max, e.x_max_m, 0.1);
+      });
+      // 與 tendon_profile_G1 交叉：同一組 μ/K/a/L 由兩條路徑得同值
+      chk('G1 摩擦 跨中≡dual_mid', BC.frictionAt(20, 40, sg, 0.25, 0.003, 'both'),
+          g.tendon_profile_G1.friction_dual_mid, 1e-3);
+      chk('G1 摩擦 遠端≡single_end', BC.frictionAt(40, 40, sg, 0.25, 0.003, 'start'),
+          g.tendon_profile_G1.friction_single_end, 1e-3);
+      // 接進 computeLosses：不傳＝原式；傳了就改變 Pe
+      var L0 = BC.computeLosses(t, sec, 24800, 4000);
+      var L1 = BC.computeLosses(t, sec, 24800, 4000, { fricRatio: BC.frictionAt(20, 40, sg, 0.25, 0.003, 'both') });
+      var L2 = BC.computeLosses(t, sec, 24800, 4000, { fricRatio: BC.frictionAt(40, 40, sg, 0.25, 0.003, 'start') });
+      chk('G1 摩擦 接入(跨中雙端≡預設)', L1.Pe / 1e3, L0.Pe / 1e3, 3);
+      chk('G1 摩擦 接入(單端遠端 ΔPe kN)', (L0.Pe - L2.Pe) / 1e3,
+          t.fpj * (fg.start.end - fg.both.mid) * t.Aps / 1e3, 5);
+    })();
     chk('G1 淨距需求 tw', BC.ductSpacingRequired(100, 25), 40, 0);
     chk('G1 淨距需求 od', BC.ductSpacingRequired(100, 25, 'od'), 100, 0);
     var dg = g.duct_layout_G1;

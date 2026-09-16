@@ -563,6 +563,13 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           <td colspan="2" x-text="'最大位於 x = '+fmt(FRP.x_max,1)+' m'"></td></tr>
       </tbody>
     </table>
+    <div class="hint" x-show="FRP.max_ratio>0.20" x-cloak style="color:var(--ng)">
+      ✗ 摩擦損失最大已達 <b x-text="(FRP.max_ratio*100).toFixed(1)+' %'"></b>（＠x = <span x-text="fmt(FRP.x_max,1)"></span> m），
+      超過 G1 不合格決策樹的 20% 門檻。對策依序：①<b>採雙端張拉</b>（最有效；但兩端到跨中的路徑各半，全長超過約 60 m 時跨中仍會偏高）
+      ②<b>設中間錨碇段</b>（G1 明列「大於 60 m 跨建議」——把一條長腱拆成兩段各自張拉）
+      ③改用<b>低摩擦係數管道</b>（HDPE，K 較小）④減小垂度 a 以降低 α（代價是荷重平衡率下降）。
+      <span x-show="fricGeom.L>60" x-cloak>　本案線形全長 <b x-text="fmt(fricGeom.L,0)+' m'"></b>，已落在「建議設中間錨碇段」的範圍。</span>
+    </div>
     <div class="cite">Δf<sub>pF</sub> ＝ f<sub>pj</sub>(1−e<sup>−(μα+Kx)</sup>)，<b>α 與 x 都自張拉端起算</b>，故張拉端配置直接決定每個斷面的損失。α(x)＝∫|e″|dx——反曲時 e″ 變號，<b>必須逐段取絕對值累加</b>（用斜率差會相消）。〔雙端〕該點取損失小者；〔交錯端〕半數腱自左、半數自右，表列為該斷面<b>兩者的平均</b>，個別腱仍是單端分佈。
       ⚠ <b>跨中在四種配置下同值</b>（左右對稱、路徑各半）——這是物理結果不是程式沒接上；差異在其餘斷面，單端張拉的遠端損失最大。
       上游檢核（服務性／剪力／撓度）採<b>控制斷面 x/L＝<span x-text="fricX"></span></b> 的 Pe＝<b x-text="fmt(R.loss.Pe/1e3,0)+' kN'"></b>；改 ③ 的「摩擦控制斷面」即可換位置。

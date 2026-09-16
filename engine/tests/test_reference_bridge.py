@@ -33,7 +33,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         shear_key_design_capacity, shear_key_utilization, bonded_pt_ratio,
                         min_tendon_groups, required_drape, min_section_modulus_Sb,
                         duct_layout, duct_spacing_required,
-                        parabolic_curv_segs, friction_angle, friction_at, friction_profile)
+                        parabolic_curv_segs, friction_angle, friction_at, friction_profile,
+                        tendon_forces, assign_jack)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -382,6 +383,41 @@ def test_friction_into_losses():
     assert far.Pe < base.Pe                                   # 單端遠端損失大 → Pe 低
     _close(far.friction - base.friction,
            ten.fpj * (0.1609 - 0.0840), 2.0)                  # 差額＝損失率差×fpj
+
+
+def test_tendon_forces_G1():
+    """逐腱合成：總 Pe 與平均損失率等價，差別在合力位置。
+
+    交錯端張拉時各腱損失不同：若交錯落在不同層（單列多層 → 序號＝層號），
+    低層自起點、損失小、力大 → 合力下移；同層左右配對（多列）則垂直相消、
+    只剩橫向偏心。全部同端張拉時各腱損失相同 → 兩者皆為 0。
+    """
+    sg = parabolic_curv_segs(40, 1109)
+
+    def tf(rows, mode):
+        jk = assign_jack(len(rows), mode)
+        ts = [{"no": "T%d" % (i + 1), "y": rows[i][0], "x": rows[i][1], "jack": jk[i]}
+              for i in range(len(rows))]
+        return tendon_forces(ts, 10, 40, sg, sec.yb, 1395, 140 * 19, 180.0)
+
+    A = [(-80, 0), (120, 0), (320, 0), (520, 0)]           # 單列四層
+    B = [(150, -85), (150, 85), (290, -85), (290, 85)]     # 兩列兩層
+    a, b, st = tf(A, "alt"), tf(B, "alt"), tf(A, "start")
+
+    _close(a.Pe_total, a.Pe_avg_ratio, 1.0)                # 總力與平均損失率等價
+    _close(b.Pe_total, b.Pe_avg_ratio, 1.0)
+    _close(a.de, 5.10, 0.05)                               # 單列交錯 → 合力下移
+    _close(a.x_eff, 0.0, 1e-9)
+    _close(b.de, 0.0, 1e-9)                                # 同層配對 → 垂直相消
+    _close(b.x_eff, -4.34, 0.05)                           # 但橫向偏心
+    _close(st.de, 0.0, 1e-9)                               # 同端張拉 → 兩者皆 0
+    _close(st.x_eff, 0.0, 1e-9)
+    assert st.Pe_total > a.Pe_total                        # 全自起點在 L/4 損失較小
+
+    assert assign_jack(4, "alt") == ["start", "end", "start", "end"]
+    assert assign_jack(3, "both") == ["both"] * 3
+    assert len(a.per) == 4 and a.per[0]["jack"] == "start"
+    _close(a.per[0]["ratio"], friction_at(10, 40, sg, jack="start"), 1e-12)
 
 
 def test_duct_layout_G1():

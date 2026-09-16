@@ -31,7 +31,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         shear_key_design_capacity, shear_key_utilization, bonded_pt_ratio,
                         min_tendon_groups, required_drape, min_section_modulus_Sb,
                         duct_layout, duct_spacing_required,
-                        parabolic_curv_segs, friction_angle, friction_at, friction_profile)
+                        parabolic_curv_segs, friction_angle, friction_at, friction_profile,
+                        tendon_forces, assign_jack)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -65,6 +66,16 @@ dls = duct_layout(8, 2, sec.yb - 1109, duct_od=100, web_t=350, cover=75, s_v=100
 # 摩擦損失沿長度分佈：四種張拉端配置（參考橋 L=40 m、a=1109）
 fsg = parabolic_curv_segs(40, 1109)
 fps = {jk: friction_profile(40, fsg, jack=jk) for jk in ('both', 'start', 'end', 'alt')}
+# 逐腱合成：兩種排法 × 交錯端，看合力位置是否偏離幾何形心（x=L/4 損失左右差最大處）
+def _tf(rows, mode):
+    jk = assign_jack(len(rows), mode)
+    ts = [{"no": "T%d" % (i + 1), "y": rows[i][0], "x": rows[i][1], "jack": jk[i]}
+          for i in range(len(rows))]
+    return tendon_forces(ts, 10, 40, fsg, sec.yb, 1395, 140 * 19, 180.0)
+_rowsA = [(-80, 0), (120, 0), (320, 0), (520, 0)]        # 單列四層：序號＝層號
+_rowsB = [(150, -85), (150, 85), (290, -85), (290, 85)]  # 兩列兩層：同層左右配對
+tfA, tfB = _tf(_rowsA, "alt"), _tf(_rowsB, "alt")
+tfS = _tf(_rowsA, "start")
 dlp = duct_layout(8, 2, sec.yb + 900, duct_od=100, web_t=350, cover=40, s_v=40, d_agg=25,
                   y_b=sec.yb, h=2100, rule="tw")      # 墩頂 e_pier = −900（形心上方）
 f2 = general_zone_burst(14850e3, 1050, 2100, 150, L.Pe, sec.A, 540000, 12830e3, 40, 420)
@@ -243,6 +254,18 @@ golden = {
                   "end": round(fps["alt"].at_end, 4),       "avg": round(fps["alt"].avg, 4),
                   "max": round(fps["alt"].max_ratio, 4),    "x_max_m": round(fps["alt"].x_max, 1)},
         "_note": "1−e^−(μα+Kx)，α 自張拉端累積(∫|e″|dx，反曲須逐段取絕對值)。跨中四配置同值(左右對稱、路徑各半)=0.0840 與 tendon_profile_G1.friction_dual_mid 一致；單端遠端 0.1609 與 friction_single_end 一致。alt 為該斷面半數腱自左半數自右的平均，個別腱仍是單端分佈"},
+    "tendon_forces_G1": {
+        "config": "x=L/4=10m / fpj=1395 / Ap_each=140x19 / 其他損失 180 MPa / 交錯端",
+        "single_col_4row": {"Pe_kN": round(tfA.Pe_total / 1e3, 1), "e_eff_mm": round(tfA.e_eff, 2),
+                            "e_geom_mm": round(tfA.e_geom, 2), "de_mm": round(tfA.de, 2),
+                            "x_eff_mm": round(tfA.x_eff, 2)},
+        "two_col_2row":    {"Pe_kN": round(tfB.Pe_total / 1e3, 1), "e_eff_mm": round(tfB.e_eff, 2),
+                            "e_geom_mm": round(tfB.e_geom, 2), "de_mm": round(tfB.de, 2),
+                            "x_eff_mm": round(tfB.x_eff, 2)},
+        "single_col_start":{"Pe_kN": round(tfS.Pe_total / 1e3, 1), "de_mm": round(tfS.de, 2),
+                            "x_eff_mm": round(tfS.x_eff, 2)},
+        "Pe_equals_avg_ratio": abs(tfA.Pe_total - tfA.Pe_avg_ratio) < 1.0,
+        "_note": "總 Pe 以平均損失率算等價(各項對 f_pe 線性)，差別在合力位置。單列四層交錯時序號＝層號→低層自起點損失小→合力下移 Δe=+5.10；兩列兩層同層左右配對→垂直相消 Δe=0 但橫向 x_eff=-4.30；全部自起點則各腱損失相同→Δe=x_eff=0"},
     "stm_F2": {
         "config": "8組×19股 (參考橋, 端橫隔版 General Zone)",
         "sigma_pe_MPa": round(f2.sigma_pe, 2), "T_burst_kN": round(f2.T_burst / 1e3),

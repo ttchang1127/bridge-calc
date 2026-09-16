@@ -250,6 +250,30 @@
     },
     "_note": "1−e^−(μα+Kx)，α 自張拉端累積(∫|e″|dx，反曲須逐段取絕對值)。跨中四配置同值(左右對稱、路徑各半)=0.0840 與 tendon_profile_G1.friction_dual_mid 一致；單端遠端 0.1609 與 friction_single_end 一致。alt 為該斷面半數腱自左半數自右的平均，個別腱仍是單端分佈"
   },
+  "tendon_forces_G1": {
+    "config": "x=L/4=10m / fpj=1395 / Ap_each=140x19 / 其他損失 180 MPa / 交錯端",
+    "single_col_4row": {
+      "Pe_kN": 11694.1,
+      "e_eff_mm": 1114.1,
+      "e_geom_mm": 1109.0,
+      "de_mm": 5.1,
+      "x_eff_mm": 0.0
+    },
+    "two_col_2row": {
+      "Pe_kN": 11694.1,
+      "e_eff_mm": 1109.0,
+      "e_geom_mm": 1109.0,
+      "de_mm": 0.0,
+      "x_eff_mm": -4.34
+    },
+    "single_col_start": {
+      "Pe_kN": 12290.6,
+      "de_mm": 0.0,
+      "x_eff_mm": 0.0
+    },
+    "Pe_equals_avg_ratio": true,
+    "_note": "總 Pe 以平均損失率算等價(各項對 f_pe 線性)，差別在合力位置。單列四層交錯時序號＝層號→低層自起點損失小→合力下移 Δe=+5.10；兩列兩層同層左右配對→垂直相消 Δe=0 但橫向 x_eff=-4.30；全部自起點則各腱損失相同→Δe=x_eff=0"
+  },
   "stm_F2": {
     "config": "8組×19股 (參考橋, 端橫隔版 General Zone)",
     "sigma_pe_MPa": 4.68,

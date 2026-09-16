@@ -131,7 +131,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <tr><th>跨徑／斷面</th><td x-text="L+' m　｜　頂寬 '+topW+' × 高 '+h+' mm　｜　f\'c = '+fc+' MPa'"></td></tr>
     <tr><th>箱梁檢核結果</th><td x-text="R.npass+' / '+R.ntot+' 通過'+(R.matchGolden?'（對齊 40m 黃金範例）':'')"></td></tr>
   </table>
-  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 176 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
+  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 186 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
 </div>
 
 <!-- 送審計算書：目錄 -->
@@ -151,7 +151,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <div class="bar no-print">
   <div class="bar-row">
-    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 176 項驗證）</div></div>
+    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 186 項驗證）</div></div>
   </div>
   <div class="bar-row" style="margin-top:8px">
     <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
@@ -447,19 +447,43 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <b>編號 W&lt;腹板序&gt;-&lt;序號&gt;</b>：序號<b>由下往上、同層由左至右</b>（＝<code>ductLayout</code> 的填充順序）。圖示為 W1；各腹板排列相同，總組數非腹板數整數倍時前幾個腹板多 1 組（本案 <span x-text="R.lay.perWeb.join('／')"></span> 組）。
       ⚠ <b>編號是位置代號，不是張拉順序</b>——張拉順序另依交錯端張拉、各腹板均勻、橋寬方向對稱等原則訂定（見 KB 快查卡 C4 §六），且須明示於設計圖，現場不得自行更改。</div>
     <table style="margin-top:10px">
-      <thead><tr><th>鋼腱編號</th><th>層／列</th><th>橫向偏移（相對腹板中心）</th>
-        <th x-text="contLine?'跨中距梁底':'距梁底'"></th><th>張拉端錨頭</th><th>固定端錨頭</th></tr></thead>
+      <thead><tr><th>鋼腱編號</th><th>層／列</th><th>橫向偏移</th>
+        <th x-text="contLine?'跨中距梁底':'距梁底'"></th><th>張拉端</th><th>固定端</th>
+        <th>摩擦損失率</th><th>f<sub>pe</sub> (MPa)</th><th>P<sub>e</sub> (kN)</th></tr></thead>
       <tbody>
-        <template x-for="t in tendonList" :key="t.no">
+        <template x-for="(t,i) in tendonList" :key="t.no">
           <tr><td x-text="t.no"></td>
               <td x-text="'第 '+t.row+' 層／第 '+t.col+' 列'"></td>
               <td x-text="(t.x>0?'+':'')+fmt(t.x)+' mm'"></td>
               <td x-text="fmt(t.y)+' mm'"></td>
               <td x-text="t.jack"></td>
-              <td x-text="t.jack==='雙端'?'—':(t.jack==='起點 J'?'終點 D':'起點 D')"></td></tr>
+              <td x-text="t.jack==='雙端'?'—':(t.jack==='起點 J'?'終點 D':'起點 D')"></td>
+              <td x-text="(TF.per[i].ratio*100).toFixed(2)+' %'"></td>
+              <td x-text="fmt(TF.per[i].fpe,0)"></td>
+              <td x-text="fmt(TF.per[i].Pe/1e3,0)"></td></tr>
         </template>
+        <tr style="border-top:1.5px solid var(--line);font-weight:600">
+          <td colspan="6">合計（控制斷面 x/L = <span x-text="fricX"></span>）</td>
+          <td x-text="'平均 '+(FRP.ratios?(TF.per.reduce((a,b)=>a+b.ratio,0)/TF.per.length*100).toFixed(2):'')+' %'"></td>
+          <td>—</td><td x-text="fmt(TF.Pe_total/1e3,0)"></td></tr>
       </tbody>
     </table>
+    <div class="grid" style="margin-top:10px">
+      <div class="metric"><div class="l">合力 P<sub>e</sub>（逐腱加總）</div>
+        <div class="v" x-text="fmt(TF.Pe_total/1e3,0)+' kN'"></div></div>
+      <div class="metric"><div class="l">合力偏心 e<sub>eff</sub>（以 P<sub>e</sub> 加權）</div>
+        <div class="v" x-text="fmt(TF.e_eff,1)+' mm'"></div></div>
+      <div class="metric"><div class="l">與幾何形心差 Δe</div>
+        <div class="v" :class="Math.abs(TF.de)>5?'ng':''" x-text="(TF.de>=0?'+':'')+fmt(TF.de,2)+' mm'"></div></div>
+      <div class="metric"><div class="l">橫向合力位置 x<sub>eff</sub></div>
+        <div class="v" :class="Math.abs(TF.x_eff)>5?'ng':''" x-text="(TF.x_eff>=0?'+':'')+fmt(TF.x_eff,2)+' mm'"></div></div>
+    </div>
+    <div class="cite">逐腱合成（<code>BC.tendonForces</code>＝Python <code>tendon_forces</code>，對 <code>tendon_forces_G1</code> golden）：各腱依<b>自己的張拉端</b>算損失率與 P<sub>e</sub>，再合成。
+      <b>總力用「平均損失率×總面積」其實等價</b>（各項對 f<sub>pe</sub> 線性，表中合計已驗證）；真正的差別在<b>合力位置</b> e<sub>eff</sub>＝Σ(P<sub>e,i</sub>·e<sub>i</sub>)/ΣP<sub>e,i</sub>。
+      交錯端張拉時各腱損失不同：若交錯落在<b>不同層</b>（單列多層時序號就是層號），低層自起點、損失小、力大 → 合力下移；<b>同層左右配對</b>（多列）則垂直相消、只剩橫向偏心。
+      本案 Δe＝<b x-text="(TF.de>=0?'+':'')+fmt(TF.de,2)+' mm'"></b> → 底緣應力影響 <b x-text="(TF.dsig_b>=0?'+':'')+TF.dsig_b.toFixed(3)+' MPa'"></b>（＝P<sub>e</sub>·Δe/S<sub>b</sub>）；
+      橫向偏心 <b x-text="fmt(Math.abs(TF.x_eff),2)+' mm'"></b> → 橋寬方向偏心力矩 <b x-text="fmt(TF.M_lat,0)+' kN·m'"></b>（影響各腹板的應力分配）。
+      ⚠ 上游檢核目前仍用<b>幾何偏心 e</b>；Δe 與 x_eff 在本案量級下影響甚微（見上），但<b>單列多層＋交錯端</b>的組合會放大 Δe，配置變更後請回看此處。</div>
     <div class="hint">錨頭編號＝鋼腱編號＋端別（<b>J</b>＝張拉端／<b>D</b>＝固定端），3D 中張拉端錨頭為<b>橙色且較大</b>（放千斤頂側）、固定端為紫色。
       ⚠ <b>張拉端配置與張拉順序須由設計者訂定並明示於設計圖</b>；此處的「交錯端」只是依 KB 快查卡 C4 §六「相鄰兩條鋼腱分別從左右兩端施拉使摩擦損失對稱均勻」的<b>建議配置</b>，非計算結果。引擎的摩擦損失目前採雙端張拉假設（B1），更換配置不會改變損失計算。</div>
     <div class="hint" :class="DL.fits?'':'no-print'" x-show="!DL.fits" x-cloak style="color:var(--ng)">✗ 此配置實際排不下。可行對策：①降低偏心至 <b x-text="fmt(DL.eMax)+' mm'"></b>（上方「套用」）②加厚腹板至可排兩列（需 <b x-text="fmt(2*ductOD+DL.sReq+2*ductCover)+' mm'"></b>）③增加腹板數 ④減少每組股數改用較小管徑。</div>
@@ -498,7 +522,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </table>
     <div class="hint" x-show="DS.lossBad" x-cloak style="color:var(--ng)">✗ 預力損失已達 <b x-text="fmt(DS.lossPct,1)+'%'"></b>（f<sub>pe</sub> 過低）——此配置不合理，反解結果不可用，請先加大斷面或減少鋼腱。</div>
     <div class="hint no-print" x-show="DS.cgsBot<100" x-cloak style="color:var(--ng)">⚠ 套用該垂度後 CGS 距梁底僅 <b x-text="fmt(DS.cgsBot)"></b> mm，請確認保護層與管道尺寸。</div>
-    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 48/48・JS 176/176）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
+    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 49/49・JS 186/186）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
   </div>
   <div class="card"><h2>鋼腱縱剖面（G1・拋物線）</h2>
     <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElev"></svg></div>
@@ -1894,7 +1918,8 @@ function calc(){
             var j0=(jk==='both')||(jk==='start')||(jk==='alt'&&drawn%2===0);
             var j1=(jk==='both')||(jk==='end')||(jk==='alt'&&drawn%2===1);
             out.push({no:'W'+(iw+1)+'-'+(drawn+1), row:ri+1, col:j+1, y:row.y,
-                      x:lay.xOffsets[j], jack:(j0&&j1)?'雙端':(j0?'起點 J':'終點 J')});
+                      x:lay.xOffsets[j], jack:(j0&&j1)?'雙端':(j0?'起點 J':'終點 J'),
+                      jackCode:(j0&&j1)?'both':(j0?'start':'end')});
           }
         }
       }
@@ -1927,6 +1952,18 @@ function calc(){
         return {t:t, x:x, aS:B.frictionAngle(q.segs,x,L,false), aE:B.frictionAngle(q.segs,x,L,true),
                 ratio:fr, fpe:fpe, Pe:fpe*Aps/1e3};
       });
+    },
+    // 逐腱合成：各腱依自己的張拉端算 Pe，再合成總力與合力位置（BC.tendonForces）
+    get TF(){
+      var B=window.BC, q=this.fricGeom, R=this.R;
+      var other=R.loss.total-R.loss.friction;
+      var ten=B.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu);
+      var ApEach=this.strands*this.strandAp;
+      var ts=this.tendonList.map(function(t){ return {no:t.no,y:t.y,x:t.x,jack:t.jackCode}; });
+      var r=B.tendonForces(ts,this.fricX*q.L,q.L,q.segs,R.sec.yb,ten.fpj,ApEach,other,this.fricMu,this.fricK);
+      r.dsig_b=r.Pe_total*r.de/R.sec.Sb;          // Δe 對底緣應力的影響 MPa
+      r.M_lat=r.Pe_total*Math.abs(r.x_eff)/1e6;   // 橫向偏心力矩 kN·m
+      return r;
     },
     get ductR(){ var q=this.contLine?this.P3D:null;
       var R=(q&&q.tp)?q.tp.Rmin:window.BC.radiusOfCurvature(this.e,this.L*1000);

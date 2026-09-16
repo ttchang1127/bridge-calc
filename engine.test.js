@@ -79,6 +79,27 @@ function chkEq(name, got, exp) {
       chk('G1 摩擦 接入(單端遠端 ΔPe kN)', (L0.Pe - L2.Pe) / 1e3,
           t.fpj * (fg.start.end - fg.both.mid) * t.Aps / 1e3, 5);
     })();
+    // 逐腱合成：對 tendon_forces_G1 golden
+    (function () {
+      var tg = g.tendon_forces_G1, sg = BC.parabolicCurvSegs(40, 1109);
+      function tf(rows, mode) {
+        var jk = BC.assignJack(rows.length, mode), ts = rows.map(function (r, i) {
+          return { no: 'T' + (i + 1), y: r[0], x: r[1], jack: jk[i] }; });
+        return BC.tendonForces(ts, 10, 40, sg, sec.yb, 1395, 140 * 19, 180.0, 0.25, 0.003);
+      }
+      var A = [[-80, 0], [120, 0], [320, 0], [520, 0]], B = [[150, -85], [150, 85], [290, -85], [290, 85]];
+      var a = tf(A, 'alt'), b = tf(B, 'alt'), st = tf(A, 'start');
+      chk('G1 逐腱 單列4層 Pe', a.Pe_total / 1e3, tg.single_col_4row.Pe_kN, 0.2);
+      chk('G1 逐腱 單列4層 e_eff', a.e_eff, tg.single_col_4row.e_eff_mm, 0.05);
+      chk('G1 逐腱 單列4層 Δe', a.de, tg.single_col_4row.de_mm, 0.05);
+      chk('G1 逐腱 單列4層 x_eff', a.x_eff, tg.single_col_4row.x_eff_mm, 0.05);
+      chk('G1 逐腱 2列2層 Δe', b.de, tg.two_col_2row.de_mm, 0.05);
+      chk('G1 逐腱 2列2層 x_eff', b.x_eff, tg.two_col_2row.x_eff_mm, 0.05);
+      chk('G1 逐腱 全自起點 Pe', st.Pe_total / 1e3, tg.single_col_start.Pe_kN, 0.2);
+      chk('G1 逐腱 全自起點 Δe', st.de, tg.single_col_start.de_mm, 1e-6);
+      chk('G1 逐腱 總力≡平均損失率', a.Pe_total / 1e3, a.Pe_avg_ratio / 1e3, 0.002);
+      chkEq('G1 逐腱 assignJack', BC.assignJack(4, 'alt').join(','), 'start,end,start,end');
+    })();
     chk('G1 淨距需求 tw', BC.ductSpacingRequired(100, 25), 40, 0);
     chk('G1 淨距需求 od', BC.ductSpacingRequired(100, 25, 'od'), 100, 0);
     var dg = g.duct_layout_G1;

@@ -251,3 +251,62 @@ def friction_profile(L: float, segs: list, mu: float = 0.25, K: float = 0.003,
         at_mid=friction_at(L / 2, L, segs, mu, K, jack),
         at_start=rs[0], at_end=rs[-1], avg=area / L,
         max_ratio=rs[imax], x_max=xs[imax], jack=jack)
+
+
+# ── 逐腱合成：各腱依自己的張拉端算 Pe，再合成總力與合力位置 ────────
+# 為什麼要逐腱：總 Pe 用「平均損失率×總面積」算其實等價（各項對 f_pe 都是線性），
+# 真正的差別在**合力位置**——各腱 Pe 不同且高度不同時，合力中心會偏離幾何形心：
+#     e_eff = Σ(Pe_i·e_i) / ΣPe_i ≠ e_geom
+# 交錯端張拉時，自起點與自終點的腱在同一斷面損失不同；若交錯剛好落在不同層
+# （單列多層時序號＝層號），低層與高層的 Pe 就不同 → e_eff 垂直偏移。
+# 同層左右配對交錯（多列時）則垂直相消，只剩橫向偏心 x_eff。
+
+
+@dataclass
+class TendonForceResult:
+    Pe_total: float     # N
+    e_eff: float        # mm，正＝形心下方（以 Pe 加權）
+    e_geom: float       # mm，幾何形心（不加權）
+    de: float           # e_eff − e_geom（mm）
+    x_eff: float        # 橫向合力位置 mm（對稱配置應為 0）
+    Pe_avg_ratio: float # 以平均損失率算的總 Pe（對照用，應與 Pe_total 相同）
+    per: list           # 每腱 dict：no/y/x/jack/ratio/fpe/Pe
+
+
+def tendon_forces(tendons: list, x: float, L: float, segs: list, y_b: float,
+                  fpj: float, Ap_each: float, other_loss: float,
+                  mu: float = 0.25, K: float = 0.003) -> TendonForceResult:
+    """逐腱算 Pe 與合力位置。
+
+    tendons：[{"no":str, "y":距梁底 mm, "x":橫向 mm, "jack":'start'|'end'|'both'}]
+    x[m]：控制斷面里程；L[m]、segs：線形（見 friction_at）；y_b[mm]：斷面形心距底；
+    fpj[MPa]、Ap_each[mm²]（每腱鋼腱面積）、other_loss[MPa]（非摩擦損失合計）。
+    """
+    per, sP, sPe_e, sPe_x, s_ratio = [], 0.0, 0.0, 0.0, 0.0
+    for t in tendons:
+        r = friction_at(x, L, segs, mu, K, t.get("jack", "both"))
+        fpe = fpj - fpj * r - other_loss
+        Pe = fpe * Ap_each
+        e_i = y_b - t["y"]
+        per.append({"no": t.get("no", ""), "y": t["y"], "x": t.get("x", 0.0),
+                    "jack": t.get("jack", "both"), "ratio": r, "fpe": fpe, "Pe": Pe})
+        sP += Pe
+        sPe_e += Pe * e_i
+        sPe_x += Pe * t.get("x", 0.0)
+        s_ratio += r
+    n = len(tendons)
+    e_geom = y_b - sum(t["y"] for t in tendons) / n
+    fpe_avg = fpj - fpj * (s_ratio / n) - other_loss
+    return TendonForceResult(
+        Pe_total=sP, e_eff=(sPe_e / sP if sP else 0.0), e_geom=e_geom,
+        de=(sPe_e / sP if sP else 0.0) - e_geom,
+        x_eff=(sPe_x / sP if sP else 0.0),
+        Pe_avg_ratio=fpe_avg * Ap_each * n, per=per)
+
+
+def assign_jack(n_per_web: int, mode: str = "alt") -> list:
+    """依配置給每腱的張拉端：'alt' 交錯（序號偶數自起點、奇數自終點）／
+    'both' 雙端／'start'／'end'。回傳長度 n_per_web 的字串陣列。"""
+    if mode in ("both", "start", "end"):
+        return [mode] * n_per_web
+    return ["start" if i % 2 == 0 else "end" for i in range(n_per_web)]

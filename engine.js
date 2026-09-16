@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 176 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 186 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -170,6 +170,30 @@
     return { xs: xs, ratios: rs, at_mid: BC.frictionAt(L / 2, L, segs, mu, K, jack),
              at_start: rs[0], at_end: rs[n], avg: area / L,
              max_ratio: rs[imax], x_max: xs[imax], jack: jack };
+  };
+
+  // ── 逐腱合成 G1（tendon_profile.tendon_forces 移植）─────────
+  // 總 Pe 用「平均損失率×總面積」其實等價（各項對 f_pe 線性）；真正的差別在**合力位置**：
+  //   e_eff = Σ(Pe_i·e_i)/ΣPe_i ≠ e_geom（各腱 Pe 不同且高度不同時）
+  // 交錯端張拉若落在不同層（單列多層＝序號就是層號），低層自起點、損失小、力大
+  // → 合力下移；同層左右配對（多列）垂直相消，只剩橫向偏心 x_eff。
+  BC.assignJack = function (n, mode) {
+    var out = [], i;
+    for (i = 0; i < n; i++) out.push(
+      (mode === 'both' || mode === 'start' || mode === 'end') ? mode : (i % 2 === 0 ? 'start' : 'end'));
+    return out;
+  };
+  BC.tendonForces = function (tendons, x, L, segs, yb, fpj, ApEach, otherLoss, mu, K) {
+    var per = [], sP = 0, sPe = 0, sPx = 0, sr = 0, i, sy = 0;
+    for (i = 0; i < tendons.length; i++) {
+      var t = tendons[i], r = BC.frictionAt(x, L, segs, mu, K, t.jack || 'both');
+      var fpe = fpj - fpj * r - otherLoss, Pe = fpe * ApEach, tx = t.x || 0;
+      per.push({ no: t.no || '', y: t.y, x: tx, jack: t.jack || 'both', ratio: r, fpe: fpe, Pe: Pe });
+      sP += Pe; sPe += Pe * (yb - t.y); sPx += Pe * tx; sr += r; sy += t.y;
+    }
+    var n = tendons.length, eG = yb - sy / n, eE = sP ? sPe / sP : 0;
+    return { Pe_total: sP, e_eff: eE, e_geom: eG, de: eE - eG, x_eff: sP ? sPx / sP : 0,
+             Pe_avg_ratio: (fpj - fpj * (sr / n) - otherLoss) * ApEach * n, per: per };
   };
 
   // ── 管道實配排列 G1（tendon_profile.duct_layout 移植）───

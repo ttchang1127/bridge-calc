@@ -425,14 +425,16 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </table>
     <div class="secpair" style="margin-top:12px">
       <div><div class="hint" x-text="contLine?'腹板鋼腱大樣（跨中斷面）':'腹板鋼腱大樣（跨中斷面）'"></div>
-        <svg viewBox="0 0 250 185" style="width:250px;max-width:100%;height:auto" x-html="R.svgDet"></svg></div>
+        <svg viewBox="0 0 250 197" style="width:250px;max-width:100%;height:auto" x-html="R.svgDet"></svg></div>
       <template x-if="contLine">
         <div><div class="hint">腹板鋼腱大樣（墩頂斷面）</div>
-          <svg viewBox="0 0 250 185" style="width:250px;max-width:100%;height:auto" x-html="R.svgDetPier"></svg></div>
+          <svg viewBox="0 0 250 197" style="width:250px;max-width:100%;height:auto" x-html="R.svgDetPier"></svg></div>
       </template>
     </div>
     <div class="hint">大樣為<b>等比放大</b>（腹板寬畫成 120 px）；只取腱束上下各 70 mm 的範圍，落在其中的邊界才畫。綠虛線＝保護層界線（上下與腹板兩側）、紅虛線＝該斷面 CGS。
-      <span x-show="contLine" x-cloak>墩頂腱束整體上移，控制的是<b>頂緣</b>保護層。</span></div>
+      <span x-show="contLine" x-cloak>墩頂腱束整體上移，控制的是<b>頂緣</b>保護層。</span><br>
+      <b>編號 W&lt;腹板序&gt;-&lt;序號&gt;</b>：序號<b>由下往上、同層由左至右</b>（＝<code>ductLayout</code> 的填充順序）。圖示為 W1；各腹板排列相同，總組數非腹板數整數倍時前幾個腹板多 1 組（本案 <span x-text="R.lay.perWeb.join('／')"></span> 組）。
+      ⚠ <b>編號是位置代號，不是張拉順序</b>——張拉順序另依交錯端張拉、各腹板均勻、橋寬方向對稱等原則訂定（見 KB 快查卡 C4 §六），且須明示於設計圖，現場不得自行更改。</div>
     <div class="hint" :class="DL.fits?'':'no-print'" x-show="!DL.fits" x-cloak style="color:var(--ng)">✗ 此配置實際排不下。可行對策：①降低偏心至 <b x-text="fmt(DL.eMax)+' mm'"></b>（上方「套用」）②加厚腹板至可排兩列（需 <b x-text="fmt(2*ductOD+DL.sReq+2*ductCover)+' mm'"></b>）③增加腹板數 ④減少每組股數改用較小管徑。</div>
     <div class="hint">單點簡化上限 ȳ<sub>b</sub>−c−φ/2 ＝ <b x-text="fmt(DL.eMaxPoint)+' mm'"></b>（算例_鋼腱線形設計的 1,204 即此式）；<b>考慮實際 <span x-text="DL.nRow"></span> 層排列後降為 <span x-text="fmt(DL.eMax)"></span> mm</b>——兩者差 <span x-text="fmt(DL.eMaxPoint-DL.eMax)"></span> mm 即分層的代價。</div>
     <div class="cite">實配由 <code>engine.js</code> 的 <code>BC.ductLayout</code> 計算（＝Python <code>bridgecalc.duct_layout</code>，對 <code>duct_layout_G1</code> golden 驗證）：每腹板由下往上逐層填滿、層距＝φ+s<sub>v</sub>，排完<b>整體平移使實配形心恰等於分析用的 CGS</b>，故上游應力／剪力計算所用的 e 不因實配改變。淨間距需求有兩種取法，<b>直接決定腹板內排得下幾列</b>：〔台灣明文〕max(40, 1.5×骨材粒徑)＝公式卡 G1 §7.1 表列與 §8.25.2 明文的兩個條件；〔保守〕再取 ≥ 孔道外徑——公式卡 B3 §4-1 的台灣欄另列此條，與 AASHTO「孔道 OD > 100 mm 時淨距 ≥ 孔道外徑」同義。⚠ <b>兩卡敘述不一致、原規範條文尚未查證</b>，故做成可選；φ100 管時需求 40 → 兩列、100 → 單列，同一配置可能一個 ✓ 一個 ✗。保護層預設 40 mm（台灣 §8.25.1 一般規定），PTBG 實務建議 75 mm。<b>第一版假設全部鋼腱配置於腹板內</b>；實務跨中可下探至底板腋部橫向鋪開，該情形尚未建模。</div>
@@ -1155,6 +1157,7 @@ function secSVG(d,sec,eDraw,lay,od){
     for(i=0;i<n;i++) xcs.push(-B/2+wtm/2+(B-wtm)*(i/(n-1)));
     xcs.forEach(function(xc,iw){
       var nThis=(lay.perWeb&&lay.perWeb[iw]!=null)?lay.perWeb[iw]:lay.nPerWeb, drawn=0;
+      g+='<text x="'+(cx+xc*ss).toFixed(1)+'" y="'+(oy+H+7)+'" font-size="6.5" font-weight="600" fill="#991b1b" text-anchor="middle">W'+(iw+1)+'</text>';
       lay.rows.forEach(function(row){
         for(var j=0;j<row.count&&drawn<nThis;j++,drawn++){
           var px=cx+(xc+lay.xOffsets[j])*ss, py=oy+(d.h-(row.y+dyShift))*ss;
@@ -1172,9 +1175,13 @@ function secSVG(d,sec,eDraw,lay,od){
 // 腹板鋼腱大樣（等比放大）：斷面圖比例下 φ100 只有 2 px，看不出列×層與間距，故另畫
 // 一張局部——腹板寬固定畫 120 px。y 範圍只取腱束上下各 70 mm（墩頂腱在 2 m 高，從梁底
 // 畫起會變成 700 px 的長條），落在範圍內的邊界（梁底/梁頂/底板頂面/頂板底面/保護層）才畫。
-function ductDetailSVG(d,sec,lay,od,cover,eSec){
+// 編號規則：W<腹板序>-<該腹板內序號>，序號由下往上、同層由左至右（＝ductLayout 的填充順序）。
+// ⚠ 編號是位置代號，不是張拉順序——張拉順序另依 C4 §六（交錯端、對稱、各腹板均勻）。
+function ductDetailSVG(d,sec,lay,od,cover,eSec,webIdx){
   if(!lay) return '';
-  var ss=120/d.webT, ox=52, W=120, oy=16, PAD=70;
+  webIdx=webIdx||0;
+  var nThis=(lay.perWeb&&lay.perWeb[webIdx]!=null)?lay.perWeb[webIdx]:lay.nPerWeb;
+  var ss=120/d.webT, ox=52, W=120, oy=26, PAD=70;
   var dy=(sec.yb-lay.yCgs)-eSec;                       // 該斷面的整束平移（mm）
   var rows=lay.rows.map(function(r){return {y:r.y+dy, count:r.count}});
   var yBot=rows[0].y, yTop=rows[rows.length-1].y;
@@ -1194,10 +1201,12 @@ function ductDetailSVG(d,sec,lay,od,cover,eSec){
        '<text x="'+(ox-16)+'" y="'+(Y(b[0])+3)+'" font-size="6.5" fill="#16a34a" text-anchor="end">'+b[1]+'='+fmt(cover)+'</text>'; });
   [-1,1].forEach(function(sg){ var xx=X(sg*(d.webT/2-cover));
     g+='<line x1="'+xx+'" y1="'+oy+'" x2="'+xx+'" y2="'+(oy+H)+'" stroke="#16a34a" stroke-dasharray="2 2" opacity="0.8"/>'; });
-  rows.forEach(function(row){ for(var j=0;j<row.count;j++){
+  var no=0, fs=Math.max(6,Math.min(9,r*0.85));
+  rows.forEach(function(row){ for(var j=0;j<row.count&&no<nThis;j++){ no++;
     var px=X(lay.xOffsets[j]), py=Y(row.y);
-    g+='<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+r.toFixed(1)+'" fill="#fecaca" stroke="#dc2626" stroke-width="1"/>'+
-       '<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+(r*0.42).toFixed(1)+'" fill="#dc2626" opacity="0.55"/>'; } });
+    g+='<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+r.toFixed(1)+'" fill="#fee2e2" stroke="#dc2626" stroke-width="1"/>'+
+       '<text x="'+px.toFixed(1)+'" y="'+(py+fs*0.35).toFixed(1)+'" font-size="'+fs.toFixed(1)+
+       '" font-weight="700" fill="#991b1b" text-anchor="middle">'+no+'</text>'; } });
   var ycgs=sec.yb-eSec;
   if(inR(ycgs)) g+='<line x1="'+(ox-10)+'" y1="'+Y(ycgs)+'" x2="'+(ox+W+6)+'" y2="'+Y(ycgs)+'" stroke="#dc2626" stroke-dasharray="4 2"/>'+
      '<text x="'+(ox-12)+'" y="'+(Y(ycgs)+3)+'" font-size="6.5" fill="#dc2626" text-anchor="end">CGS</text>';
@@ -1208,7 +1217,9 @@ function ductDetailSVG(d,sec,lay,od,cover,eSec){
     g+='<line x1="'+x1+'" y1="'+yy+'" x2="'+x2+'" y2="'+yy+'" stroke="#555"/>'+
        '<text x="'+((x1+x2)/2)+'" y="'+(yy-2)+'" font-size="6.5" fill="#555" text-anchor="middle">'+fmt(od+lay.sH)+'</text>'; }
   var cb=yBot-od/2, ct=d.h-(yTop+od/2);                // 上下餘裕（管外緣到梁底／梁頂）
-  g+='<text x="'+cxm+'" y="'+(oy+H+11)+'" font-size="6.8" fill="'+(cb>=cover?'#555':'#dc2626')+'" text-anchor="middle">'+
+  g+='<text x="'+cxm+'" y="'+(oy-5)+'" font-size="7.5" font-weight="600" fill="#991b1b" text-anchor="middle">腹板 W'+(webIdx+1)+
+     '：W'+(webIdx+1)+'-1 ～ W'+(webIdx+1)+'-'+nThis+'</text>'+
+     '<text x="'+cxm+'" y="'+(oy+H+11)+'" font-size="6.8" fill="'+(cb>=cover?'#555':'#dc2626')+'" text-anchor="middle">'+
      '底緣餘裕 '+fmt(cb)+' ／ 頂緣餘裕 '+fmt(ct)+' mm</text>'+
      '<text x="'+cxm+'" y="'+(oy+H+21)+'" font-size="6.8" fill="#555" text-anchor="middle">腹板 '+fmt(d.webT)+
      '　φ'+fmt(od)+'　'+lay.nCol+'列×'+lay.nRow+'層　s_v='+fmt(lay.sv)+'　s_h='+(lay.nCol>1?fmt(lay.sH):'—')+

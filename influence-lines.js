@@ -100,6 +100,20 @@
     return { total: pos + neg, pos: pos, neg: neg };
   }
   // 區段均布載重效應 = w × ∫[x1,x2] η dx（梯形逐段裁切；等效載重法算 M_total 用）
+  // 影響線在里程 x 的值（節點間線性插值）。供「沿長度變化的分佈載重」做加權積分用：
+  // ∫w(x)η(x)dx 不能只靠 ilAreaRange（那假設 w 在區間內為常數）。
+  function ilAt(nodes, il, x) {
+    var n = nodes.length, i;
+    if (x <= nodes[0]) return il[0];
+    if (x >= nodes[n - 1]) return il[n - 1];
+    for (i = 0; i < n - 1; i++) {
+      if (x >= nodes[i] && x <= nodes[i + 1]) {
+        var d = nodes[i + 1] - nodes[i];
+        return d > 1e-12 ? il[i] + (il[i + 1] - il[i]) * (x - nodes[i]) / d : il[i];
+      }
+    }
+    return il[n - 1];
+  }
   function ilAreaRange(nodes, il, x1, x2) {
     var X = il.xs || nodes, Y = il.vs || il, s = 0;
     for (var i = 0; i < X.length - 1; i++) {
@@ -110,7 +124,7 @@
     }
     return s;
   }
-  var IL = { prepare: prepare, ilAreaRange: ilAreaRange, TRK: TRK, TRKS: TRKS, LANE: LANE, PM: PM, PV: PV,
+  var IL = { prepare: prepare, ilAreaRange: ilAreaRange, ilAt: ilAt, TRK: TRK, TRKS: TRKS, LANE: LANE, PM: PM, PV: PV,
              inv: inv, model: model, solveIL: solveIL, interp: interp,
              truckSum: truckSum, truckScan: truckScan, absMaxOf: absMaxOf,
              truckMax: truckMax, truckEnv: truckEnv, laneEnv: laneEnv, laneMax: laneMax,

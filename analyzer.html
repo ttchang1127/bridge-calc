@@ -361,7 +361,11 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           <div class="metric"><div class="l">最小保護層餘裕（全腱全長）</div>
             <div class="v" :class="P3D.clr.ok?'ok':'ng'" style="font-size:15px"
               x-text="fmt(P3D.clr.minMargin)+' mm ＠'+fmt(P3D.clr.worst.z,1)+' m'"></div></div>
-          <div class="metric"><div class="l">各段最小曲率半徑 R</div>
+          <div class="metric"><div class="l">P(x) 範圍（沿長度）</div>
+        <div class="v" style="font-size:15px" x-text="CB&&CB.rows[0].P?(fmt(Math.min.apply(null,CB.rows.map(r=>r.P)),0)+' ～ '+fmt(Math.max.apply(null,CB.rows.map(r=>r.P)),0)+' kN'):''"></div></div>
+      <div class="metric"><div class="l">Δe 範圍（合力偏移）</div>
+        <div class="v" style="font-size:15px" x-text="CB&&CB.rows[0].de!==undefined?(fmt(Math.min.apply(null,CB.rows.map(r=>r.de)),2)+' ～ '+fmt(Math.max.apply(null,CB.rows.map(r=>r.de)),2)+' mm'):''"></div></div>
+      <div class="metric"><div class="l">各段最小曲率半徑 R</div>
             <div class="v" :class="ductR.okTW?'ok':'ng'" style="font-size:15px"
               x-text="P3D.tp?fmt(P3D.tp.Rmin/1000,1)+' m':'—'"></div></div>
           <div class="metric"><div class="l">反曲點／低點 里程</div>
@@ -785,8 +789,19 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <div class="metric"><div class="l">中墩 M₁（主彎矩）</div><div class="v" x-text="CB&&CB.pier.M1!=null?fmt(CB.pier.M1)+' kN·m':''"></div></div>
       <div class="metric"><div class="l">中墩 M_total（等效載重）</div><div class="v" x-text="CB&&CB.pier.Mtot!=null?fmt(CB.pier.Mtot)+' kN·m':''"></div></div>
       <div class="metric"><div class="l">中墩 M₂（次彎矩）</div><div class="v" :class="CB&&CB.pier.M2>0?'ok':''" x-text="CB&&CB.pier.M2!=null?fmt(CB.pier.M2)+' kN·m':''"></div></div>
+      <div class="metric"><div class="l">P(x) 沿長度範圍</div><div class="v" style="font-size:15px"
+        x-text="CB&&CB.rows[0].P!=null?(fmt(Math.min.apply(null,CB.rows.map(r=>r.P)),0)+' ～ '+fmt(Math.max.apply(null,CB.rows.map(r=>r.P)),0)+' kN'):'（未計入 M₂）'"></div></div>
+      <div class="metric"><div class="l">Δe 範圍（合力偏移）</div><div class="v" style="font-size:15px"
+        x-text="CB&&CB.rows[0].de!=null?(fmt(Math.min.apply(null,CB.rows.map(r=>r.de)),2)+' ～ '+fmt(Math.max.apply(null,CB.rows.map(r=>r.de)),2)+' mm'):'—'"></div></div>
+      <div class="metric"><div class="l">M₂ 自我檢核</div><div class="v" style="font-size:14px"
+        x-text="CB?('端點 '+fmt(CB.rows[0].M2,2)+'／M₁+M₂−M_tot '+fmt(CB.pier.M1+CB.pier.M2-CB.pier.Mtot,3)):''"></div></div>
     </div>
-    <div class="cite" x-show="CB&&CB.m2" x-cloak>M₂ 以<b>等效載重法</b>實算。線形為<b>分段拋物線</b>（G1 §五之補・FHWA Eqn. 3.30–3.35）：墩頂段頂點在墩心（該處斜率 0 → <b>圓滑高點而非折角</b>）、長度 k×該側跨長；跨中段頂點在低點（端跨低點 r×跨長、內跨在中點）；兩段以<b>坡度連續</b> h₁/b₁＝h₂/b₂ 銜接，由 h₁+h₂＝Δ、b₁+b₂＝s 唯一決定 → <b>反曲點</b>即落在交界。各段 e(x)＝e<sub>v</sub>+c(x−x<sub>v</sub>)²，曲率 e″＝2c → 等效載重 w＝−P·e″（跨中段上揚、墩頂段下壓）→ 施於同一連續梁模型得 M_total；M₁＝−P·e(x)；<b>M₂＝M_total−M₁</b>，支承間呈直線（可用以自我檢核）。段交界坡度連續故無集中角變化力；端錨垂直分力直接進端支承。⚠ 端錨偏心彎矩 M＝P·e<sub>end</sub> 未計入（e<sub>end</sub> 預設 0）。M₂ 已以因數 1.0 計入上方 Service I／Strength I。</div>
+    <div class="cite" x-show="CB&&CB.m2" x-cloak>M₂ 以<b>等效載重法</b>實算。線形為<b>分段拋物線</b>（G1 §五之補・FHWA Eqn. 3.30–3.35）：墩頂段頂點在墩心（該處斜率 0 → <b>圓滑高點而非折角</b>）、長度 k×該側跨長；跨中段頂點在低點（端跨低點 r×跨長、內跨在中點）；兩段以<b>坡度連續</b> h₁/b₁＝h₂/b₂ 銜接，由 h₁+h₂＝Δ、b₁+b₂＝s 唯一決定 → <b>反曲點</b>即落在交界。各段 e(x)＝e<sub>v</sub>+c(x−x<sub>v</sub>)²。<b>等效載重取 M₁ 的二階導數</b>：q<sub>up</sub>＝M₁″＝−(P·e)″＝−(P″e+2P′e′+Pe″)——P 為常數時退化成熟悉的 −P·e″（即 w＝8Pa/L²）。
+      <b>P 與合力偏移 Δe 都沿長度變</b>（逐腱依自己的張拉端算摩擦損失，見 ③），故 M₁＝−P(x)·[e(x)+Δe(x)] 逐點計算。
+      ⚠ <b>P 沿長度變時不可只補一項 P′e′</b>——漏掉 P″e 與另一個 P′e′ 會使力系不平衡，實測 M₂ 在支承間的線性誤差由 0 變成 2.2%。
+      積分子區間<b>對齊影響線節點</b>後再用 Simpson（η 在節點間線性 → 子區間內嚴格線性）；不對齊而自行等分取樣會漏掉 η 的折角（誤差 2.4）。
+      <b>M₂＝M_total−M₁</b>，支承間呈直線（可用以自我檢核）。段交界坡度連續故無集中角變化力；端錨垂直分力直接進端支承。⚠ 端錨偏心彎矩 M＝P·e<sub>end</sub> 未計入（e<sub>end</sub> 預設 0）。M₂ 已以因數 1.0 計入上方 Service I／Strength I。
+      <b>驗證</b>：M₂ 端支承為 0、M₁+M₂＝M_total、支承間線性誤差 &lt; 0.04 kN·m/m（相對斜率 0.005%）；把 μ、K 設為 0 時 P 沿長度為常數、M₂ 與張拉端配置無關（三種配置同值）——無摩擦退化成立。</div>
     <table style="margin-top:10px">
       <thead><tr><th>斷面</th><th>靜載 M_DL</th><th>活載 M_LL+IM</th><th>M₂</th><th>Service I</th><th>Strength I</th></tr></thead>
       <tbody>
@@ -1688,9 +1703,10 @@ function contEnvelope(spans,wDC,wDW,lanes,pt){
   var pierIdx=m.sIdx.slice(1,-1);                       // 內支承（中墩）
   var C={m:m, IM:IM, rows:rows, tot:tot, ne:ne, spans:spans, nPier:pierIdx.length};
   if(pt && pt.Pe>0){                                    // 預力次彎矩（含入組合，載重因數 1.0）
-    var m2=contPrestressM2(C, pt.Pe, pt.eEnd, pt.eMid, pt.ePier, {kPier:pt.kPier, rEnd:pt.rEnd});
+    var m2=contPrestressM2(C, pt.Pe, pt.eEnd, pt.eMid, pt.ePier,
+                           {kPier:pt.kPier, rEnd:pt.rEnd, Pfn:pt.Pfn, deFn:pt.deFn});
     rows.forEach(function(r,t){ var q=m2.at(t);
-      r.e=q.e; r.M1=q.M1; r.Mtot=q.Mtot; r.M2=q.M2;
+      r.e=q.e; r.M1=q.M1; r.Mtot=q.Mtot; r.M2=q.M2; r.P=q.P; r.de=q.de; r.eEff=q.eEff;
       r.MsP+=q.M2; r.MsN+=q.M2; r.MuP+=q.M2; r.MuN+=q.M2; });
     C.m2=m2;
   }
@@ -1779,22 +1795,54 @@ function contTendonSegs(spans, eEnd, eMid, ePier, opt){
   var Rmin=Math.min.apply(null, segs.map(function(g){return g.R}));
   return {segs:segs, eAt:eAt, sx:xs, lows:lows, infl:infl, total:acc, kPier:kP, rEnd:rE, Rmin:Rmin};
 }
-// 等效載重：拋物線段 e=ev+c(x−xv)² 的曲率 e''=2c → 等效上揚 w = −P·e''（sag 段 c<0 → 上揚；
-// hog 段 c>0 → 向下）。段交界坡度連續故無集中角變化力；端錨的垂直分力直接進端支承、不生彎矩。
-// ⚠ 端錨偏心彎矩 M=P·e_end 未計入（e_end 預設 0）。
-// M_total = Σ(−w_i)×∫_seg η dp；M₁ = −P·e(x)；M₂ = M_total − M₁（支承間為直線，可自我檢核）。
+// 等效載重（含摩擦與逐腱合成）——等效載重法的本質是「把 M₁ 當成靜定彎矩圖」，
+// 其對應的橫向載重就是 M₁ 的二階導數：
+//     q_up(x) = M₁″ = −(P·e)″/1000 = −(P″e + 2P′e′ + Pe″)/1000      [kN/m]
+// P 為常數時退化成熟悉的 q = −P·e″（即 w = 8Pa/L²）。⚠ **P 沿長度變時不可只加
+// 一項 P′e′**——漏掉 P″e 與另一個 P′e′ 會使力系不平衡，M₂ 在支承間就不再是直線
+// （實測線性誤差從 0 變成 2.2%，正是這個原因）。
+// M₁(x) = −P(x)·[e(x)+Δe(x)]/1000——P 與合力偏移 Δe 都沿長度變，逐點算。
+// M₂ = M_total − M₁；支承間為直線、端支承為 0，兩者都用來自我檢核。
+// Pfn/deFn 未給時退化為 P 常數、Δe=0，即先前的行為。
 function contPrestressM2(C, PeN, eEnd, eMid, ePier, opt){
-  var P=PeN/1e3;                                        // P: kN
+  opt=opt||{};
   var tp=contTendonSegs(C.spans, eEnd, eMid, ePier, opt), eAt=tp.eAt;
-  var segs=tp.segs.map(function(g){
-    return {x1:g.x1, x2:g.x2, kind:g.kind, R:g.R, w:-2*g.c*P/1000};   // w: kN/m，正＝上揚
+  var P0=PeN/1e3, tot=tp.total;
+  var Pfn=opt.Pfn||function(){return P0}, deFn=opt.deFn||function(){return 0};
+  var hh=Math.min(0.02, tot*1e-4);
+  // 積分子區間**對齊影響線節點**：η 在節點間是線性的，對齊後每個子區間內 η 嚴格線性，
+  // 再用 Simpson（子區間取兩端＋中點）→ 對 q·η 幾乎無誤差。
+  // 不對齊而自行等分取樣的話，η 的折點落在子區間內部，梯形積分會漏掉折角（實測
+  // 線性誤差 2.4 而非 0）。
+  function qAt(g,x){
+    var xm=Math.max(g.x1,x-hh), xp=Math.min(g.x2,x+hh), hl=x-xm, hr=xp-x;
+    var P=Pfn(x), Pm=Pfn(xm), Pp=Pfn(xp);
+    var d1=(hl+hr)>0?(Pp-Pm)/(hl+hr):0;                         // P′
+    var d2=(hl>0&&hr>0)?2*((Pp-P)/hr-(P-Pm)/hl)/(hl+hr):0;      // P″
+    return -(d2*eAt(x)+2*d1*2*g.c*(x-g.xv)+P*2*g.c)/1000;
+  }
+  var quad=[];                                        // [{x0,xm,x1,q0,qm,q1,h}]
+  tp.segs.forEach(function(g){
+    var cut=[g.x1];
+    C.m.nodes.forEach(function(nx){ if(nx>g.x1+1e-9&&nx<g.x2-1e-9) cut.push(nx); });
+    cut.push(g.x2);
+    for(var i=0;i<cut.length-1;i++){
+      var x0=cut[i], x1=cut[i+1], xm=(x0+x1)/2;
+      quad.push({x0:x0, xm:xm, x1:x1, q0:qAt(g,x0), qm:qAt(g,xm), q1:qAt(g,x1), h:x1-x0});
+    }
   });
-  return {segs:segs, eAt:eAt, infl:tp.infl, lows:tp.lows, Rmin:tp.Rmin,
-    at:function(t){                                     // t＝節點索引
+  var segs=tp.segs.map(function(g){                   // 顯示用：常數 P 的等效上揚
+    return {x1:g.x1, x2:g.x2, kind:g.kind, R:g.R, w:-2*g.c*P0/1000};
+  });
+  return {segs:segs, eAt:eAt, infl:tp.infl, lows:tp.lows, Rmin:tp.Rmin, hasSamp:!!opt.Pfn,
+    at:function(t){
       var il=IL.solveIL(C.m,t,'M'), Mtot=0;
-      segs.forEach(function(g){ Mtot+=(-g.w)*IL.ilAreaRange(C.m.nodes,il,g.x1,g.x2); });
-      var x=C.m.nodes[t], M1=-P*eAt(x)/1000;
-      return {x:x, e:eAt(x), Mtot:Mtot, M1:M1, M2:Mtot-M1};
+      for(var k=0;k<quad.length;k++){ var u=quad[k];
+        Mtot+=-(u.h/6)*(u.q0*IL.ilAt(C.m.nodes,il,u.x0)
+                       +4*u.qm*IL.ilAt(C.m.nodes,il,u.xm)
+                       +u.q1*IL.ilAt(C.m.nodes,il,u.x1)); }
+      var x=C.m.nodes[t], P=Pfn(x), de=deFn(x), et=eAt(x)+de, M1=-P*et/1000;
+      return {x:x, e:eAt(x), de:de, eEff:et, P:P, Mtot:Mtot, M1:M1, M2:Mtot-M1};
     }};
 }
 // ── 參數存檔：localStorage 自動存 ＋ JSON 匯出/匯入（呈現層，不影響計算）──
@@ -1845,10 +1893,37 @@ function calc(){
       var ten=window.BC.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu);
       var PeC=this.contPeAuto ? window.BC.computeLosses(ten,sec,0,0,
         {mu:this.fricMu,K:this.fricK,fricRatio:this.fricRatio}).Pe : this.contPe*1e3;
+      // 沿長度取樣 P(x) 與合力偏移 Δe(x)：M₂ 的等效載重與 M₁ 都要逐點用（見 contPrestressM2）
+      var samp=null;
+      if(this.contM2On&&PeC>0){
+        var lay2=window.BC.ductLayout(this.ntd,this.nWeb,sec.yb-this.contEMid,
+          {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,
+           yb:sec.yb,h:this.h,rule:this.ductRule});
+        var ts2=[], nw2=Math.max(1,this.nWeb|0), ApE2=this.strands*this.strandAp;
+        for(var iw2=0;iw2<nw2;iw2++){
+          var nT2=(lay2.perWeb&&lay2.perWeb[iw2]!=null)?lay2.perWeb[iw2]:lay2.nPerWeb;
+          var jk2=window.BC.assignJack(nT2,this.jackEnd), d2=0;
+          for(var ri2=0;ri2<lay2.rows.length;ri2++){ var rw2=lay2.rows[ri2];
+            for(var j2=0;j2<rw2.count&&d2<nT2;j2++,d2++)
+              ts2.push({y:rw2.y, x:lay2.xOffsets[j2], jack:jk2[d2]}); }
+        }
+        var tpc=contTendonSegs(sp,this.contEEnd,this.contEMid,this.contEPier,
+                               {kPier:this.contKPier,rEnd:this.contREnd});
+        var cs2=tpc.segs.map(function(g){return [g.x1,g.x2,2*Math.abs(g.c)/1000]});
+        var lo2=window.BC.computeLosses(ten,sec,0,0,
+          {mu:this.fricMu,K:this.fricK,fricRatio:this.fricRatio});
+        var oth2=lo2.total-lo2.friction, B2=window.BC, muX=this.fricMu, KX=this.fricK;
+        var cache={};                                  // 同一 x 會被 P′/P″ 差分重複問到
+        var tfAt=function(x){ var k=x.toFixed(6);
+          return cache[k]||(cache[k]=B2.tendonForces(ts2,x,tpc.total,cs2,sec.yb,ten.fpj,ApE2,oth2,muX,KX)); };
+        samp={Pfn:function(x){ return tfAt(x).Pe_total/1e3 }, deFn:function(x){ return tfAt(x).de }};
+      }
       var pt={Pe:this.contM2On?PeC:0, eEnd:this.contEEnd, eMid:this.contEMid, ePier:this.contEPier,
-              kPier:this.contKPier, rEnd:this.contREnd};
+              kPier:this.contKPier, rEnd:this.contREnd,
+              Pfn:samp&&samp.Pfn, deFn:samp&&samp.deFn};
       var key=[sp.join('+'),this.lanes,wDC.toFixed(3),this.wDW,pt.Pe.toFixed(0),pt.eEnd,pt.eMid,pt.ePier,
-               pt.kPier,pt.rEnd].join('|');
+               pt.kPier,pt.rEnd,this.jackEnd,this.fricMu,this.fricK,this.ductCover,this.ductSv,
+               this.ductRule,this.ductOD,this.ntd,this.nWeb,this.webT].join('|');
       if(cbCache.key!==key){ cbCache.key=key; cbCache.val=contEnvelope(sp,wDC,this.wDW,this.lanes,pt); }
       return cbCache.val;
     },

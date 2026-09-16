@@ -226,6 +226,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <label><input type="checkbox" x-model="v3d.axes" @change="apply3D()"> 座標軸</label>
         <label><input type="checkbox" x-model="v3d.cover" @change="apply3D()"> 保護層界線</label>
         <label><input type="checkbox" x-model="v3d.pier" @change="apply3D()"> 橋墩</label>
+        <label title="兩端錨頭外側各標一個，編號同大樣"><input type="checkbox" x-model="v3d.labels" @change="apply3D()"> 鋼腱編號</label>
         <label title="與 ③、⑦ 同一個旗標"><input type="checkbox" x-model="contLine"> 連續梁線形</label>
         <label>垂直放大
           <select x-model.number="v3d.vz" style="height:26px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:12px">
@@ -262,7 +263,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           <div class="v" :class="P3D.clr.ok?'ok':'ng'"
             x-text="fmt(P3D.clr.minMargin)+' mm ＠里程 '+fmt(P3D.clr.worst.z,1)+' m'"></div></div>
       </div>
-      <div class="cite">左鍵拖曳旋轉、<b>中鍵（或 Shift＋左鍵、右鍵）拖曳平移</b>、滾輪縮放，〔等角〕可歸位；〔平面〕〔縱剖〕〔橫斷〕為近似平行投影的標準視圖。座標軸：X 橫向、Y 自梁底向上、Z 沿橋長（0＝起點）。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；勾選〔連續梁〕即改吃 ⑦ 的跨長與 e<sub>end</sub>/e<sub>mid</sub>/e<sub>pier</sub>，<b>與次彎矩 M₂ 共用同一個 <code>contTendonSegs</code> 線形函式</b>——3D 畫出來的就是算 M₂ 用的那條線，不會漂移；橋墩高度取 ⑨ 墩高、直徑取 ⑨ 墩柱徑，僅標示支承位置。鋼腱依 <code>BC.ductLayout</code> 的<b>實配排列逐條畫</b>（<span x-text="ntd"></span> 組分到 <span x-text="nWeb"></span> 腹板，每腹板 <span x-text="DL.nCol"></span> 列 × <span x-text="DL.nRow"></span> 層，管徑＝輸入的 φ<span x-text="ductOD"></span>）；各腱＝CGS 拋物線加固定偏移，<b>實配形心恆等於引擎在用的 e</b>（引擎 Vp 仍按 P<sub>e</sub>/腹板數計）。<b>橘色管</b>＝該腱沿線任一處保護層不足——判定用 <code>tendonClearance</code>：把斷面攤成 12 條邊界線段（外輪廓 8＋空腔 4），逐點算管壁到最近邊界的距離，<b>涵蓋梁頂／梁底／箱身外側／頂板外伸底面／腹板內側／底板頂面／頂板底面</b>，不是只比 y。上方「最小保護層餘裕」即全腱全長的最不利值與其里程。綠線＝上下保護層界線（僅示意 y 向）。〔垂直放大〕只放大 Y 向以看清分層，<b>該狀態下斷面比例失真</b>，量測請回 2D 斷面圖。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
+      <div class="cite">左鍵拖曳旋轉、<b>中鍵（或 Shift＋左鍵、右鍵）拖曳平移</b>、滾輪縮放，〔等角〕可歸位；〔平面〕〔縱剖〕〔橫斷〕為近似平行投影的標準視圖。座標軸：X 橫向、Y 自梁底向上、Z 沿橋長（0＝起點）。3D 只讀 ① 幾何、③ 偏心與引擎算出的 ȳb 重畫；勾選〔連續梁〕即改吃 ⑦ 的跨長與 e<sub>end</sub>/e<sub>mid</sub>/e<sub>pier</sub>，<b>與次彎矩 M₂ 共用同一個 <code>contTendonSegs</code> 線形函式</b>——3D 畫出來的就是算 M₂ 用的那條線，不會漂移；橋墩高度取 ⑨ 墩高、直徑取 ⑨ 墩柱徑，僅標示支承位置。鋼腱依 <code>BC.ductLayout</code> 的<b>實配排列逐條畫</b>（<span x-text="ntd"></span> 組分到 <span x-text="nWeb"></span> 腹板，每腹板 <span x-text="DL.nCol"></span> 列 × <span x-text="DL.nRow"></span> 層，管徑＝輸入的 φ<span x-text="ductOD"></span>）；各腱＝CGS 拋物線加固定偏移，<b>實配形心恆等於引擎在用的 e</b>（引擎 Vp 仍按 P<sub>e</sub>/腹板數計）。<b>橘色管</b>＝該腱沿線任一處保護層不足——判定用 <code>tendonClearance</code>：把斷面攤成 12 條邊界線段（外輪廓 8＋空腔 4），逐點算管壁到最近邊界的距離，<b>涵蓋梁頂／梁底／箱身外側／頂板外伸底面／腹板內側／底板頂面／頂板底面</b>，不是只比 y。上方「最小保護層餘裕」即全腱全長的最不利值與其里程。綠線＝上下保護層界線（僅示意 y 向）。〔鋼腱編號〕在兩端錨頭外側各標一個 <b>W&lt;腹板序&gt;-&lt;序號&gt;</b>，與 ③ 的腹板大樣同一套（由下往上、同層由左至右）；標籤為固定世界尺寸，全橋視圖下偏小，用〔橫斷〕視角或滾輪拉近即可辨讀。〔垂直放大〕只放大 Y 向以看清分層，<b>該狀態下斷面比例失真</b>，量測請回 2D 斷面圖。面積／慣性矩／應力一律由 <code>engine.js</code> 解析計算，<b>不從 mesh 量測回推</b>。斷面繪法同 2D：假設兩側腹板單室箱；箱體半透明以顯示腹板內鋼腱。</div>
      </div>
     </template>
   </div>
@@ -1360,6 +1361,17 @@ function tendonClearance(p, lay, eAt, tot, nSample){
 }
 function webCenters(p){ var s=1/1000, B=p.botW*s, wt=p.webT*s, n=Math.max(2,p.nWeb|0), out=[];
   for(var i=0;i<n;i++) out.push(-B/2+wt/2+(B-wt)*(i/(n-1))); return out; }
+// 鋼腱編號標籤：Sprite 永遠面向鏡頭；depthTest=false 才不會被半透明箱梁遮住。
+function tendonLabel(T,txt,color,pos,size){
+  var c=document.createElement('canvas'); c.width=170; c.height=64;
+  var g=c.getContext('2d');
+  g.fillStyle='rgba(255,255,255,0.86)'; g.strokeStyle=color; g.lineWidth=3;
+  g.beginPath(); g.rect(4,10,162,44); g.fill(); g.stroke();
+  g.font='bold 32px system-ui,sans-serif'; g.fillStyle=color;
+  g.textAlign='center'; g.textBaseline='middle'; g.fillText(txt,85,33);
+  var sp=new T.Sprite(new T.SpriteMaterial({map:new T.CanvasTexture(c),transparent:true,depthTest:false}));
+  sp.position.copy(pos); sp.scale.set(size*2.66,size,1); return sp;
+}
 function axisLabel(T,txt,color,pos,size){
   var c=document.createElement('canvas'); c.width=c.height=64;
   var g=c.getContext('2d'); g.font='bold 46px system-ui,sans-serif'; g.fillStyle=color;
@@ -1467,12 +1479,14 @@ function build3D(p){
   root.add(gBox); G3.grp.box=gBox;
   // 鋼腱：依 BC.ductLayout 的實配排列逐條畫（非一束 CGS）。每條 = CGS 拋物線 + 該腱
   // 相對 CGS 的固定偏移；端部錨頭因此也分層，與端橫隔版上的錨頭陣列一致。
-  var xs=webCenters(p), lay=p.lay, gT=new T.Group(), gA=new T.Group();
+  var xs=webCenters(p), lay=p.lay, gT=new T.Group(), gA=new T.Group(), gN=new T.Group();
   var rad=(p.od||100)/2*s, cov=(p.cover||75)*s, yc=yb-e;
   var matOK=new T.MeshLambertMaterial({color:0xdc2626,clippingPlanes:[clip]}),
       matNG=new T.MeshLambertMaterial({color:0xf59e0b,clippingPlanes:[clip]}),   // 低於保護層
       matAn=new T.MeshLambertMaterial({color:0x7c3aed});
   var NS=Math.max(60,Math.round(L*3)), eAt=p.eAt, ti=0;   // 連續梁要夠密才畫得出墩上反曲
+  // 編號標籤大小：受層距（放大後）壓制，免得垂直放大倍率低時上下層的標籤疊住
+  var lblSize=Math.max(0.18,Math.min(H*0.16, lay.pitchV/1000*vz*0.75));
   var clr=p.clr;                                          // 嚴格幾何檢核結果（每條腱一筆，順序同此迴圈）
   xs.forEach(function(xc,iw){
     var nThis=(lay.perWeb&&lay.perWeb[iw]!=null)?lay.perWeb[iw]:lay.nPerWeb, drawn=0;
@@ -1485,13 +1499,25 @@ function build3D(p){
         var bad=clr&&clr.tendons[ti]?clr.tendons[ti].margin<p.cover-1e-6:false; ti++;
         gT.add(new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3(arr),NS*2,rad,10,false),
                           bad?matNG:matOK));
+        var tag='W'+(iw+1)+'-'+(drawn+1);          // 與大樣同一套：由下往上、同層由左至右
         [0,L].forEach(function(z){
+          var ye=yb-eAt(z)*s+dy;
           var m=new T.Mesh(new T.BoxGeometry(rad*4.5,rad*4.5,0.14),matAn);
-          m.position.set(x, yb-eAt(z)*s+dy, z<L/2?0.07:L-0.07); gA.add(m); });
+          m.position.set(x, ye, z<L/2?0.07:L-0.07); gA.add(m);
+          // ⚠ 標籤掛在 scene 而非 root：Sprite 的 scale 會被 root.scale.y 拉長變形，
+          // 故位置自行乘上放大倍率、本體維持等比。同層各列沿 X 外推並拉引線，
+          // 否則橫斷視角下同層的標籤會疊在一起（列距 170 mm 遠小於標籤寬）。
+          var lz=z<L/2?-0.45:L+0.45, lx=x+(lay.nCol>1?(j-(lay.nCol-1)/2)*0.95:0), ly=ye*vz;
+          gN.add(tendonLabel(T,tag,bad?'#b45309':'#991b1b',new T.Vector3(lx,ly,lz),lblSize));
+          gN.add(new T.Line(new T.BufferGeometry().setFromPoints(
+            [new T.Vector3(x,ly,z<L/2?0:L), new T.Vector3(lx,ly,lz)]),
+            new T.LineBasicMaterial({color:0x991b1b,transparent:true,opacity:0.45})));
+        });
       }
     });
   });
   root.add(gT); G3.grp.tendon=gT; root.add(gA); G3.grp.anchor=gA;
+  sc.add(gN); G3.grp.label=gN;
   var gV=new T.Group();                                   // 保護層界線：管外緣不得低於下線／高於上線
   xs.forEach(function(xc){
     [cov, H-cov].forEach(function(yy){
@@ -1548,6 +1574,7 @@ function apply3D(o){
   if(G3.grp.axes) G3.grp.axes.visible=!!o.axes;
   if(G3.grp.cover) G3.grp.cover.visible=!!o.cover;
   if(G3.grp.pier) G3.grp.pier.visible=!!o.pier;
+  if(G3.grp.label) G3.grp.label.visible=!!o.labels;
   var z=o.cutOn ? o.cutT*G3.L : G3.L+1;
   if(G3.clip) G3.clip.constant=z;
   if(G3.grp.cut){ G3.grp.cut.visible=!!o.cutOn; G3.grp.cut.position.z=Math.min(z,G3.L); }
@@ -1716,7 +1743,7 @@ function calc(){
   return {
     tab:'①', open:null,
     // ── §十三 3D（只存旗標；THREE 物件放 G3 closure，不進 reactive proxy）──
-    v3d:{on:false,box:true,tendon:true,anchor:true,axes:true,cover:true,pier:true,vz:1,cutOn:false,cutT:0.5,msg:'',view:'iso'},
+    v3d:{on:false,box:true,tendon:true,anchor:true,axes:true,cover:true,pier:true,labels:true,vz:1,cutOn:false,cutT:0.5,msg:'',view:'iso'},
     contLine:false,          // 線形模式：false＝① 單跨拋物線、true＝⑦ 多跨分段線形（③ 檢核與 3D 共用此旗標）
     // ── ⑦ 連續梁：真實多跨包絡（記憶化：僅在跨長/車道/自重改變時重算）──
     get CB(){

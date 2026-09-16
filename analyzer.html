@@ -200,12 +200,16 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <div style="margin-top:12px"><div class="hint">側視（剖切位置 A＝跨中、B＝端部；紅線＝鋼腱合力中心 CGS）</div>
       <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElevCut"></svg></div></div>
     <div class="secpair">
-      <div><div class="hint">A-A 跨中斷面（e = e<sub>mid</sub>）</div>
+      <div><div class="hint">A-A 跨中斷面（e = <span x-text="fmt(contLine?contEMid:e)"></span>）</div>
         <svg viewBox="0 0 270 80" style="width:270px;max-width:100%;height:auto" x-html="R.svgSec"></svg></div>
-      <div><div class="hint">B-B 端部斷面（e ≈ 0，鋼腱錨於形心）</div>
+      <div><div class="hint">B-B 端部斷面（e = <span x-text="fmt(contLine?contEEnd:0)"></span>，鋼腱錨於形心附近）</div>
         <svg viewBox="0 0 270 80" style="width:270px;max-width:100%;height:auto" x-html="R.svgSecEnd"></svg></div>
+      <template x-if="contLine">
+        <div><div class="hint">C-C 墩頂斷面（e = <span x-text="fmt(contEPier)"></span>，腱在形心上方）</div>
+          <svg viewBox="0 0 270 80" style="width:270px;max-width:100%;height:auto" x-html="R.svgSecPier"></svg></div>
+      </template>
     </div>
-    <div class="cite">斷面性質由引擎 <code>sectionFromDims</code> 算出，圖只讀其結果；端部 e=0 與引擎 Vp／預拱所用的拋物線線形假設一致。<span x-show="contLine" x-cloak>　已勾選連續梁線形，本圖畫的是 ⑦ 的多跨分段線形；A＝第一跨低點、B＝端部。</span></div>
+    <div class="cite">斷面性質由引擎 <code>sectionFromDims</code> 算出，圖只讀其結果。<b>斷面圖中的小圓為 <code>BC.ductLayout</code> 的實配管道</b>（<span x-text="R.lay.nCol"></span> 列 × <span x-text="R.lay.nRow"></span> 層／腹板、φ<span x-text="ductOD"></span>），紅點為其形心 CGS；各斷面的腱束相對排列相同，差別只在整束高度。<span x-show="contLine" x-cloak>　已勾選連續梁線形，本圖畫的是 ⑦ 的多跨分段線形；A＝第一跨低點、B＝端部。</span></div>
   </div>
   <div class="card"><h2>3D 視圖（箱梁＋鋼腱）</h2>
     <div x-show="!v3d.on" class="no-print">
@@ -419,6 +423,16 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         </template>
       </tbody>
     </table>
+    <div class="secpair" style="margin-top:12px">
+      <div><div class="hint" x-text="contLine?'腹板鋼腱大樣（跨中斷面）':'腹板鋼腱大樣（跨中斷面）'"></div>
+        <svg viewBox="0 0 250 185" style="width:250px;max-width:100%;height:auto" x-html="R.svgDet"></svg></div>
+      <template x-if="contLine">
+        <div><div class="hint">腹板鋼腱大樣（墩頂斷面）</div>
+          <svg viewBox="0 0 250 185" style="width:250px;max-width:100%;height:auto" x-html="R.svgDetPier"></svg></div>
+      </template>
+    </div>
+    <div class="hint">大樣為<b>等比放大</b>（腹板寬畫成 120 px）；只取腱束上下各 70 mm 的範圍，落在其中的邊界才畫。綠虛線＝保護層界線（上下與腹板兩側）、紅虛線＝該斷面 CGS。
+      <span x-show="contLine" x-cloak>墩頂腱束整體上移，控制的是<b>頂緣</b>保護層。</span></div>
     <div class="hint" :class="DL.fits?'':'no-print'" x-show="!DL.fits" x-cloak style="color:var(--ng)">✗ 此配置實際排不下。可行對策：①降低偏心至 <b x-text="fmt(DL.eMax)+' mm'"></b>（上方「套用」）②加厚腹板至可排兩列（需 <b x-text="fmt(2*ductOD+DL.sReq+2*ductCover)+' mm'"></b>）③增加腹板數 ④減少每組股數改用較小管徑。</div>
     <div class="hint">單點簡化上限 ȳ<sub>b</sub>−c−φ/2 ＝ <b x-text="fmt(DL.eMaxPoint)+' mm'"></b>（算例_鋼腱線形設計的 1,204 即此式）；<b>考慮實際 <span x-text="DL.nRow"></span> 層排列後降為 <span x-text="fmt(DL.eMax)"></span> mm</b>——兩者差 <span x-text="fmt(DL.eMaxPoint-DL.eMax)"></span> mm 即分層的代價。</div>
     <div class="cite">實配由 <code>engine.js</code> 的 <code>BC.ductLayout</code> 計算（＝Python <code>bridgecalc.duct_layout</code>，對 <code>duct_layout_G1</code> golden 驗證）：每腹板由下往上逐層填滿、層距＝φ+s<sub>v</sub>，排完<b>整體平移使實配形心恰等於分析用的 CGS</b>，故上游應力／剪力計算所用的 e 不因實配改變。淨間距需求有兩種取法，<b>直接決定腹板內排得下幾列</b>：〔台灣明文〕max(40, 1.5×骨材粒徑)＝公式卡 G1 §7.1 表列與 §8.25.2 明文的兩個條件；〔保守〕再取 ≥ 孔道外徑——公式卡 B3 §4-1 的台灣欄另列此條，與 AASHTO「孔道 OD > 100 mm 時淨距 ≥ 孔道外徑」同義。⚠ <b>兩卡敘述不一致、原規範條文尚未查證</b>，故做成可選；φ100 管時需求 40 → 兩列、100 → 單列，同一配置可能一個 ✓ 一個 ✗。保護層預設 40 mm（台灣 §8.25.1 一般規定），PTBG 實務建議 75 mm。<b>第一版假設全部鋼腱配置於腹板內</b>；實務跨中可下探至底板腋部橫向鋪開，該情形尚未建模。</div>
@@ -1124,20 +1138,83 @@ function liveEnvelope(B,L,n){
 function fmt(n,d){ return (+(+n).toFixed(d==null?0:d)).toLocaleString('en-US'); }
 function polyline(pts,fx,fy,attr){ return '<polyline fill="none" '+attr+' points="'+pts.map(function(p){return fx(p).toFixed(1)+','+fy(p).toFixed(1)}).join(' ')+'"/>'; }
 // 箱型斷面（eDraw＝該斷面鋼腱合力中心偏心；端部 e=0 即錨於形心）
-function secSVG(d,sec,eDraw){
+function secSVG(d,sec,eDraw,lay,od){
   var ss=0.022, ox=20, oy=14, Tw=d.topW*ss, Bw=d.botW*ss, H=d.h*ss, wt=d.webT*ss;
   var lwx=ox+(d.topW-d.botW)/2*ss, rwx=ox+(d.topW+d.botW)/2*ss-wt;
   var yC=oy+(d.h-sec.yb)*ss, yT=oy+(sec.yt+eDraw)*ss, cx=ox+Tw/2, cT=oy+d.topT*ss, cH=H-d.topT*ss-d.botT*ss;
   var st='fill="#dbeafe" stroke="#1d4ed8"';
-  return '<rect x="'+ox+'" y="'+oy+'" width="'+Tw+'" height="'+(d.topT*ss)+'" '+st+'/>'+
+  var g='<rect x="'+ox+'" y="'+oy+'" width="'+Tw+'" height="'+(d.topT*ss)+'" '+st+'/>'+
     '<rect x="'+lwx+'" y="'+cT+'" width="'+wt+'" height="'+cH+'" '+st+'/>'+
     '<rect x="'+rwx+'" y="'+cT+'" width="'+wt+'" height="'+cH+'" '+st+'/>'+
     '<rect x="'+lwx+'" y="'+(oy+H-d.botT*ss)+'" width="'+Bw+'" height="'+(d.botT*ss)+'" '+st+'/>'+
-    '<line x1="'+(ox-5)+'" y1="'+yC+'" x2="'+(ox+Tw+5)+'" y2="'+yC+'" stroke="#16a34a" stroke-dasharray="3 2"/><text x="'+(ox+Tw+7)+'" y="'+(yC+3)+'" font-size="7" fill="#16a34a">形心</text>'+
-    (eDraw ? '<line x1="'+cx+'" y1="'+yC+'" x2="'+cx+'" y2="'+yT+'" stroke="#dc2626"/>' : '')+
-    '<circle cx="'+cx+'" cy="'+yT+'" r="3" fill="#dc2626"/><text x="'+(cx+5)+'" y="'+(yT-5)+'" font-size="7" fill="#dc2626">CGS e='+fmt(eDraw)+'</text>';
+    '<line x1="'+(ox-5)+'" y1="'+yC+'" x2="'+(ox+Tw+5)+'" y2="'+yC+'" stroke="#16a34a" stroke-dasharray="3 2"/><text x="'+(ox+Tw+7)+'" y="'+(yC+3)+'" font-size="7" fill="#16a34a">形心</text>';
+  // 實配管道：位置由 BC.ductLayout 給，該斷面的偏心與建表時的基準不同時整束平移
+  // （腱在斷面內的相對排列沿全長不變，改變的只有整束高度）。
+  if(lay){
+    var dyShift=(sec.yb-lay.yCgs)-eDraw, r=od/2*ss, B=d.botW, wtm=d.webT, n=Math.max(2,d.nWeb|0), xcs=[], i;
+    for(i=0;i<n;i++) xcs.push(-B/2+wtm/2+(B-wtm)*(i/(n-1)));
+    xcs.forEach(function(xc,iw){
+      var nThis=(lay.perWeb&&lay.perWeb[iw]!=null)?lay.perWeb[iw]:lay.nPerWeb, drawn=0;
+      lay.rows.forEach(function(row){
+        for(var j=0;j<row.count&&drawn<nThis;j++,drawn++){
+          var px=cx+(xc+lay.xOffsets[j])*ss, py=oy+(d.h-(row.y+dyShift))*ss;
+          g+='<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+Math.max(r,0.9).toFixed(2)+
+             '" fill="#fecaca" stroke="#dc2626" stroke-width="0.5"/>';
+        }
+      });
+    });
+  }
+  return g+(eDraw ? '<line x1="'+cx+'" y1="'+yC+'" x2="'+cx+'" y2="'+yT+'" stroke="#dc2626"/>' : '')+
+    '<circle cx="'+cx+'" cy="'+yT+'" r="2" fill="#dc2626"/><text x="'+(cx+5)+'" y="'+(yT-5)+'" font-size="7" fill="#dc2626">CGS e='+fmt(eDraw)+'</text>';
 }
+
 // 側視／鋼腱縱剖面：引擎假設拋物線 e(x)=4e·x(L−x)/L²（兩端 e=0）
+// 腹板鋼腱大樣（等比放大）：斷面圖比例下 φ100 只有 2 px，看不出列×層與間距，故另畫
+// 一張局部——腹板寬固定畫 120 px。y 範圍只取腱束上下各 70 mm（墩頂腱在 2 m 高，從梁底
+// 畫起會變成 700 px 的長條），落在範圍內的邊界（梁底/梁頂/底板頂面/頂板底面/保護層）才畫。
+function ductDetailSVG(d,sec,lay,od,cover,eSec){
+  if(!lay) return '';
+  var ss=120/d.webT, ox=52, W=120, oy=16, PAD=70;
+  var dy=(sec.yb-lay.yCgs)-eSec;                       // 該斷面的整束平移（mm）
+  var rows=lay.rows.map(function(r){return {y:r.y+dy, count:r.count}});
+  var yBot=rows[0].y, yTop=rows[rows.length-1].y;
+  var yLo=Math.max(0, yBot-od/2-PAD), yHi=Math.min(d.h, yTop+od/2+PAD);
+  if(yHi-yLo<260){ var mid=(yHi+yLo)/2; yLo=Math.max(0,mid-130); yHi=Math.min(d.h,yLo+260); }
+  var H=(yHi-yLo)*ss, r=od/2*ss, cxm=ox+W/2;
+  var Y=function(m){return oy+H-(m-yLo)*ss}, X=function(m){return cxm+m*ss};
+  var inR=function(m){return m>=yLo-1e-9&&m<=yHi+1e-9};
+  var g='<rect x="'+ox+'" y="'+oy+'" width="'+W+'" height="'+H+'" fill="#dbeafe" stroke="#1d4ed8"/>';
+  [[0,'梁底','#1d4ed8',1.4],[d.h,'梁頂','#1d4ed8',1.4],
+   [d.botT,'底板頂面','#60a5fa',0.8],[d.h-d.topT,'頂板底面','#60a5fa',0.8]].forEach(function(b){
+    if(!inR(b[0])) return;
+    g+='<line x1="'+(ox-14)+'" y1="'+Y(b[0])+'" x2="'+(ox+W+8)+'" y2="'+Y(b[0])+'" stroke="'+b[2]+'" stroke-width="'+b[3]+'"/>'+
+       '<text x="'+(ox+W+10)+'" y="'+(Y(b[0])+3)+'" font-size="6.5" fill="'+b[2]+'">'+b[1]+'</text>'; });
+  [[cover,'c'],[d.h-cover,'c']].forEach(function(b){ if(!inR(b[0])) return;
+    g+='<line x1="'+ox+'" y1="'+Y(b[0])+'" x2="'+(ox+W)+'" y2="'+Y(b[0])+'" stroke="#16a34a" stroke-dasharray="2 2"/>'+
+       '<text x="'+(ox-16)+'" y="'+(Y(b[0])+3)+'" font-size="6.5" fill="#16a34a" text-anchor="end">'+b[1]+'='+fmt(cover)+'</text>'; });
+  [-1,1].forEach(function(sg){ var xx=X(sg*(d.webT/2-cover));
+    g+='<line x1="'+xx+'" y1="'+oy+'" x2="'+xx+'" y2="'+(oy+H)+'" stroke="#16a34a" stroke-dasharray="2 2" opacity="0.8"/>'; });
+  rows.forEach(function(row){ for(var j=0;j<row.count;j++){
+    var px=X(lay.xOffsets[j]), py=Y(row.y);
+    g+='<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+r.toFixed(1)+'" fill="#fecaca" stroke="#dc2626" stroke-width="1"/>'+
+       '<circle cx="'+px.toFixed(1)+'" cy="'+py.toFixed(1)+'" r="'+(r*0.42).toFixed(1)+'" fill="#dc2626" opacity="0.55"/>'; } });
+  var ycgs=sec.yb-eSec;
+  if(inR(ycgs)) g+='<line x1="'+(ox-10)+'" y1="'+Y(ycgs)+'" x2="'+(ox+W+6)+'" y2="'+Y(ycgs)+'" stroke="#dc2626" stroke-dasharray="4 2"/>'+
+     '<text x="'+(ox-12)+'" y="'+(Y(ycgs)+3)+'" font-size="6.5" fill="#dc2626" text-anchor="end">CGS</text>';
+  if(rows.length>1){ var y1=Y(rows[0].y), y2=Y(rows[1].y);
+    g+='<line x1="'+(ox-6)+'" y1="'+y1+'" x2="'+(ox-6)+'" y2="'+y2+'" stroke="#555"/>'+
+       '<text x="'+(ox-8)+'" y="'+((y1+y2)/2+3)+'" font-size="6.5" fill="#555" text-anchor="end">'+fmt(lay.pitchV)+'</text>'; }
+  if(lay.nCol>1){ var x1=X(lay.xOffsets[0]), x2=X(lay.xOffsets[1]), yy=Y(yTop)-r-5;
+    g+='<line x1="'+x1+'" y1="'+yy+'" x2="'+x2+'" y2="'+yy+'" stroke="#555"/>'+
+       '<text x="'+((x1+x2)/2)+'" y="'+(yy-2)+'" font-size="6.5" fill="#555" text-anchor="middle">'+fmt(od+lay.sH)+'</text>'; }
+  var cb=yBot-od/2, ct=d.h-(yTop+od/2);                // 上下餘裕（管外緣到梁底／梁頂）
+  g+='<text x="'+cxm+'" y="'+(oy+H+11)+'" font-size="6.8" fill="'+(cb>=cover?'#555':'#dc2626')+'" text-anchor="middle">'+
+     '底緣餘裕 '+fmt(cb)+' ／ 頂緣餘裕 '+fmt(ct)+' mm</text>'+
+     '<text x="'+cxm+'" y="'+(oy+H+21)+'" font-size="6.8" fill="#555" text-anchor="middle">腹板 '+fmt(d.webT)+
+     '　φ'+fmt(od)+'　'+lay.nCol+'列×'+lay.nRow+'層　s_v='+fmt(lay.sv)+'　s_h='+(lay.nCol>1?fmt(lay.sH):'—')+
+     '（需 ≥'+fmt(lay.sReq)+'）</text>';
+  return g;
+}
 function elevSVG(d,sec,o){
   o=o||{};
   var cont=o.cont, band=o.band;                          // cont＝連續梁線形；band＝腱束上下緣（mm，相對 CGS）
@@ -2067,7 +2144,7 @@ function calc(){
       var mg=(this.L===40&&this.ntd===8&&this.strands===19&&this.fc===40&&Math.abs(serv.sb+0.91)<0.05);
       var f1=function(n){return (+n).toFixed(1)};
       var dd={topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,h:this.h,L:this.L,e:this.e};
-      var svgSec=secSVG(dd,sec,this.e), svgSecEnd=secSVG(dd,sec,0);
+      var svgSec=null, svgSecEnd=null, svgSecPier=null;   // 待 layE 算好後再產（見下）
       // 縱剖圖的線形來源：勾「連續梁」則走分段線形（與 M₂／3D 同一個 contTendonSegs）。
       // ⚠ 這裡不可讀 this.P3D／this.DL——它們會讀 this.R，形成 getter 循環；故就地重算。
       var eCtl=this.contLine?this.contEMid:this.e, contLine=null;
@@ -2083,6 +2160,11 @@ function calc(){
                     eMid:this.contEMid, ePier:this.contEPier, kPier:tpE.kPier, rEnd:tpE.rEnd};
         }
       }
+      svgSec=secSVG(dd,sec,eCtl,layE,this.ductOD);
+      svgSecEnd=secSVG(dd,sec,this.contLine?this.contEEnd:0,layE,this.ductOD);
+      svgSecPier=this.contLine?secSVG(dd,sec,this.contEPier,layE,this.ductOD):null;
+      var svgDet=ductDetailSVG(dd,sec,layE,this.ductOD,this.ductCover,eCtl);
+      var svgDetPier=this.contLine?ductDetailSVG(dd,sec,layE,this.ductOD,this.ductCover,this.contEPier):null;
       var svgElevCut=elevSVG(dd,sec,{mode:'cut',cont:contLine,band:bandE}),
           svgElev=elevSVG(dd,sec,{mode:'tendon',dv:dv,slope:sh.slope,cont:contLine,band:bandE});
       var cgsBot=sec.yb-eCtl;                            // 連續梁模式取跨中 e_mid（墩頂另由 ⑦／③ 檢核表看）
@@ -2103,7 +2185,7 @@ function calc(){
       return {sec:sec,wsw:wsw,Mdc:Mdc,Mdw:Mdw,IM:IM,perLane:perLane,Mll:Mll,loss:loss,tenPi:ten.Pi,
               rows:rows,npass:np,ntot:nt,matchGolden:mg,cont:cont,
               svgSec:svgSec,svgStr:svgStr,svgMohr:svgMohr,
-              svgSecEnd:svgSecEnd,svgElevCut:svgElevCut,svgElev:svgElev,
+              svgSecEnd:svgSecEnd,svgSecPier:svgSecPier,svgDet:svgDet,svgDetPier:svgDetPier,svgElevCut:svgElevCut,svgElev:svgElev,lay:layE,
               dv:dv,shSlope:sh.slope,weq:df.w_eq,cgsBot:cgsBot};
     }
   };

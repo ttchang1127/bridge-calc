@@ -483,7 +483,10 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       交錯端張拉時各腱損失不同：若交錯落在<b>不同層</b>（單列多層時序號就是層號），低層自起點、損失小、力大 → 合力下移；<b>同層左右配對</b>（多列）則垂直相消、只剩橫向偏心。
       本案 Δe＝<b x-text="(TF.de>=0?'+':'')+fmt(TF.de,2)+' mm'"></b> → 底緣應力影響 <b x-text="(TF.dsig_b>=0?'+':'')+TF.dsig_b.toFixed(3)+' MPa'"></b>（＝P<sub>e</sub>·Δe/S<sub>b</sub>）；
       橫向偏心 <b x-text="fmt(Math.abs(TF.x_eff),2)+' mm'"></b> → 橋寬方向偏心力矩 <b x-text="fmt(TF.M_lat,0)+' kN·m'"></b>（影響各腹板的應力分配）。
-      ⚠ 上游檢核目前仍用<b>幾何偏心 e</b>；Δe 與 x_eff 在本案量級下影響甚微（見上），但<b>單列多層＋交錯端</b>的組合會放大 Δe，配置變更後請回看此處。</div>
+      ✅ <b>上游檢核已採用 e<sub>eff</sub></b>（本次 <b x-text="fmt(R.eUse,1)+' mm'"></b>，幾何 e＝<span x-text="fmt(R.eGeom,1)"></span>）：服務性應力、所需最小預力、有效深度 d<sub>p</sub>、極限彎矩、疲勞都改以合力位置計算。
+      ⚠ <b>剪力 V<sub>p</sub> 與撓度 w<sub>eq</sub> 仍用幾何線形</b>——前者取線形斜率、後者取曲率，兩者與合力位置無關，換成 e<sub>eff</sub> 反而錯。
+      損失與 e<sub>eff</sub> 互相依賴（f<sub>cgp</sub> 含 e²），故<b>迭代兩次</b>至收斂（Δe 僅數 mm，第二輪變動 &lt; 0.01 mm）。
+      ⚠ ⑦ 的次彎矩 M₂ 仍以<b>幾何線形</b>計算——Δe 沿長度不是常數，整條線形的修正尚未建模。</div>
     <div class="hint">錨頭編號＝鋼腱編號＋端別（<b>J</b>＝張拉端／<b>D</b>＝固定端），3D 中張拉端錨頭為<b>橙色且較大</b>（放千斤頂側）、固定端為紫色。
       ⚠ <b>張拉端配置與張拉順序須由設計者訂定並明示於設計圖</b>；此處的「交錯端」只是依 KB 快查卡 C4 §六「相鄰兩條鋼腱分別從左右兩端施拉使摩擦損失對稱均勻」的<b>建議配置</b>，非計算結果。引擎的摩擦損失目前採雙端張拉假設（B1），更換配置不會改變損失計算。</div>
     <div class="hint" :class="DL.fits?'':'no-print'" x-show="!DL.fits" x-cloak style="color:var(--ng)">✗ 此配置實際排不下。可行對策：①降低偏心至 <b x-text="fmt(DL.eMax)+' mm'"></b>（上方「套用」）②加厚腹板至可排兩列（需 <b x-text="fmt(2*ductOD+DL.sReq+2*ductCover)+' mm'"></b>）③增加腹板數 ④減少每組股數改用較小管徑。</div>
@@ -1954,14 +1957,11 @@ function calc(){
       });
     },
     // 逐腱合成：各腱依自己的張拉端算 Pe，再合成總力與合力位置（BC.tendonForces）
+    // 逐腱合成：直接取 R 算好的那一份——R 已用它迭代出 e_eff 供上游檢核，
+    // 這裡再算一次只會製造兩個可能不一致的版本。
     get TF(){
-      var B=window.BC, q=this.fricGeom, R=this.R;
-      var other=R.loss.total-R.loss.friction;
-      var ten=B.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu);
-      var ApEach=this.strands*this.strandAp;
-      var ts=this.tendonList.map(function(t){ return {no:t.no,y:t.y,x:t.x,jack:t.jackCode}; });
-      var r=B.tendonForces(ts,this.fricX*q.L,q.L,q.segs,R.sec.yb,ten.fpj,ApEach,other,this.fricMu,this.fricK);
-      r.dsig_b=r.Pe_total*r.de/R.sec.Sb;          // Δe 對底緣應力的影響 MPa
+      var r=this.R.tf, sec=this.R.sec;
+      r.dsig_b=r.Pe_total*r.de/sec.Sb;            // Δe 對底緣應力的影響 MPa
       r.M_lat=r.Pe_total*Math.abs(r.x_eff)/1e6;   // 橫向偏心力矩 kN·m
       return r;
     },
@@ -2283,12 +2283,36 @@ function calc(){
       var Mll=B.laneLiveLoad(perLane,this.lanes,1.0);
       // 摩擦損失改由線形＋張拉端配置算（B.frictionAt）——原本 α 寫死 0.111，改 e 或 L
       // 都不會跟著變；現在 α=∫|e″|dx 自張拉端累積，控制斷面位置由 fricX 指定。
-      var loss=B.computeLosses(ten,sec,Mdc,Mdw,{mu:this.fricMu,K:this.fricK,fricRatio:this.fricRatio});
+      // 逐腱合成：各腱依自己的張拉端算 Pe → 合力偏心 e_eff。損失與 e_eff 互相依賴
+      // （f_cgp 含 e²），故迭代兩次即收斂（Δe 本身只有數 mm，第二輪變動 <0.01 mm）。
+      var eCtl=this.contLine?this.contEMid:this.e;
+      var layE=B.ductLayout(this.ntd,this.nWeb,sec.yb-eCtl,
+        {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,
+         yb:sec.yb,h:this.h,rule:this.ductRule});
+      var tsR=[], nWebR=Math.max(1,this.nWeb|0), ApEachR=this.strands*this.strandAp;
+      for(var iwR=0;iwR<nWebR;iwR++){
+        var nThisR=(layE.perWeb&&layE.perWeb[iwR]!=null)?layE.perWeb[iwR]:layE.nPerWeb;
+        var jkR=B.assignJack(nThisR,this.jackEnd), dR=0;
+        for(var riR=0;riR<layE.rows.length;riR++){ var rowR=layE.rows[riR];
+          for(var jR=0;jR<rowR.count&&dR<nThisR;jR++,dR++)
+            tsR.push({no:'W'+(iwR+1)+'-'+(dR+1), y:rowR.y, x:layE.xOffsets[jR], jack:jkR[dR]}); }
+      }
+      var fgR=this.fricGeom, eGeom=this.e, eUse=this.e, loss=null, tfR=null;
+      for(var itR=0; itR<2; itR++){
+        var tenI=B.tendon(this.ntd,this.strands,eUse,this.strandAp,this.strandFpu);
+        loss=B.computeLosses(tenI,sec,Mdc,Mdw,{mu:this.fricMu,K:this.fricK,fricRatio:this.fricRatio});
+        tfR=B.tendonForces(tsR,this.fricX*fgR.L,fgR.L,fgR.segs,sec.yb,tenI.fpj,ApEachR,
+                           loss.total-loss.friction,this.fricMu,this.fricK);
+        eUse=eGeom+tfR.de;                       // 幾何偏心 + 合力偏移（tfR.e_geom 是實配形心）
+      }
+      ten=B.tendon(this.ntd,this.strands,eUse,this.strandAp,this.strandFpu);
       var comb=B.combinations(Mdc,Mdw,Mll);
-      var serv=B.stresses(loss.Pe,sec,this.e,comb.Service_I);
-      var peMin=B.PeMinZeroTension(sec,this.e,comb.Service_I);
-      var dp=sec.yt+this.e, dv=Math.max(0.9*dp,0.72*this.h), bwEff=this.webT-100;
-      var flex=B.flexuralStrength(ten,sec,this.fc,this.topW,this.topT,dp,comb.Strength_I,loss.Pe,this.e);
+      // 用 e_eff 的：應力／所需預力／有效深度／極限彎矩／疲勞（都是「合力位置」在算彎矩）
+      // 維持幾何 e 的：剪力 Vp（用線形斜率）、撓度 w_eq（用曲率）——那兩者與合力位置無關
+      var serv=B.stresses(loss.Pe,sec,eUse,comb.Service_I);
+      var peMin=B.PeMinZeroTension(sec,eUse,comb.Service_I);
+      var dp=sec.yt+eUse, dv=Math.max(0.9*dp,0.72*this.h), bwEff=this.webT-100;
+      var flex=B.flexuralStrength(ten,sec,this.fc,this.topW,this.topT,dp,comb.Strength_I,loss.Pe,eUse);
       var sh=B.shearWeb(loss.Pe,sec,this.e,this.fc,bwEff,dv,this.Vu*1e3,dv,this.L*1000,this.nWeb);
       var phiVn=B.phiVn(sh.Vcw,this.avAuto/this.sv,dv), AvsMin=B.AvSminTW(this.fc,bwEff);
       var compAllow=-0.60*this.fc;
@@ -2313,7 +2337,7 @@ function calc(){
       var ej=B.expansionJoint(this.jointSh,0,0,20);
       var anc=B.anchorageCheck(ten.Pi/1e3,this.ntd,260,this.h,Math.floor(this.ntd/2));
       var spr=B.spiralLocalBearing(anc.Pu,2919,8.47,104044,50,380);
-      var fat=B.fatigueCheck(sec,loss.Pe,this.e,Mdc+Mdw,this.dMfat,this.fc);
+      var fat=B.fatigueCheck(sec,loss.Pe,eUse,Mdc+Mdw,this.dMfat,this.fc);
       var stf=B.stirrupFatigue(565,this.sv,this.avAuto,dv);
       var tb=B.thermalBandsFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
       var tg=B.selfEquilibratingStress(tb,sec.I,sec.yt,this.h,[['底',this.h,0]],29700,1.08e-5);
@@ -2335,9 +2359,7 @@ function calc(){
       var svgSec=null, svgSecEnd=null, svgSecPier=null;   // 待 layE 算好後再產（見下）
       // 縱剖圖的線形來源：勾「連續梁」則走分段線形（與 M₂／3D 同一個 contTendonSegs）。
       // ⚠ 這裡不可讀 this.P3D／this.DL——它們會讀 this.R，形成 getter 循環；故就地重算。
-      var eCtl=this.contLine?this.contEMid:this.e, contLine=null;
-      var layE=window.BC.ductLayout(this.ntd,this.nWeb,sec.yb-eCtl,
-        {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:sec.yb,h:this.h,rule:this.ductRule});
+      var contLine=null;
       var bandE={up:(layE.yTop-layE.yCgs)+this.ductOD/2, dn:(layE.yCgs-layE.yBot)+this.ductOD/2};
       if(this.contLine){
         var spE=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
@@ -2374,7 +2396,8 @@ function calc(){
               rows:rows,npass:np,ntot:nt,matchGolden:mg,cont:cont,
               svgSec:svgSec,svgStr:svgStr,svgMohr:svgMohr,
               svgSecEnd:svgSecEnd,svgSecPier:svgSecPier,svgDet:svgDet,svgDetPier:svgDetPier,svgElevCut:svgElevCut,svgElev:svgElev,lay:layE,
-              dv:dv,shSlope:sh.slope,weq:df.w_eq,cgsBot:cgsBot};
+              dv:dv,shSlope:sh.slope,weq:df.w_eq,cgsBot:cgsBot,
+              eUse:eUse,eGeom:eGeom,de:tfR.de,xEff:tfR.x_eff,tf:tfR,ten:ten};
     }
   };
 }

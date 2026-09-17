@@ -50,7 +50,8 @@ from .tendon_profile import (tendon_profile, TendonProfileResult, equivalent_loa
                             duct_layout, duct_spacing_required, DuctLayoutResult,
                             top_slab_tendon_check, TopSlabTendonResult,
                             anchor_slip_loss, AnchorSlipResult, pier_cap_tendon_force, CapTendonForce,
-                            tendon_slip_loss,
+                            tendon_slip_loss, segmented_tendon_force, SegmentedTendonForce,
+                            segmented_friction_profile,
                             parabolic_curv_segs, friction_angle, friction_at,
                             friction_profile, FrictionProfileResult,
                             tendon_forces, assign_jack, TendonForceResult)
@@ -115,7 +116,7 @@ __all__ = [
     "ForceMethodM2Result", "secondary_moments_force", "continuous_prestress",
     "PierCapTendonResult", "pier_cap_tendon_segs", "groups_prestress_at", "TopSlabTendonResult", "top_slab_tendon_check",
     "anchor_slip_loss", "AnchorSlipResult", "pier_cap_tendon_force", "CapTendonForce",
-    "tendon_slip_loss",
+    "tendon_slip_loss", "segmented_tendon_force", "SegmentedTendonForce", "segmented_friction_profile",
     "tendon_profile", "TendonProfileResult", "equivalent_load", "end_slope",
     "radius_of_curvature", "balance_ratio", "friction_loss",
     "duct_layout", "duct_spacing_required", "DuctLayoutResult",

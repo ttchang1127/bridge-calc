@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 316 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 322 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -188,17 +188,45 @@
     if (!slip || slip <= 0 || L <= 0) return 0;
     jack = jack || 'both';
     var Lm, d, r;
-    if (jack === 'both') { Lm = L / 2; d = Math.min(x, L - x); r = BC.frictionAt(Lm, L, segs, mu, K, 'start'); }
+    // 雙端張拉：依 x 靠近哪一端取該端的摩擦梯度（線形不對稱時兩端不同）
+    if (jack === 'both') { Lm = L / 2; if (x <= Lm) { d = x; r = BC.frictionAt(Lm, L, segs, mu, K, 'start'); } else { d = L - x; r = BC.frictionAt(Lm, L, segs, mu, K, 'end'); } }
     else if (jack === 'end') { Lm = L; d = L - x; r = BC.frictionAt(0, L, segs, mu, K, 'end'); }
     else { Lm = L; d = x; r = BC.frictionAt(L, L, segs, mu, K, 'start'); }
     return BC.anchorSlipLoss(d, Lm, Lm > 0 ? fpj * r / Lm : 0, slip, Ep).dsigma;
   };
-  BC.tendonForces = function (tendons, x, L, segs, yb, fpj, ApEach, otherLoss, mu, K, slip, Ep) {
+  // 分段（中間錨碇）腱：摩擦與滑移只在該段內累積（同 tendon_profile.segmented_tendon_force）
+  BC.segmentedTendonForce = function (x, anchors, curvSegs, fpj, Aps, otherLoss, mu, K, jack, slip, Ep) {
+    jack = jack || 'both';
+    for (var i = 0; i < anchors.length - 1; i++) {
+      var x0 = anchors[i], x1 = anchors[i + 1];
+      if (x >= x0 - 1e-9 && x <= x1 + 1e-9) {
+        var L = x1 - x0, loc = [];
+        curvSegs.forEach(function (c) { var lo = Math.max(c[0], x0), hi = Math.min(c[1], x1); if (hi > lo) loc.push([lo - x0, hi - x0, c[2]]); });
+        var sx = Math.min(Math.max(x - x0, 0), L), r = BC.frictionAt(sx, L, loc, mu, K, jack);
+        var sl = BC.tendonSlipLoss(sx, L, loc, fpj, jack, mu, K, slip, Ep), fpe = fpj - fpj * r - sl - otherLoss;
+        return { P: fpe * Aps / 1000, fpe: fpe, friction: fpj * r, slip: sl, seg: i, L_seg: L, s: sx };
+      }
+    }
+    return { P: 0, fpe: 0, friction: 0, slip: 0, seg: -1, L_seg: 0, s: 0 };
+  };
+  BC.segmentedFrictionProfile = function (anchors, curvSegs, fpj, mu, K, jack, slip, n) {
+    n = n || 40;
+    var tot = anchors[anchors.length - 1] - anchors[0], xs = [], rs = [], i;
+    for (i = 0; i <= n; i++) {
+      var x = anchors[0] + tot * i / n, f = BC.segmentedTendonForce(x, anchors, curvSegs, fpj, 1, 0, mu, K, jack, slip);
+      xs.push(x); rs.push((f.friction + f.slip) / fpj);
+    }
+    var mx = Math.max.apply(null, rs);
+    return { xs: xs, ratios: rs, max_ratio: mx, x_max: xs[rs.indexOf(mx)], avg: rs.reduce(function (a, b) { return a + b; }, 0) / rs.length };
+  };
+  BC.tendonForces = function (tendons, x, L, segs, yb, fpj, ApEach, otherLoss, mu, K, slip, Ep, anchors) {
     var per = [], sP = 0, sPe = 0, sPx = 0, sr = 0, i, sy = 0;
     for (i = 0; i < tendons.length; i++) {
-      var t = tendons[i], jk = t.jack || 'both', r = BC.frictionAt(x, L, segs, mu, K, jk);
-      var sl = BC.tendonSlipLoss(x, L, segs, fpj, jk, mu, K, slip, Ep);
-      var fpe = fpj - fpj * r - sl - otherLoss, Pe = fpe * ApEach, tx = t.x || 0;
+      var t = tendons[i], jk = t.jack || 'both', r, sl, fpe;
+      if (anchors && anchors.length > 2) { var sf = BC.segmentedTendonForce(x, anchors, segs, fpj, ApEach, otherLoss, mu, K, jk, slip, Ep);
+        r = sf.friction / fpj; sl = sf.slip; fpe = sf.fpe; }
+      else { r = BC.frictionAt(x, L, segs, mu, K, jk); sl = BC.tendonSlipLoss(x, L, segs, fpj, jk, mu, K, slip, Ep); fpe = fpj - fpj * r - sl - otherLoss; }
+      var Pe = fpe * ApEach, tx = t.x || 0;
       per.push({ no: t.no || '', y: t.y, x: tx, jack: jk, ratio: r, slip: sl, fpe: fpe, Pe: Pe });
       sP += Pe; sPe += Pe * (yb - t.y); sPx += Pe * tx; sr += r; sy += t.y;
     }
@@ -936,7 +964,7 @@
       if (x >= xa - 1e-9 && x <= xb + 1e-9) {
         var Lt = xb - xa, local = [[0, sl.x2 - xa, 2 * Math.abs(sl.c) / 1000], [sl.x2 - xa, Lt, 2 * Math.abs(sr.c) / 1000]];
         var s = Math.min(Math.max(x - xa, 0), Lt), r = BC.frictionAt(s, Lt, local, mu, K, 'both');
-        var Lm = Lt / 2, rMid = BC.frictionAt(Lm, Lt, local, mu, K, 'start'), p = Lm > 0 ? fpj * rMid / Lm : 0;
+        var Lm = Lt / 2, rMid = BC.frictionAt(Lm, Lt, local, mu, K, s <= Lm ? 'start' : 'end'), p = Lm > 0 ? fpj * rMid / Lm : 0;
         var sLoss = BC.anchorSlipLoss(Math.min(s, Lt - s), Lm, p, slip, Ep).dsigma, fr = fpj * r, fpe = fpj - fr - sLoss - other;
         return { P: fpe * Aps / 1000, fpe: fpe, friction: fr, slip: sLoss, other: other, s: s, L_t: Lt };
       }

@@ -43,6 +43,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         cont_dl_shear, taiwan_cont_live_shear, taiwan_lane_shear, shear_web_at, taiwan_cont_shear_at,
                         taiwan_rear_spacings, max_moment_moving, anchor_slip_loss,
                         pier_cap_tendon_force, gauss_integrate, friction_at, tendon_slip_loss,
+                        segmented_tendon_force, segmented_friction_profile,
                         cont_shear_design_scan, groups_prestress_at, stirrup_max_spacing_TW,
                         STD_STIRRUP_SPACINGS)
 from bridgecalc.influence import TW_HS20_AXLES, TW_HS20_SPACING, max_shear_moving
@@ -522,6 +523,26 @@ def test_tendon_slip_full_length():
     _close(tendon_slip_loss(1.5, 80, [(0, 80, 0.0)], fpj, "start", slip_mm=6),
            tendon_slip_loss(78.5, 80, [(0, 80, 0.0)], fpj, "end", slip_mm=6), 1e-9)
     assert g["cont80_drop_pct"] < -5 and g["cont80_Pe_pier_slip6_kN"] > g["cont80_Pe_x1_5_slip6_kN"]
+
+
+def test_mid_anchor_G1():
+    """中間錨碇段：分段後摩擦只在段內累積 → 80 m 超 20% 者降至 14%；段數再增受滑移限制。"""
+    g = golden["mid_anchor_G1"]
+    fpj = 0.75 * 1860
+    tp = cont_tendon_segs([40, 40], 0, 1109, -600)
+    cs = [(gg.x1, gg.x2, 2 * abs(gg.c) / 1000) for gg in tp.segs]
+    assert g["one_seg_max_pct"] > 20 > g["two_seg_slip6_max_pct"]          # 超門檻 → 分段後合格
+    assert g["three_seg_slip6_max_pct"] > g["two_seg_slip6_max_pct"] - 0.5  # 再分段幾無改善
+    # 分段後段內對稱：中間錨碇兩側等距點損失相同
+    a, b = (segmented_tendon_force(x, [0, 40, 80], cs, fpj, 1.0, 0.0, 0.25, 0.003, "both", 6) for x in (30, 50))
+    _close(a.friction + a.slip, b.friction + b.slip, 1e-9)
+    # 單段退化：anchors=[0, L] 與不分段相同
+    one = segmented_tendon_force(20, [0, 80], cs, fpj, 1.0, 0.0, 0.25, 0.003, "both", 0)
+    _close(one.friction / fpj, friction_at(20, 80, cs, 0.25, 0.003, "both"), 1e-12)
+    # tendon_forces(anchors=…) 與逐點一致
+    ts = [{"y": 300, "x": 0, "jack": "both"}]
+    tf = tendon_forces(ts, 40, 80, cs, 1329, fpj, 2660, 0.0, 0.25, 0.003, 6, anchors=[0, 40, 80])
+    _close(tf.per[0]["fpe"], g["pier_fpe_two_seg"], 0.1)
 
 
 def test_secondary_moments_force():

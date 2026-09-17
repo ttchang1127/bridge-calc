@@ -8,6 +8,7 @@
 摩擦損失介面採規範慣用單位：k 以 /m、路徑長以 m。
 """
 import math
+from typing import Sequence
 from dataclasses import dataclass
 
 
@@ -279,13 +280,17 @@ def tendon_slip_loss(x: float, L: float, segs: list, fpj: float, jack: str = "bo
     """單腱於里程 x 的錨具滑移損失 MPa（線形化摩擦梯度，見 anchor_slip_loss）。
 
     jack='both' → 兩端各影響半長（L_m=L/2、d＝距最近端）；'start'/'end' → L_m=L、d 自該端量。
-    p＝該端至 L_m 的摩擦損失 ÷ L_m。slip_mm=0 即回傳 0（預設行為不變）。
+    p＝**該滑移端**至 L_m 的摩擦損失 ÷ L_m——雙端張拉時依 x 靠近哪一端取該端的梯度；
+    線形不對稱時兩端梯度不同，取固定一端會使段內左右不對稱。slip_mm=0 即回傳 0（預設行為不變）。
     """
     if slip_mm <= 0 or L <= 0:
         return 0.0
     if jack == "both":
-        L_m, d = L / 2, min(x, L - x)
-        r = friction_at(L_m, L, segs, mu, K, "start")
+        L_m = L / 2
+        if x <= L_m:
+            d, r = x, friction_at(L_m, L, segs, mu, K, "start")
+        else:
+            d, r = L - x, friction_at(L_m, L, segs, mu, K, "end")
     elif jack == "end":
         L_m, d = L, L - x
         r = friction_at(0.0, L, segs, mu, K, "end")
@@ -299,20 +304,26 @@ def tendon_slip_loss(x: float, L: float, segs: list, fpj: float, jack: str = "bo
 def tendon_forces(tendons: list, x: float, L: float, segs: list, y_b: float,
                   fpj: float, Ap_each: float, other_loss: float,
                   mu: float = 0.25, K: float = 0.003, slip_mm: float = 0.0,
-                  Ep: float = 195000.0) -> TendonForceResult:
+                  Ep: float = 195000.0, anchors: Sequence[float] = None) -> TendonForceResult:
     """逐腱算 Pe 與合力位置。
 
     tendons：[{"no":str, "y":距梁底 mm, "x":橫向 mm, "jack":'start'|'end'|'both'}]
     x[m]：控制斷面里程；L[m]、segs：線形（見 friction_at）；y_b[mm]：斷面形心距底；
     fpj[MPa]、Ap_each[mm²]（每腱鋼腱面積）、other_loss[MPa]（非摩擦損失合計）。
     slip_mm：錨具滑移量（預設 0＝不計，與既有結果相同）；各腱依自身張拉端計算（見 tendon_slip_loss）。
+    anchors：中間錨碇段的錨碇里程（含兩端，如 [0, 40, 80]）——摩擦與滑移只在各段內累積
+    （見 segmented_tendon_force）；不給則整條腱為一段。
     """
     per, sP, sPe_e, sPe_x, s_ratio = [], 0.0, 0.0, 0.0, 0.0
     for t in tendons:
         jk = t.get("jack", "both")
-        r = friction_at(x, L, segs, mu, K, jk)
-        sl = tendon_slip_loss(x, L, segs, fpj, jk, mu, K, slip_mm, Ep)
-        fpe = fpj - fpj * r - sl - other_loss
+        if anchors:
+            f = segmented_tendon_force(x, anchors, segs, fpj, Ap_each, other_loss, mu, K, jk, slip_mm, Ep)
+            r, sl, fpe = f.friction / fpj, f.slip, f.fpe
+        else:
+            r = friction_at(x, L, segs, mu, K, jk)
+            sl = tendon_slip_loss(x, L, segs, fpj, jk, mu, K, slip_mm, Ep)
+            fpe = fpj - fpj * r - sl - other_loss
         Pe = fpe * Ap_each
         e_i = y_b - t["y"]
         per.append({"no": t.get("no", ""), "y": t["y"], "x": t.get("x", 0.0),
@@ -441,10 +452,66 @@ def pier_cap_tendon_force(pc, x: float, fpj: float, Aps: float, other_loss: floa
             s = min(max(x - xa, 0.0), L_t)
             r = friction_at(s, L_t, local, mu, K, "both")
             L_m = L_t / 2
-            r_mid = friction_at(L_m, L_t, local, mu, K, "start")
+            r_mid = friction_at(L_m, L_t, local, mu, K, "start" if s <= L_m else "end")
             p = fpj * r_mid / L_m if L_m > 0 else 0.0
             sl_ = anchor_slip_loss(min(s, L_t - s), L_m, p, slip_mm, Ep).dsigma
             fr = fpj * r
             fpe = fpj - fr - sl_ - other_loss
             return CapTendonForce(fpe * Aps / 1000.0, fpe, fr, sl_, other_loss, s, L_t)
     return CapTendonForce(0.0, 0.0, 0.0, 0.0, other_loss, 0.0, 0.0)
+
+
+@dataclass
+class SegmentedTendonForce:
+    P: float             # kN
+    fpe: float           # MPa
+    friction: float      # MPa
+    slip: float          # MPa
+    seg: int             # 所在段（0 起）
+    L_seg: float         # 該段長度 m
+    s: float             # 距該段左端 m
+
+
+def segmented_tendon_force(x: float, anchors: Sequence[float], curv_segs: Sequence,
+                           fpj: float, Aps: float, other_loss: float,
+                           mu: float = 0.25, K: float = 0.003, jack: str = "both",
+                           slip_mm: float = 0.0, Ep: float = 195000.0) -> SegmentedTendonForce:
+    """分段（中間錨碇）鋼腱於里程 x 的有效預力。
+
+    anchors：錨碇里程（含兩端），例如 40+40 於墩頂設中間錨碇 → [0, 40, 80]；
+    curv_segs：全域曲率段 [(x1, x2, |e″| rad/m), ...]（同 friction_at）。
+    每段各自張拉（jack 對該段而言：'both'／'start'／'end'），摩擦與滑移都只在該段內累積——
+    **這就是中間錨碇段降低摩擦損失的原因**：α 與 x 都自該段的張拉端起算（G1 不合格決策樹：>60 m 建議）。
+    """
+    a = list(anchors)
+    for i in range(len(a) - 1):
+        if a[i] - 1e-9 <= x <= a[i + 1] + 1e-9:
+            x0, x1 = a[i], a[i + 1]
+            L = x1 - x0
+            loc = []
+            for (c0, c1, k) in curv_segs:
+                lo, hi = max(c0, x0), min(c1, x1)
+                if hi > lo:
+                    loc.append((lo - x0, hi - x0, k))
+            s = min(max(x - x0, 0.0), L)
+            r = friction_at(s, L, loc, mu, K, jack)
+            sl = tendon_slip_loss(s, L, loc, fpj, jack, mu, K, slip_mm, Ep)
+            fpe = fpj - fpj * r - sl - other_loss
+            return SegmentedTendonForce(fpe * Aps / 1000.0, fpe, fpj * r, sl, i, L, s)
+    return SegmentedTendonForce(0.0, 0.0, 0.0, 0.0, -1, 0.0, 0.0)
+
+
+def segmented_friction_profile(anchors: Sequence[float], curv_segs: Sequence, fpj: float,
+                               mu: float = 0.25, K: float = 0.003, jack: str = "both",
+                               slip_mm: float = 0.0, n: int = 40) -> dict:
+    """分段腱沿全長的損失率分佈：回傳 {xs, ratios（摩擦＋滑移佔 fpj）, max_ratio, x_max, avg}。"""
+    tot = anchors[-1] - anchors[0]
+    xs, rs = [], []
+    for i in range(n + 1):
+        x = anchors[0] + tot * i / n
+        f = segmented_tendon_force(x, anchors, curv_segs, fpj, 1.0, 0.0, mu, K, jack, slip_mm)
+        xs.append(x)
+        rs.append((f.friction + f.slip) / fpj)
+    mx = max(rs)
+    return {"xs": xs, "ratios": rs, "max_ratio": mx, "x_max": xs[rs.index(mx)],
+            "avg": sum(rs) / len(rs)}

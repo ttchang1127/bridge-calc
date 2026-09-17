@@ -41,7 +41,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         cont_shear_il, cont_dl_shear, taiwan_cont_live_shear, taiwan_cont_shear_at,
                         secondary_shear, design_shear_with_V2, shear_web_at, taiwan_rear_spacings,
                         anchor_slip_loss, pier_cap_tendon_force, cont_shear_design_scan,
-                        groups_prestress_at, stirrup_max_spacing_TW, tendon_slip_loss)
+                        groups_prestress_at, stirrup_max_spacing_TW, tendon_slip_loss,
+                        segmented_tendon_force, segmented_friction_profile)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -346,6 +347,31 @@ def _tendon_slip_G1():
     }
 
 
+def _mid_anchor_G1():
+    """中間錨碇段（G1 不合格決策樹 >60 m）：40+40 全長腱 80 m 摩擦超 20% → 墩頂設中間錨碇。"""
+    fpj = 0.75 * 1860
+    tp = cont_tendon_segs([40, 40], 0, 1109, -600)
+    cs = [(g.x1, g.x2, 2 * abs(g.c) / 1000) for g in tp.segs]
+    one0 = segmented_friction_profile([0, 80], cs, fpj, 0.25, 0.003, "both", 0)
+    one6 = segmented_friction_profile([0, 80], cs, fpj, 0.25, 0.003, "both", 6)
+    two6 = segmented_friction_profile([0, 40, 80], cs, fpj, 0.25, 0.003, "both", 6)
+    two0 = segmented_friction_profile([0, 40, 80], cs, fpj, 0.25, 0.003, "both", 0)
+    three6 = segmented_friction_profile([0, 80 / 3, 160 / 3, 80], cs, fpj, 0.25, 0.003, "both", 6)
+    f_mid = segmented_tendon_force(40, [0, 40, 80], cs, fpj, 8 * 19 * 140, 0.0, 0.25, 0.003, "both", 6)
+    return {
+        "one_seg_max_pct": round(one0["max_ratio"] * 100, 2), "one_seg_x_max": round(one0["x_max"], 1),
+        "one_seg_slip6_max_pct": round(one6["max_ratio"] * 100, 2),
+        "two_seg_slip6_max_pct": round(two6["max_ratio"] * 100, 2), "two_seg_slip6_x_max": round(two6["x_max"], 1),
+        "two_seg_fric_only_max_pct": round(two0["max_ratio"] * 100, 2),
+        "three_seg_slip6_max_pct": round(three6["max_ratio"] * 100, 2),
+        "pier_fpe_two_seg": round(f_mid.fpe, 1), "pier_friction_two_seg": round(f_mid.friction, 1),
+        "pier_slip_two_seg": round(f_mid.slip, 1),
+        "_note": "一段 80 m 雙端張拉：摩擦 20.28% @墩頂（超 G1 20% 門檻，雙端張拉救不了）；"
+                 "墩頂設中間錨碇（2×40 m）→ 摩擦＋滑移 14.16%（純摩擦 10.36%）；"
+                 "再分三段 13.92% 幾無改善——每增一個錨碇就多一組滑移損失",
+    }
+
+
 def _cont_envelope_taiwan():
     """連續梁解析影響線＋台灣 HS20-44 包絡的檢核點。"""
     sp = [40, 40]
@@ -544,6 +570,7 @@ golden = {
     "pier_cap_tendon_losses": _pier_cap_tendon_losses(),
     "cont_shear_scan": _cont_shear_scan(),
     "tendon_slip_G1": _tendon_slip_G1(),
+    "mid_anchor_G1": _mid_anchor_G1(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

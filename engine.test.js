@@ -314,6 +314,16 @@ function chkEq(name, got, exp) {
   chk('滑移 連續80 起端張拉 x=1.5', BC.tendonSlipLoss(1.5, 80, csS, fpjS, 'start', 0.25, 0.003, 6), tsg.cont80_slip_start_jack_x1_5, 0.01);
   chk('滑移 連續80 終端張拉 x=1.5', BC.tendonSlipLoss(1.5, 80, csS, fpjS, 'end', 0.25, 0.003, 6), tsg.cont80_slip_end_jack_x1_5, 1e-9);
   chk('滑移 預設 0（不計）', BC.tendonSlipLoss(1.5, 80, csS, fpjS, 'start', 0.25, 0.003, 0), 0, 1e-12);
+  // 中間錨碇段
+  var mag = g.mid_anchor_G1, tpM = BC.contTendonSegs([40, 40], 0, 1109, -600);
+  var csM = tpM.segs.map(function (gg) { return [gg.x1, gg.x2, 2 * Math.abs(gg.c) / 1000]; }), fpjM = 0.75 * 1860;
+  chk('一段 80m 最大損失%', BC.segmentedFrictionProfile([0, 80], csM, fpjM, 0.25, 0.003, 'both', 0).max_ratio * 100, mag.one_seg_max_pct, 0.01);
+  chk('中間錨碇 2 段 最大%', BC.segmentedFrictionProfile([0, 40, 80], csM, fpjM, 0.25, 0.003, 'both', 6).max_ratio * 100, mag.two_seg_slip6_max_pct, 0.01);
+  chk('中間錨碇 2 段（純摩擦）', BC.segmentedFrictionProfile([0, 40, 80], csM, fpjM, 0.25, 0.003, 'both', 0).max_ratio * 100, mag.two_seg_fric_only_max_pct, 0.01);
+  chk('中間錨碇 3 段 最大%', BC.segmentedFrictionProfile([0, 80 / 3, 160 / 3, 80], csM, fpjM, 0.25, 0.003, 'both', 6).max_ratio * 100, mag.three_seg_slip6_max_pct, 0.01);
+  var fmM = BC.segmentedTendonForce(40, [0, 40, 80], csM, fpjM, 8 * 19 * 140, 0, 0.25, 0.003, 'both', 6);
+  chk('中間錨碇 墩頂 f_pe', fmM.fpe, mag.pier_fpe_two_seg, 0.1);
+  chk('中間錨碇 墩頂滑移', fmM.slip, mag.pier_slip_two_seg, 0.1);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

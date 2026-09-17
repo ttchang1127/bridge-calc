@@ -42,7 +42,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         secondary_shear, design_shear_with_V2, shear_web_at, taiwan_rear_spacings,
                         anchor_slip_loss, pier_cap_tendon_force, cont_shear_design_scan,
                         groups_prestress_at, stirrup_max_spacing_TW, tendon_slip_loss,
-                        segmented_tendon_force, segmented_friction_profile)
+                        segmented_tendon_force, segmented_friction_profile,
+                        loss_profile, parabolic_e, udl_moment)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -487,6 +488,46 @@ retro_R4 = retro.enlargement_moment_capacity(400, 860, (1964*750+982*860)/2946,
                                              13.8, 0.0033, 1964, 330, 982, 330,
                                              2.0e5, retro_x1, retro_ec1)
 
+
+def _loss_profile_G1():
+    """沿長度的預力 P(x)（取代單點 fric_ratio）：40 m 參考橋、Δa 6 mm 雙端張拉。
+
+    鎖住三件單點式看不到的事：①端部摩擦 0 但滑移最大 ②滑移在 L_set 外歸零
+    ③最不利斷面隨是否計滑移而搬家（跨中→端部）。
+    """
+    L, a = 40.0, 870.0
+    segs = parabolic_curv_segs(L, a)
+    MDf = udl_moment(sec.A / 1e6 * 24.5, L)
+    efn = parabolic_e(ten.e, ten.e - a, L)
+    lp0 = loss_profile(ten, sec, L, efn, MDf, segs, mu=0.25, K=0.003,
+                       jack="both", slip_mm=0.0, n=40)
+    lp1 = loss_profile(ten, sec, L, efn, MDf, segs, mu=0.25, K=0.003,
+                       jack="both", slip_mm=6.0, n=40)
+    p0, pm = lp1.at(0.0), lp1.at(20.0)
+    single = compute_losses(ten, sec, MDf(L / 2), 0.0,
+                            fric_ratio=friction_at(L / 2, L, segs, 0.25, 0.003, "both"))
+    return {
+        "config": "40m參考橋 e_mid1109/垂度870/μ0.25/K0.003/雙端張拉/Δa6mm/n=40",
+        "end_fric_pct": round(p0.fric / ten.fpj * 100, 2),
+        "end_slip_pct": round(p0.slip / ten.fpj * 100, 2),
+        "end_loss_pct": round(p0.loss_pct * 100, 2),
+        "end_Pe_kN": round(p0.Pe / 1e3, 1),
+        "mid_fric_pct": round(pm.fric / ten.fpj * 100, 2),
+        "mid_slip_pct": round(pm.slip / ten.fpj * 100, 2),
+        "mid_loss_pct": round(pm.loss_pct * 100, 2),
+        "mid_Pe_kN": round(pm.Pe / 1e3, 1),
+        "x_Pemin_noslip_m": round(lp0.x_Pemin, 1),
+        "x_Pemin_slip_m": round(lp1.x_Pemin, 1),
+        "Pe_min_noslip_kN": round(lp0.Pe_min / 1e3, 1),
+        "Pe_min_slip_kN": round(lp1.Pe_min / 1e3, 1),
+        "Pe_avg_slip_kN": round(lp1.Pe_avg / 1e3, 1),
+        "single_point_mid_Pe_kN": round(single.Pe / 1e3, 1),
+        "single_point_overestimate_at_1m_pct":
+            round((single.Pe - lp1.at(1.0).Pe) / lp1.at(1.0).Pe * 100, 2),
+        "_note": "單點式(compute_losses取跨中)全長都用 23,687kN；實際端部僅 23,565kN(滑移11.47%但摩擦0)。"
+                 "無滑移時 Pe_min 在跨中(摩擦控制)、計滑移後搬到端部——最不利斷面會搬家是單點式看不到的。"
+                 "跨中滑移=0 印證 compute_losses 註解的假設(L_set 14.1m < 半長 20m)。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -571,6 +612,7 @@ golden = {
     "cont_shear_scan": _cont_shear_scan(),
     "tendon_slip_G1": _tendon_slip_G1(),
     "mid_anchor_G1": _mid_anchor_G1(),
+    "loss_profile_G1": _loss_profile_G1(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

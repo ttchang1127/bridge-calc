@@ -1014,6 +1014,92 @@ def test_retrofit_R4_enlargement():
     _close(r4.Mu_kNm, 679, 1)                                  # +52%（超鋼板 40% 上限）
 
 
+# ── 沿長度的預力 P(x)：loss_profile ─────────────────────────────────
+# compute_losses 是單點式（一個 fric_ratio 代表全長）；loss_profile 逐點算。
+# 以下四項為互不相干的驗證路徑，任一條掛掉都代表實作有錯。
+
+def _lp_setup():
+    from bridgecalc.prestress import loss_profile, parabolic_e, udl_moment
+    from bridgecalc.tendon_profile import parabolic_curv_segs
+    L, a = 40.0, 870.0
+    segs = parabolic_curv_segs(L, a)
+    MDf = udl_moment(sec.A / 1e6 * 24.5, L)
+    efn = parabolic_e(ten.e, ten.e - a, L)       # 端部 e 與垂度 a 自洽
+    return loss_profile, L, a, segs, MDf, efn
+
+
+def test_loss_profile_degenerates_to_compute_losses():
+    """μ=K=0、slip=0、e 常數 → 每一點都應等於 compute_losses(fric_ratio=0)。
+
+    這條鎖住的是「新式子沒有偷偷改變損失模型」——只是把它搬到逐點。
+    """
+    from bridgecalc.prestress import loss_profile, parabolic_e, udl_moment
+    from bridgecalc.tendon_profile import parabolic_curv_segs
+    L = 40.0
+    segs = parabolic_curv_segs(L, 870.0)
+    MDf = udl_moment(sec.A / 1e6 * 24.5, L)
+    efn = parabolic_e(ten.e, ten.e, L)           # 刻意用常數 e 以對齊單點式
+    lp = loss_profile(ten, sec, L, efn, MDf, segs, mu=0.0, K=0.0, slip_mm=0.0, n=20)
+    # 只取**取樣點**（n=20 → 每 2 m 一點）比對：at() 在取樣點之間是線性內插，
+    # 而 f_cgp 沿 x 是二次的（M_D 為二次），故非取樣點會有內插誤差（~0.02 MPa）。
+    for xq in (0.0, 6.0, 20.0, 34.0, 40.0):
+        p = lp.at(xq)
+        c = compute_losses(ten, sec, MDf(xq), 0.0, fric_ratio=0.0)
+        _close(p.fcgp, c.fcgp, 1e-9)
+        _close(p.ES, c.ES, 1e-9)
+        _close(p.creep, c.creep, 1e-9)
+        _close(p.fpe, c.fpe, 1e-9)
+
+
+def test_loss_profile_matches_tendon_forces():
+    """與逐腱路徑 tendon_forces 交叉驗證：兩條獨立實作在同一 x 應給同一個 Pe。"""
+    from bridgecalc.tendon_profile import tendon_forces
+    loss_profile, L, a, segs, MDf, efn = _lp_setup()
+    lp = loss_profile(ten, sec, L, efn, MDf, segs, mu=0.25, K=0.003,
+                      jack="both", slip_mm=6.0, n=40)
+    for xq in (0.0, 2.0, 10.0, 20.0):
+        p = lp.at(xq)
+        other = p.ES + p.creep + p.shrink + p.relax
+        tl = [{"no": f"W-{i}", "y": sec.yb - p.e, "x": 0.0, "jack": "both"}
+              for i in range(ten.n_tendons)]
+        tf = tendon_forces(tl, xq, L, segs, sec.yb, ten.fpj,
+                           ten.Aps / ten.n_tendons, other, 0.25, 0.003, slip_mm=6.0)
+        _close(tf.Pe_total, p.Pe, 1e-3)
+
+
+def test_loss_profile_slip_reaches_zero_beyond_set_length():
+    """滑移損失應在影響長度 L_set 之外歸零，且端部最大。
+
+    40 m 雙端張拉 L_set≈14.1 m < 半長 20 m —— 這正是 compute_losses 註解裡
+    「錨具滑移跨中=0」那句假設的成立條件，這裡把它鎖成測試。
+    """
+    loss_profile, L, a, segs, MDf, efn = _lp_setup()
+    lp = loss_profile(ten, sec, L, efn, MDf, segs, mu=0.25, K=0.003,
+                      jack="both", slip_mm=6.0, n=40)
+    assert lp.at(0.0).slip > 0
+    assert lp.at(20.0).slip == 0.0                       # 跨中無滑移
+    assert lp.at(0.0).slip > lp.at(5.0).slip > lp.at(10.0).slip
+    _close(lp.at(0.0).slip, lp.at(40.0).slip, 1e-9)                      # 兩端對稱
+
+
+def test_loss_profile_worst_section_moves_to_anchor_with_slip():
+    """加入滑移後最不利斷面由跨中搬到端部——單點式（取跨中）看不到這件事。"""
+    loss_profile, L, a, segs, MDf, efn = _lp_setup()
+    lp0 = loss_profile(ten, sec, L, efn, MDf, segs, mu=0.25, K=0.003,
+                       jack="both", slip_mm=0.0, n=40)
+    lp1 = loss_profile(ten, sec, L, efn, MDf, segs, mu=0.25, K=0.003,
+                       jack="both", slip_mm=6.0, n=40)
+    _close(lp0.x_Pemin, 20.0, 1e-9)          # 無滑移：摩擦控制 → 跨中最小
+    _close(lp1.x_Pemin, 0.0, 1e-9)           # 有滑移：端部最小
+    assert lp1.Pe_min < lp0.Pe_min
+    # 單點式（跨中）會高估端部的 Pe
+    from bridgecalc.tendon_profile import friction_at
+    c = compute_losses(ten, sec, MDf(L / 2), 0.0,
+                       fric_ratio=friction_at(L / 2, L, segs, 0.25, 0.003, "both"))
+    assert c.Pe > lp1.at(1.0).Pe
+
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

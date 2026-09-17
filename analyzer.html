@@ -608,6 +608,50 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <div class="v" style="font-size:15px" :class="slipInfo.affects?'ng':'ok'"
           x-text="fmt(slipInfo.atCtrl)+' MPa'+(slipInfo.affects?'（落在影響範圍內）':'（超出影響範圍＝0）')"></div></div>
     </div>
+    <!-- 沿長度的預力 P(x)：把「單點損失率代表全長」這個近似攤開 -->
+    <template x-if="lossPx">
+      <div style="margin-top:12px">
+        <div class="hint" style="margin-bottom:6px"><b>沿長度的有效預力 P(x)</b>（<code>BC.lossProfile</code>，41 點）——
+          ③／④ 的 P<sub>e</sub> 是用<b>控制斷面單點</b>算的；下表是逐點算的結果，用來確認那一點是否真的最不利。</div>
+        <div class="grid">
+          <div class="metric"><div class="l">最不利斷面 P<sub>e,min</sub></div>
+            <div class="v" style="font-size:15px" x-text="fmt(lossPx.Pe_min/1e3,0)+' kN ＠ x = '+fmt(lossPx.x_Pemin,1)+' m'"></div></div>
+          <div class="metric"><div class="l">全長平均 P<sub>e</sub></div>
+            <div class="v" style="font-size:15px" x-text="fmt(lossPx.Pe_avg/1e3,0)+' kN'"></div></div>
+          <div class="metric"><div class="l">最大總損失率</div>
+            <div class="v" style="font-size:15px" x-text="(lossPx.loss_pct_max*100).toFixed(2)+' % ＠ x = '+fmt(lossPx.x_lossmax,1)+' m'"></div></div>
+          <div class="metric"><div class="l">④ 服務性採用的 P<sub>e</sub>（單點式）</div>
+            <div class="v" style="font-size:15px" :class="lossPx.gap>1?'ng':'ok'"
+              x-text="fmt(lossPx.singlePe/1e3,0)+' kN'+(lossPx.gap>0?'（較 P_e,min 高 '+lossPx.gap.toFixed(1)+' %）':'')"></div></div>
+        </div>
+        <table style="margin-top:8px">
+          <thead><tr><th>x (m)</th><th>e (mm)</th><th>摩擦</th><th>錨具滑移</th><th>ES</th><th>潛變</th><th>總損失</th><th>P(x) (kN)</th></tr></thead>
+          <tbody>
+            <template x-for="i in [0,4,8,12,16,20,24,28,32,36,40]" :key="i">
+              <tr :style="Math.abs(lossPx.pts[i].x-lossPx.x_Pemin)<1e-9?'background:#fef2f2;font-weight:600':''">
+                <td x-text="fmt(lossPx.pts[i].x,1)+(Math.abs(lossPx.pts[i].x-lossPx.x_Pemin)<1e-9?'（最不利）':'')"></td>
+                <td x-text="fmt(lossPx.pts[i].e,0)"></td>
+                <td x-text="(lossPx.pts[i].fric/R.ten.fpj*100).toFixed(2)+' %'"></td>
+                <td x-text="(lossPx.pts[i].slip/R.ten.fpj*100).toFixed(2)+' %'"></td>
+                <td x-text="fmt(lossPx.pts[i].ES,1)"></td>
+                <td x-text="fmt(lossPx.pts[i].creep,1)"></td>
+                <td x-text="(lossPx.pts[i].loss_pct*100).toFixed(2)+' %'"></td>
+                <td x-text="fmt(lossPx.pts[i].Pe/1e3,0)"></td></tr>
+            </template>
+          </tbody>
+        </table>
+        <div class="hint" x-show="!lossPx.ctrlIsWorst" x-cloak style="color:var(--ng);margin-top:6px">
+          ⚠ <b>控制斷面不是最不利斷面</b>：你指定的 x/L = <span x-text="fricX"></span>（x = <b x-text="fmt(lossPx.xc,1)+' m'"></b>）
+          P(x) = <b x-text="fmt(lossPx.ctrl.Pe/1e3,0)+' kN'"></b>，但全長最小在 x = <b x-text="fmt(lossPx.x_Pemin,1)+' m'"></b>
+          （<b x-text="fmt(lossPx.Pe_min/1e3,0)+' kN'"></b>）。
+          <b>這通常是錨具滑移造成的</b>——滑移在<b>錨碇端</b>最大、摩擦則在<b>離張拉端最遠處</b>最大，兩者的最不利位置相反，合起來的最小值未必落在任何一方的極值上。
+          （本案端部摩擦 <b x-text="(lossPx.pts[0].fric/R.ten.fpj*100).toFixed(2)+' %'"></b>、滑移 <b x-text="(lossPx.pts[0].slip/R.ten.fpj*100).toFixed(2)+' %'"></b>；
+          雙端張拉時端部摩擦為 0，交錯端則因半數腱自遠端張拉而不為 0。）
+          彎矩控制的檢核（④ 服務性、⑤ 抗彎）仍以跨中為準沒問題；但<b>剪力的 V<sub>p</sub>、錨碇區承壓與端部零拉檢核</b>應改用 x = <span x-text="fmt(lossPx.x_Pemin,1)"></span> m 的 P(x)。
+        </div>
+        <div class="cite">P(x) 於每點以<b>該點扣掉摩擦與滑移後的初始力</b>算 f<sub>cgp</sub>；單點式 <code>compute_losses</code> 一律用 f<sub>pj</sub>·A<sub>ps</sub>（未扣摩擦），故單點式的 ES 與潛變偏大（保守），但沿長度看會把「錨碇端損失反而較小」這件事抹平。兩式在 μ=K=0、Δa=0 時完全相同（引擎測試 <code>test_loss_profile_degenerates_to_compute_losses</code>）。</div>
+      </div>
+    </template>
     <div class="hint" x-show="slipInfo.affects" x-cloak style="color:var(--ng)">
       ⚠ 控制斷面距張拉端 <b x-text="fmt(slipInfo.d,1)+' m'"></b> < L<sub>set</sub> <b x-text="fmt(slipInfo.L_set,1)+' m'"></b>：
       引擎 <code>compute_losses</code> 的「錨具滑移於控制斷面＝0」假設<b>在本案不成立</b>，③ 的損失總表會低估——
@@ -2238,6 +2282,34 @@ function calc(){
              return (f.friction+f.slip)/fpj; }
       return B.frictionAt(x,q.L,q.segs,this.fricMu,this.fricK,this.jackEnd)
              + B.tendonSlipLoss(x,q.L,q.segs,fpj,this.jackEnd,this.fricMu,this.fricK,this.anchorSlip)/fpj; },
+    // ── 沿長度的預力 P(x)（BC.lossProfile）──────────────────────
+    // 為什麼要有這一段：③／④ 的 P_e 是**單點**算的——一個 fricRatio（控制斷面的
+    // 摩擦＋滑移）代表全長。那在「控制斷面就是最不利斷面」時沒問題，但：
+    //   ① 錨碇端摩擦≈0 而滑移最大 → 單點式在該處高估 P_e
+    //   ② 計入滑移後最不利斷面會從跨中**搬到端部**，使用者指定的 fricX 可能不再是它
+    // 這裡把整條 P(x) 攤開，並把「你選的控制斷面是不是真的最不利」直接標出來。
+    // ⚠ 記憶化：Alpine getter 無快取，一次參數變動會被數百個綁定重算（前幾輪已踩過）。
+    get lossPx(){
+      if(this.contLine) return null;          // 連續梁的 P(x) 在 ⑦（已逐點）
+      var B=window.BC, sec=this.R.sec, L=this.L,
+          ten=B.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu),
+          q=this.fricGeom, anc=this.anchorList, wDC=sec.A/1e6*24.5;
+      var key=['LPX',L,this.e,this.ntd,this.strands,this.strandAp,this.strandFpu,
+               sec.A,sec.I,sec.yb,sec.h,this.fricMu,this.fricK,this.jackEnd,
+               this.anchorSlip,(anc||[]).join('+')].join('|');
+      if(memoFn[key]) return memoFn[key];
+      // 單跨線形：parabolicCurvSegs(L, e) 的垂度＝e，故端部 e=0（兩者自洽）
+      var lp=B.lossProfile(ten,sec,L,B.parabolicE(this.e,0,L),B.udlMoment(wDC,L),q.segs,
+              {mu:this.fricMu,K:this.fricK,jack:this.jackEnd,slip:this.anchorSlip,
+               anchors:anc,n:40});
+      var xc=this.fricX*L, atCtrl=lp.at(xc), single=this.R.loss;
+      lp.ctrl=atCtrl; lp.xc=xc;
+      lp.singlePe=single.Pe;                                  // ④ 服務性實際採用的 P_e
+      lp.gap=(single.Pe-lp.Pe_min)/lp.Pe_min*100;             // 單點式相對最不利斷面高估幾 %
+      lp.ctrlIsWorst=Math.abs(xc-lp.x_Pemin)<=L/40+1e-9;      // 控制斷面是否即最不利（容一個取樣間距）
+      memoFn[key]=lp;
+      return lp;
+    },
     // 摩擦分佈表：各位置的損失率與該處 f_pe／Pe（非摩擦損失各項不隨位置變）
     get fricTable(){
       var q=this.fricGeom, L=q.L, B=window.BC, R=this.R, self=this;

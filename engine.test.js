@@ -324,6 +324,33 @@ function chkEq(name, got, exp) {
   var fmM = BC.segmentedTendonForce(40, [0, 40, 80], csM, fpjM, 8 * 19 * 140, 0, 0.25, 0.003, 'both', 6);
   chk('中間錨碇 墩頂 f_pe', fmM.fpe, mag.pier_fpe_two_seg, 0.1);
   chk('中間錨碇 墩頂滑移', fmM.slip, mag.pier_slip_two_seg, 0.1);
+  // 沿長度的預力 P(x)（loss_profile）
+  var lpg = g.loss_profile_G1, secLP = BC.section(5.065e6, 3.287e12, 1329, 2100),
+      tenLP = BC.tendon(8, 19, 1109), Llp = 40, aLp = 870,
+      segLP = BC.parabolicCurvSegs(Llp, aLp),
+      MDlp = BC.udlMoment(5.065e6 / 1e6 * 24.5, Llp),
+      eLp = BC.parabolicE(tenLP.e, tenLP.e - aLp, Llp);
+  var lp0 = BC.lossProfile(tenLP, secLP, Llp, eLp, MDlp, segLP, { jack: 'both', slip: 0, n: 40 }),
+      lp1 = BC.lossProfile(tenLP, secLP, Llp, eLp, MDlp, segLP, { jack: 'both', slip: 6, n: 40 }),
+      p0lp = lp1.at(0), pmlp = lp1.at(20);
+  chk('P(x) 端部摩擦%', p0lp.fric / tenLP.fpj * 100, lpg.end_fric_pct, 0.01);
+  chk('P(x) 端部滑移%', p0lp.slip / tenLP.fpj * 100, lpg.end_slip_pct, 0.01);
+  chk('P(x) 端部損失%', p0lp.loss_pct * 100, lpg.end_loss_pct, 0.01);
+  chk('P(x) 端部 Pe', p0lp.Pe / 1e3, lpg.end_Pe_kN, 0.1);
+  chk('P(x) 跨中摩擦%', pmlp.fric / tenLP.fpj * 100, lpg.mid_fric_pct, 0.01);
+  chk('P(x) 跨中滑移%（＝0）', pmlp.slip / tenLP.fpj * 100, lpg.mid_slip_pct, 1e-9);
+  chk('P(x) 跨中損失%', pmlp.loss_pct * 100, lpg.mid_loss_pct, 0.01);
+  chk('P(x) 跨中 Pe', pmlp.Pe / 1e3, lpg.mid_Pe_kN, 0.1);
+  chk('P(x) 無滑移 x_Pemin（跨中）', lp0.x_Pemin, lpg.x_Pemin_noslip_m, 1e-9);
+  chk('P(x) 有滑移 x_Pemin（端部）', lp1.x_Pemin, lpg.x_Pemin_slip_m, 1e-9);
+  chk('P(x) Pe_min 無滑移', lp0.Pe_min / 1e3, lpg.Pe_min_noslip_kN, 0.1);
+  chk('P(x) Pe_min 有滑移', lp1.Pe_min / 1e3, lpg.Pe_min_slip_kN, 0.1);
+  chk('P(x) 全長平均 Pe', lp1.Pe_avg / 1e3, lpg.Pe_avg_slip_kN, 0.1);
+  var singLP = BC.computeLosses(tenLP, secLP, MDlp(Llp / 2), 0,
+                                { fricRatio: BC.frictionAt(Llp / 2, Llp, segLP, 0.25, 0.003, 'both') });
+  chk('P(x) 單點式跨中 Pe（對照）', singLP.Pe / 1e3, lpg.single_point_mid_Pe_kN, 0.1);
+  chk('P(x) 單點式在 x=1m 高估%',
+      (singLP.Pe - lp1.at(1).Pe) / lp1.at(1).Pe * 100, lpg.single_point_overestimate_at_1m_pct, 0.01);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

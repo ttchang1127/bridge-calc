@@ -90,6 +90,84 @@
              total: total, loss_pct: total / t.fpj, fpe: fpe, Pe: fpe * t.Aps };
   };
 
+  // ── 沿長度的預力 P(x)（同 prestress.loss_profile）──────────
+  // computeLosses 是單點式：一個 fricRatio 代表全長。下面這支逐點算，
+  // 且用**該點扣掉摩擦與滑移後的初始力**算 f_cgp（computeLosses 一律用 fpj·Aps）。
+  // 差別最大的地方在錨碇端——摩擦≈0 但滑移最大，單點式兩者都取控制斷面值。
+  BC.parabolicE = function (eMid, eEnd, L) {
+    return function (x) { return eEnd + (eMid - eEnd) * 4 * x * (L - x) / (L * L); };
+  };
+  BC.udlMoment = function (w, L) { return function (x) { return w * x * (L - x) / 2; }; };
+
+  BC.lossProfile = function (t, sec, L, eFn, MDFn, segs, o) {
+    o = o || {};
+    var mu = o.mu == null ? 0.25 : o.mu, K = o.K == null ? 0.003 : o.K,
+        jack = o.jack || 'both', slip = o.slip == null ? 0 : o.slip,
+        Ep = o.Ep == null ? 195000 : o.Ep, anchors = o.anchors || null,
+        RH = o.RH == null ? 75 : o.RH, relax = o.relax == null ? 10 : o.relax,
+        EpEci = o.Ep_Eci == null ? 7.33 : o.Ep_Eci, n = o.n == null ? 20 : o.n,
+        MSDLFn = o.M_SDL_fn || null;
+    var fpj = t.fpj, Aps = t.Aps, N = t.n;
+    var shrink = 0.8 * (1195 - 10.55 * RH) * 0.0981;
+    var xs = [], pts = [], i;
+    for (i = 0; i <= n; i++) {
+      var x = L * i / n, fric, sl;
+      if (anchors) {
+        var f = BC.segmentedTendonForce(x, anchors, segs, fpj, Aps, 0, mu, K, jack, slip, Ep);
+        fric = f.friction; sl = f.slip;
+      } else {
+        fric = fpj * BC.frictionAt(x, L, segs, mu, K, jack);
+        sl = BC.tendonSlipLoss(x, L, segs, fpj, jack, mu, K, slip, Ep);
+      }
+      var Pix = (fpj - fric - sl) * Aps, e = eFn(x),
+          M_D = MDFn(x) * 1e6, M_SDL = MSDLFn ? MSDLFn(x) * 1e6 : 0,
+          fcgp = Pix / sec.A + Pix * e * e / sec.I - M_D * e / sec.I,
+          fcds = M_SDL * e / sec.I,
+          ES = (N - 1) / (2 * N) * EpEci * fcgp,
+          creep = 12 * fcgp - 7 * fcds,
+          shortL = fric + sl + ES, lng = creep + shrink + relax,
+          total = shortL + lng, fpe = fpj - total;
+      xs.push(x);
+      pts.push({ x: x, e: e, fric: fric, slip: sl, ES: ES, creep: creep, shrink: shrink,
+                 relax: relax, short: shortL, long: lng, total: total, loss_pct: total / fpj,
+                 fcgp: fcgp, fpe: fpe, Pe: fpe * Aps });
+    }
+    var Pes = pts.map(function (p) { return p.Pe; }),
+        lps = pts.map(function (p) { return p.loss_pct; }),
+        imin = 0, imax = 0, ilmax = 0, lmin = lps[0], area = 0;
+    // 嚴格不等號 → 平手取最先者，與 Python list.index(min(...)) 一致（兩端對稱時取 x=0）
+    for (i = 1; i <= n; i++) {
+      if (Pes[i] < Pes[imin]) imin = i;
+      if (Pes[i] > Pes[imax]) imax = i;
+      if (lps[i] > lps[ilmax]) ilmax = i;
+      if (lps[i] < lmin) lmin = lps[i];
+    }
+    for (i = 0; i < n; i++) area += (Pes[i] + Pes[i + 1]) / 2 * (xs[i + 1] - xs[i]);
+    return {
+      xs: xs, pts: pts, Pe_min: Pes[imin], x_Pemin: xs[imin], Pe_max: Pes[imax],
+      x_Pemax: xs[imax], Pe_avg: L ? area / L : 0, loss_pct_max: lps[ilmax],
+      x_lossmax: xs[ilmax], loss_pct_min: lmin,
+      // 取樣點之間線性內插；f_cgp 沿 x 為二次，故非取樣點有內插誤差（調大 n 可減小）
+      at: function (xq) {
+        if (xq <= xs[0]) return pts[0];
+        if (xq >= xs[xs.length - 1]) return pts[pts.length - 1];
+        for (var j = 0; j < xs.length - 1; j++) {
+          if (xs[j] <= xq && xq <= xs[j + 1]) {
+            var tt = xs[j + 1] > xs[j] ? (xq - xs[j]) / (xs[j + 1] - xs[j]) : 0,
+                a = pts[j], b = pts[j + 1],
+                lp = function (u, v) { return u + (v - u) * tt; };
+            return { x: xq, e: lp(a.e, b.e), fric: lp(a.fric, b.fric), slip: lp(a.slip, b.slip),
+                     ES: lp(a.ES, b.ES), creep: lp(a.creep, b.creep), shrink: a.shrink,
+                     relax: a.relax, short: lp(a.short, b.short), long: lp(a.long, b.long),
+                     total: lp(a.total, b.total), loss_pct: lp(a.loss_pct, b.loss_pct),
+                     fcgp: lp(a.fcgp, b.fcgp), fpe: lp(a.fpe, b.fpe), Pe: lp(a.Pe, b.Pe) };
+          }
+        }
+        return pts[pts.length - 1];
+      }
+    };
+  };
+
   // ── 載重組合 ──────────────────────────────────────────
   BC.combinations = function (M_DC, M_DW, M_LL) {
     return { Strength_I: 1.25 * M_DC + 1.50 * M_DW + 1.75 * M_LL,

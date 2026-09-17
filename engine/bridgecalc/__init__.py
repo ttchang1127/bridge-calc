@@ -6,7 +6,8 @@
 階段 1（本版）：sections / prestress（含非線性損失耦合）/ loads / service / allowables。
 """
 from .model import Section, Tendon
-from .prestress import compute_losses, LossResult
+from .prestress import (compute_losses, LossResult, loss_profile,
+                        LossProfileResult, LossPoint, parabolic_e, udl_moment)
 from .loads import combinations, lane_live_load
 from .service import stresses, Pe_min_zero_tension
 from .shear import (shear_web, shear_web_at, stirrup_max_spacing_TW, stirrup_pick_spacing,

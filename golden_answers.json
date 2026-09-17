@@ -461,6 +461,25 @@
     "pier_slip_two_seg": 197.5,
     "_note": "一段 80 m 雙端張拉：摩擦 20.28% @墩頂（超 G1 20% 門檻，雙端張拉救不了）；墩頂設中間錨碇（2×40 m）→ 摩擦＋滑移 14.16%（純摩擦 10.36%）；再分三段 13.92% 幾無改善——每增一個錨碇就多一組滑移損失"
   },
+  "loss_profile_G1": {
+    "config": "40m參考橋 e_mid1109/垂度870/μ0.25/K0.003/雙端張拉/Δa6mm/n=40",
+    "end_fric_pct": 0.0,
+    "end_slip_pct": 11.47,
+    "end_loss_pct": 20.62,
+    "end_Pe_kN": 23565.4,
+    "mid_fric_pct": 7.85,
+    "mid_slip_pct": 0.0,
+    "mid_loss_pct": 18.76,
+    "mid_Pe_kN": 24118.0,
+    "x_Pemin_noslip_m": 20.0,
+    "x_Pemin_slip_m": 0.0,
+    "Pe_min_noslip_kN": 24118.0,
+    "Pe_min_slip_kN": 23565.4,
+    "Pe_avg_slip_kN": 24154.9,
+    "single_point_mid_Pe_kN": 23687.0,
+    "single_point_overestimate_at_1m_pct": 0.27,
+    "_note": "單點式(compute_losses取跨中)全長都用 23,687kN；實際端部僅 23,565kN(滑移11.47%但摩擦0)。無滑移時 Pe_min 在跨中(摩擦控制)、計滑移後搬到端部——最不利斷面會搬家是單點式看不到的。跨中滑移=0 印證 compute_losses 註解的假設(L_set 14.1m < 半長 20m)。"
+  },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",
     "Tu_C": 6.91,

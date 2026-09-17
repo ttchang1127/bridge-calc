@@ -242,6 +242,30 @@ function chkEq(name, got, exp) {
   var tpD = BC.contTendonSegs([40, 40], 0, 1109, -600);
   chk('雙系統 合成 M2', BC.continuousPrestress([40, 40], [{ P: 23724, segs: tpD.segs }, { P: 12557, segs: pc.segs }]).X[1], pcg.dual_M2_pier_kNm, 0.1);
   chk('三跨 頂板腱長受限', BC.pierCapTendonSegs([30, 40, 30], 20, 300, -600).lengths[0], pcg.three_span_lengths[0], 1e-9);
+  // 變斷面（中墩底板加厚）：數值柔度、階梯 EI 解析、M2 與包絡
+  var vs = g.variable_section_haunch, dimsV = [11000, 250, 5800, 200, 350, 2, 2100];
+  var prV = BC.haunchProfile.apply(null, [[40, 40]].concat(dimsV, [400, 8])), pr0V = BC.haunchProfile.apply(null, [[40, 40]].concat(dimsV, [200, 8]));
+  var refV = BC.sectionFromDims.apply(null, dimsV), s40V = prV.sectionAt(40);
+  chk('變斷面 基準 I', refV.I / 1e12, vs.ref_I_e12, 1e-5);
+  chk('變斷面 墩頂 A', s40V.A, vs.pier_A, 1);
+  chk('變斷面 墩頂 I', s40V.I / 1e12, vs.pier_I_e12, 1e-5);
+  chk('變斷面 墩頂 ȳb', s40V.yb, vs.pier_yb, 1e-3);
+  chk('變斷面 Δȳ', prV.dyb(40), vs.dyb_pier, 1e-3);
+  chk('變斷面 I_rel', prV.Irel(40), vs.I_rel_pier, 1e-6);
+  chk('變斷面 底板厚 x=36', prV.botTAt(36), vs.bot_t_x36, 1e-9);
+  var tpV = BC.contTendonSegs([40, 40], 0, 1109, -600), gV = [{ P: 23724, segs: tpV.segs }];
+  chk('數值柔度＝閉合（M2）', BC.continuousPrestress([40, 40], gV, 8, pr0V).X[1], vs.numeric0_M2_pier, 0.01);
+  chk('數值柔度＝閉合（包絡）', BC.taiwanContEnvelope([40, 40], 124.0925, 20, 2, 20, 0.25, 400, pr0V)[20].Mu_neg, vs.numeric0_env_pier_Mu_neg, 0.1);
+  var stV = BC.contFlex([40, 40], function (x) { return Math.abs(x - 40) < 8 ? 2 : 1; }, [32, 48]);
+  chk('階梯 EI 均布（解析）', stV.supportMomentsDist(function () { return 10; })[1], vs.step_EI_dl_pier_w10, 1e-3);
+  chk('階梯 EI 點載重', stV.supportMomentsPoint(20)[1], vs.step_EI_point_p20, 1e-6);
+  chk('加厚 M2（全長腱）', BC.continuousPrestress([40, 40], gV, 8, prV).X[1], vs.haunch_M2_pier_default, 0.1);
+  chk('加厚 M2（雙系統）', BC.continuousPrestress([40, 40], [gBot, gTop], 8, prV).X[1], vs.haunch_M2_pier_dual, 0.1);
+  var ehV = BC.taiwanContEnvelope([40, 40], 124.0925, 20, 2, 20, 0.25, 400, prV);
+  chk('加厚 墩頂 M_DC', ehV[20].M_dc, vs.haunch_env_pier_M_dc, 0.1);
+  chk('加厚 墩頂 M_LL−', ehV[20].M_ll_neg, vs.haunch_env_pier_M_ll_neg, 0.1);
+  chk('加厚 墩頂 Mu−', ehV[20].Mu_neg, vs.haunch_env_pier_Mu_neg, 0.1);
+  chk('加厚 x16 Mu+', ehV[8].Mu_pos, vs.haunch_env_x16_Mu_pos, 0.1);
   // 分析器預設全長連續腱（分段拋物線）＋三跨
   var ctd = g.cont_tendon_force_default, tpd = BC.contTendonSegs([40, 40], 0, 1109, -600);
   var fmd = BC.continuousPrestress([40, 40], [{ P: 23724, segs: tpd.segs }]);

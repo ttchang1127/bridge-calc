@@ -155,17 +155,22 @@ class ContLiveMoment:
 
 
 class _ILCache:
-    def __init__(self, spans):
+    def __init__(self, spans, stiff=None):
         self.spans = list(spans)
         self.xs = _supports(spans)
         self.tot = self.xs[-1]
         self._X = {}
+        self.flex = None
+        if stiff is not None:
+            from .variable_section import ContFlex
+            self.flex = ContFlex(spans, stiff.I_rel, stiff.breaks)
 
     def X(self, p):
         key = round(p, 6)
         v = self._X.get(key)
         if v is None:
-            v = self._X[key] = cont_support_moments_point(self.spans, p)
+            v = self._X[key] = (self.flex.support_moments_point(p) if self.flex
+                                else cont_support_moments_point(self.spans, p))
         return v
 
     def eta(self, x, p):
@@ -253,18 +258,30 @@ class ContEnvelopeRow:
 
 def taiwan_cont_envelope(spans: Sequence[float], w_dc: float, w_dw: float, lanes: int,
                          n_per_span: int = 20, step: float = 0.25,
-                         grid_per_span: int = 400) -> List[ContEnvelopeRow]:
-    """連續梁 DL＋台灣 HS20-44 活載彎矩包絡（不含預力 M2，由呼叫端另加、載重因數 1.0）。"""
-    c = _ILCache(spans)
+                         grid_per_span: int = 400, stiff=None) -> List[ContEnvelopeRow]:
+    """連續梁 DL＋台灣 HS20-44 活載彎矩包絡（不含預力 M2，由呼叫端另加、載重因數 1.0）。
+
+    stiff：變斷面剖面（variable_section.haunch_profile）→ 影響線以變 EI 柔度求解、
+    自重 w_dc 依斷面積比 A(x)/A_ref 放大（附加恆載 w_dw 不變）。未給時為等斷面閉合解。
+    """
+    c = _ILCache(spans, stiff)
     xs = c.xs
     fac_l = lanes * taiwan_lane_reduction(lanes)
     pts = [0.0]
     for i, L in enumerate(spans):
         for k in range(1, n_per_span + 1):
             pts.append(xs[i] + L * k / n_per_span)
+    if c.flex is not None:
+        wdc_fn = lambda t: w_dc * stiff.A_rel(t)
+        wdw_fn = lambda t: w_dw
+        Xdc, Xdw = c.flex.support_moments_dist(wdc_fn), c.flex.support_moments_dist(wdw_fn)
     rows = []
     for x in pts:
-        dc, dw = cont_dl_moment(spans, w_dc, x), cont_dl_moment(spans, w_dw, x)
+        if c.flex is None:
+            dc, dw = cont_dl_moment(spans, w_dc, x), cont_dl_moment(spans, w_dw, x)
+        else:
+            dc = c.flex.moment_at(Xdc, x, c.flex.M0_dist(wdc_fn, x))
+            dw = c.flex.moment_at(Xdw, x, c.flex.M0_dist(wdw_fn, x))
         lv = _live_at(c, x, step, grid_per_span)
         lp, ln = lv.pos * (1 + lv.I_pos) * fac_l, lv.neg * (1 + lv.I_neg) * fac_l
         rows.append(ContEnvelopeRow(x, dc, dw, lp, ln, dc + dw + lp, dc + dw + ln,

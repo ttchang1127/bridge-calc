@@ -38,7 +38,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         parabola_seg, cont_tendon_segs, TendonGroup, primary_moment_at,
                         continuous_prestress, taiwan_cont_live_moment, cont_moment_il,
                         cont_dl_moment, taiwan_lane_reduction, pier_cap_tendon_segs,
-                        top_slab_tendon_check)
+                        top_slab_tendon_check, section_from_dims, haunch_profile, ContFlex,
+                        cont_support_moments_point, taiwan_cont_envelope)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -371,6 +372,36 @@ def test_pier_cap_tendon():
            continuous_prestress([40, 40], [full]).X[1] + continuous_prestress([40, 40], [top]).X[1], 1e-6)
     _close(g["dual_M2_pier_kNm"], continuous_prestress([40, 40], [full, top]).X[1], 0.1)
     assert pier_cap_tendon_segs([30, 40, 30], 20, 300, -600).lengths == [15.0, 15.0]   # ≤0.5×30
+
+
+def test_variable_section_haunch():
+    """變斷面：數值柔度於等斷面退化為閉合解；階梯 EI 與解析積分相符；加厚使墩頂吸引彎矩。"""
+    dims = (11000, 250, 5800, 200, 350, 2, 2100)
+    ref = section_from_dims(*dims)
+    _close(ref.A, sec.A, 1)
+    _close(ref.yb, 1329, 1)
+    pr0 = haunch_profile([40, 40], *dims, 200, 8)          # 不加厚 → 走數值路徑
+    tp = cont_tendon_segs([40, 40], 0, 1109, -600)
+    g = [TendonGroup(23724, tp.segs)]
+    _close(continuous_prestress([40, 40], g, stiff=pr0).X[1], continuous_prestress([40, 40], g).X[1], 1e-6)
+    f1 = ContFlex([30, 40, 30], lambda x: 1.0)
+    for p in (10, 35, 77):
+        for a, b in zip(f1.support_moments_point(p), cont_support_moments_point([30, 40, 30], p)):
+            _close(a, b, 1e-9)
+    # 階梯 EI：墩兩側 c=8 m 內 EI 加倍、兩跨均布 w=10 → X = −∫M0·m/EI ÷ ∫m²/EI（多項式解析）
+    L, c, k, w = 40.0, 8.0, 2.0, 10.0
+    P4 = lambda x: w / (2 * L) * (L * x ** 3 / 3 - x ** 4 / 4)
+    Q3 = lambda x: x ** 3 / (3 * L * L)
+    num = (P4(L - c) - P4(0)) + (P4(L) - P4(L - c)) / k
+    den = (Q3(L - c) - Q3(0)) + (Q3(L) - Q3(L - c)) / k
+    step = ContFlex([L, L], lambda x: k if abs(x - 40) < c else 1.0, breaks=[32, 48])
+    _close(step.support_moments_dist(lambda t: w)[1], -num / den, 1e-6)
+    # 加厚：形心下移、I 增、墩頂恆載彎矩增大（剛度吸引＋自重）
+    pr = haunch_profile([40, 40], *dims, 400, 8)
+    assert pr.dyb(40) > 0 and pr.I_rel(40) > 1 and pr.bot_t_at(36) == 300
+    e_h = taiwan_cont_envelope([40, 40], 124.0925, 20, 2, n_per_span=20, stiff=pr)
+    assert e_h[20].M_dc < cont_dl_moment([40, 40], 124.0925, 40)
+    _close(golden["variable_section_haunch"]["haunch_env_pier_M_dc"], e_h[20].M_dc, 0.1)
 
 
 def test_secondary_moments_force():

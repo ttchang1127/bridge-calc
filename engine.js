@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 242 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 259 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -368,6 +368,115 @@
     return { c: c, flanged: flanged, a: a, fps: fps, Mn: Mn, eps_t: eps_t, phi: phi, phiMn: phi * Mn, CR: phi * Mn / Mu, ok: phi * Mn >= Mu };
   };
 
+  // ── 連續梁變斷面（中墩底板加厚）：變 EI 柔度（同 variable_section.py）──
+  // F_ij＝∫m_i·m_j/I_rel；點載重轉角項 δ_i(p)＝u_i(p)：簡支跨以曲率 κ_i＝m_i/I_rel 的撓度（Maxwell 互易）
+  var GL3 = [[-Math.sqrt(3 / 5), 5 / 9], [0, 8 / 9], [Math.sqrt(3 / 5), 5 / 9]];
+  function contCells(a, b, cuts, h) {
+    var seen = {}, pts = [];
+    [a, b].concat(cuts.filter(function (c) { return c > a && c < b; })).forEach(function (v) { if (!seen[v]) { seen[v] = 1; pts.push(v); } });
+    pts.sort(function (x, y) { return x - y; });
+    var out = [];
+    for (var i = 0; i < pts.length - 1; i++) {
+      var u = pts[i], v = pts[i + 1], n = Math.max(1, Math.round((v - u) / h)), d = (v - u) / n;
+      for (var k = 0; k < n; k++) out.push([u + k * d, u + (k + 1) * d]);
+    }
+    return out;
+  }
+  BC.gaussIntegrate = function (f, a, b, cuts, h) {
+    var s = 0;
+    contCells(a, b, cuts || [], h || 0.25).forEach(function (c) {
+      var m = 0.5 * (c[0] + c[1]), r = 0.5 * (c[1] - c[0]);
+      s += r * (GL3[0][1] * f(m + r * GL3[0][0]) + GL3[1][1] * f(m + r * GL3[1][0]) + GL3[2][1] * f(m + r * GL3[2][0]));
+    });
+    return s;
+  };
+  BC.haunchProfile = function (spans, topW, topT, botW, botT, webT, nWeb, h, botTPier, length) {
+    var xs = [0], lens = [], brk = [], seen = {}, j;
+    spans.forEach(function (L) { xs.push(xs[xs.length - 1] + L); });
+    for (j = 1; j < spans.length; j++) {
+      var b = Math.max(0, Math.min(length, 0.5 * spans[j - 1], 0.5 * spans[j]));
+      lens.push(b); [xs[j] - b, xs[j], xs[j] + b].forEach(function (v) { v = Math.round(v * 1e9) / 1e9; if (!seen[v]) { seen[v] = 1; brk.push(v); } });
+    }
+    brk.sort(function (a, c) { return a - c; });
+    var ref = BC.sectionFromDims(topW, topT, botW, botT, webT, nWeb, h), tPier = Math.max(botT, botTPier), cache = {};
+    var P = { spans: spans.slice(), xs: xs, lengths: lens, breaks: brk, secRef: ref, botTPier: tPier };
+    P.botTAt = function (x) {
+      var t = botT;
+      for (var i = 1; i < xs.length - 1; i++) { var d = Math.abs(x - xs[i]), bb = lens[i - 1];
+        if (bb > 0 && d < bb) t = Math.max(t, tPier + (botT - tPier) * d / bb); }
+      return t;
+    };
+    P.sectionAt = function (x) { var k = Math.round(x * 1e6); return cache[k] || (cache[k] = BC.sectionFromDims(topW, topT, botW, P.botTAt(x), webT, nWeb, h)); };
+    P.Irel = function (x) { return P.sectionAt(x).I / ref.I; };
+    P.Arel = function (x) { return P.sectionAt(x).A / ref.A; };
+    P.dyb = function (x) { return ref.yb - P.sectionAt(x).yb; };
+    return P;
+  };
+  BC.contFlex = function (spans, Irel, breaks, grid) {
+    breaks = breaks || []; grid = grid || 0.05;
+    var xs = [0], n = spans.length, nu = n - 1, i, j;
+    spans.forEach(function (L) { xs.push(xs[xs.length - 1] + L); });
+    function mh(i, x) { var a = xs[i - 1], c = xs[i], b = xs[i + 1];
+      if (x >= a - 1e-12 && x <= c) return (x - a) / (c - a); if (x >= c && x <= b + 1e-12) return (b - x) / (b - c); return 0; }
+    var F = [], cuts = xs.concat(breaks);
+    for (i = 0; i < nu; i++) { F.push([]); for (j = 0; j < nu; j++) F[i].push(0); }
+    for (i = 0; i < nu; i++) {
+      (function (i) {
+        F[i][i] = BC.gaussIntegrate(function (x) { var m = mh(i + 1, x); return m * m / Irel(x); }, xs[i], xs[i + 2], cuts, 0.25);
+        if (i + 1 < nu) F[i][i + 1] = F[i + 1][i] = BC.gaussIntegrate(function (x) { return mh(i + 1, x) * mh(i + 2, x) / Irel(x); }, xs[i + 1], xs[i + 2], cuts, 0.25);
+      })(i);
+    }
+    var tab = {};
+    function table(i, k) {
+      var x0 = xs[k], L = spans[k], cells = contCells(x0, x0 + L, breaks, grid), ts = [x0], S1 = [0], S2 = [0];
+      cells.forEach(function (c) {
+        var u = c[0], v = c[1], m = 0.5 * (u + v), r = 0.5 * (v - u), k1 = 0, k2 = 0;
+        GL3.forEach(function (gw) { var t = m + r * gw[0], kap = mh(i, t) / Irel(t); k1 += r * gw[1] * kap; k2 += r * gw[1] * kap * (v - t); });
+        S2.push(S2[S2.length - 1] + (v - u) * S1[S1.length - 1] + k2); S1.push(S1[S1.length - 1] + k1); ts.push(v);
+      });
+      var cc = S2[S2.length - 1] / L;
+      return { ts: ts, u: ts.map(function (t, q) { return -S2[q] + (t - x0) * cc; }), du: S1.map(function (s1) { return -s1 + cc; }) };
+    }
+    for (i = 1; i < n; i++) { tab[i + ',' + (i - 1)] = table(i, i - 1); tab[i + ',' + i] = table(i, i); }
+    function uAt(i, k, p) {
+      var T = tab[i + ',' + k], ts = T.ts, lo = 0, hi = ts.length - 1;
+      if (p <= ts[0]) return T.u[0]; if (p >= ts[hi]) return T.u[hi];
+      while (hi - lo > 1) { var md = (lo + hi) >> 1; if (ts[md] <= p) lo = md; else hi = md; }
+      var hh = ts[hi] - ts[lo], s = (p - ts[lo]) / hh, s2 = s * s, s3 = s2 * s;
+      return (2 * s3 - 3 * s2 + 1) * T.u[lo] + (s3 - 2 * s2 + s) * hh * T.du[lo] + (-2 * s3 + 3 * s2) * T.u[hi] + (s3 - s2) * hh * T.du[hi];
+    }
+    function solve(delta) {
+      if (nu <= 0) { var z = []; for (var q = 0; q <= n; q++) z.push(0); return z; }
+      var A = F.map(function (row, r) { return row.slice().concat([-delta[r]]); }), X = [], a, b2, c;
+      for (a = 0; a < nu; a++) for (b2 = a + 1; b2 < nu; b2++) { var f = A[b2][a] / A[a][a]; for (c = a; c <= nu; c++) A[b2][c] -= f * A[a][c]; }
+      for (a = 0; a < nu; a++) X.push(0);
+      for (a = nu - 1; a >= 0; a--) { var sm = A[a][nu]; for (c = a + 1; c < nu; c++) sm -= A[a][c] * X[c]; X[a] = sm / A[a][a]; }
+      return [0].concat(X, [0]);
+    }
+    function spanOf(x) { for (var q = 0; q < n; q++) if (x <= xs[q + 1] + 1e-9) return q; return n - 1; }
+    var o = { F: F, xs: xs, spans: spans };
+    o.supportMomentsPoint = function (p, P) {
+      P = P == null ? 1 : P;
+      if (n < 2 || p < -1e-9 || p > xs[n] + 1e-9) { var z = []; for (var q = 0; q <= n; q++) z.push(0); return z; }
+      var k = spanOf(p), delta = []; for (var q2 = 0; q2 < nu; q2++) delta.push(0);
+      [k, k + 1].forEach(function (ii) { if (ii >= 1 && ii <= n - 1) delta[ii - 1] = P * uAt(ii, k, p); });
+      return solve(delta);
+    };
+    o.supportMomentsDist = function (w) {
+      var delta = []; for (var q = 0; q < nu; q++) delta.push(0);
+      for (var ii = 1; ii < n; ii++) [ii - 1, ii].forEach(function (k) {
+        delta[ii - 1] += BC.gaussIntegrate(function (t) { return w(t) * uAt(ii, k, t); }, xs[k], xs[k + 1], breaks, 0.25); });
+      return solve(delta);
+    };
+    o.momentAt = function (X, x, M0) { var q = spanOf(x), t = (x - xs[q]) / spans[q]; return M0 + X[q] * (1 - t) + X[q + 1] * t; };
+    o.M0Dist = function (w, x) {
+      var k = spanOf(x), x0 = xs[k], L = spans[k], a = x - x0;
+      return BC.gaussIntegrate(function (t) { var s2 = t - x0; return (s2 <= a ? s2 * (L - a) / L : a * (L - s2) / L) * w(t); }, x0, x0 + L, breaks.concat([x]), 0.25);
+    };
+    o.spanOf = spanOf;
+    return o;
+  };
+
   // ── 連續梁影響線與台灣 HS20-44 彎矩包絡（解析三彎矩法，EI 常數；同 influence_cont.py）──
   // 點載重 P 距跨左端 a（b=L−a）：∫M0·m＝P·a·b·(L+a)/(6L)（右端支承）、P·a·b·(L+b)/(6L)（左端）
   // 台灣 §3.9：負彎矩車道另加一個等集中載重於他跨（共 2 個）；§3.13 衝擊 L：正彎矩＝該跨、負彎矩＝相鄰兩跨平均
@@ -421,10 +530,12 @@
     if (li && (!ri || x - xs[i] <= xs[i + 1] - x)) return (spans[i - 1] + spans[i]) / 2;
     return (spans[i] + spans[i + 1]) / 2;
   };
-  function contCache(spans) {
-    var xs = contXs(spans), memo = {};
-    return { spans: spans, xs: xs, tot: xs[xs.length - 1],
-      eta: function (x, p) { var key = Math.round(p * 1e6); var X = memo[key] || (memo[key] = BC.contSupportMomentsPoint(spans, p)); return contEta(spans, xs, X, x, p); } };
+  function contCache(spans, stiff) {
+    var xs = contXs(spans), memo = {}, flex = stiff ? BC.contFlex(spans, stiff.Irel, stiff.breaks) : null;
+    return { spans: spans, xs: xs, tot: xs[xs.length - 1], flex: flex,
+      eta: function (x, p) { var key = Math.round(p * 1e6);
+        var X = memo[key] || (memo[key] = flex ? flex.supportMomentsPoint(p) : BC.contSupportMomentsPoint(spans, p));
+        return contEta(spans, xs, X, x, p); } };
   }
   function contLiveAt(c, x, step, grid) {
     var spans = c.spans, xs = c.xs, tot = c.tot, A = BC.TW, P0 = A.P, D0 = A.x, sp = D0[2];
@@ -456,12 +567,17 @@
   }
   BC.taiwanContLiveMoment = function (spans, x, step, grid) { return contLiveAt(contCache(spans), x, step || 0.25, grid || 400); };
   // 回傳各斷面：x、M_dc、M_dw、M_ll_pos/neg（含衝擊×車道數×折減）、Ms/Mu 正負、I_pos/I_neg（不含預力 M2）
-  BC.taiwanContEnvelope = function (spans, wdc, wdw, lanes, nPerSpan, step, grid) {
+  // stiff：變斷面剖面（BC.haunchProfile）→ 變 EI 柔度、自重 × A(x)/A_ref
+  BC.taiwanContEnvelope = function (spans, wdc, wdw, lanes, nPerSpan, step, grid, stiff) {
     nPerSpan = nPerSpan || 20; step = step || 0.25; grid = grid || 400;
-    var c = contCache(spans), xs = c.xs, fac = lanes * BC.taiwanLaneReduction(lanes), pts = [0], i, k;
+    var c = contCache(spans, stiff), xs = c.xs, fac = lanes * BC.taiwanLaneReduction(lanes), pts = [0], i, k;
+    var wdcFn = stiff ? function (t) { return wdc * stiff.Arel(t); } : null, wdwFn = function () { return wdw; };
+    var Xdc = c.flex ? c.flex.supportMomentsDist(wdcFn) : null, Xdw = c.flex ? c.flex.supportMomentsDist(wdwFn) : null;
     for (i = 0; i < spans.length; i++) for (k = 1; k <= nPerSpan; k++) pts.push(xs[i] + spans[i] * k / nPerSpan);
     return pts.map(function (x) {
-      var dc = BC.contDLMoment(spans, wdc, x), dw = BC.contDLMoment(spans, wdw, x), lv = contLiveAt(c, x, step, grid);
+      var dc = c.flex ? c.flex.momentAt(Xdc, x, c.flex.M0Dist(wdcFn, x)) : BC.contDLMoment(spans, wdc, x);
+      var dw = c.flex ? c.flex.momentAt(Xdw, x, c.flex.M0Dist(wdwFn, x)) : BC.contDLMoment(spans, wdw, x);
+      var lv = contLiveAt(c, x, step, grid);
       var lp = lv.pos * (1 + lv.I_pos) * fac, ln = lv.neg * (1 + lv.I_neg) * fac;
       return { x: x, M_dc: dc, M_dw: dw, M_ll_pos: lp, M_ll_neg: ln, Ms_pos: dc + dw + lp, Ms_neg: dc + dw + ln,
                Mu_pos: 1.25 * dc + 1.5 * dw + 1.75 * lp, Mu_neg: 1.25 * dc + 1.5 * dw + 1.75 * ln, I_pos: lv.I_pos, I_neg: lv.I_neg };
@@ -526,7 +642,7 @@
   };
   // 力法（EI 常數）：Σ_j F_ij X_j = −∫M1·m_i dx，F_ii=(L左+L右)/3、F_i,i+1=L/6。
   // 子區間對齊折點＋Simpson：M1 分段二次 × m_i 分段線性＝分段三次 → 精確。
-  BC.secondaryMomentsForce = function (spans, M1, breaks, nSub) {
+  BC.secondaryMomentsForce = function (spans, M1, breaks, nSub, Irel) {
     nSub = nSub || 8; breaks = breaks || [];
     var n = spans.length, sx = [0], i, j, k;
     spans.forEach(function (L) { sx.push(sx[sx.length - 1] + L); });
@@ -557,14 +673,17 @@
         var s = 0;
         for (j = 0; j <= 2 * nSub; j++) {
           var x = a + j * h, w = (j === 0 || j === 2 * nSub) ? 1 : (j % 2 ? 4 : 2);
-          s += w * M1(x, mid) * mHat(i + 1, x);
+          s += w * M1(x, mid) * mHat(i + 1, x) / (Irel ? Irel(x) : 1);
         }
         bv[i] += s * h / 3;
       }
     }
     var F = [];
-    for (i = 0; i < nu; i++) { F.push([]); for (j = 0; j < nu; j++) F[i].push(0); }
-    for (i = 0; i < nu; i++) { F[i][i] = (spans[i] + spans[i + 1]) / 3; if (i + 1 < nu) F[i][i + 1] = F[i + 1][i] = spans[i + 1] / 6; }
+    if (Irel) F = BC.contFlex(spans, Irel, breaks, Math.max.apply(null, spans)).F;   // 變斷面：數值柔度
+    else {
+      for (i = 0; i < nu; i++) { F.push([]); for (j = 0; j < nu; j++) F[i].push(0); }
+      for (i = 0; i < nu; i++) { F[i][i] = (spans[i] + spans[i + 1]) / 3; if (i + 1 < nu) F[i][i + 1] = F[i + 1][i] = spans[i + 1] / 6; }
+    }
     var A = F.map(function (row, i) { return row.slice().concat([-bv[i]]); });
     for (i = 0; i < nu; i++) for (j = i + 1; j < nu; j++) {
       var f = A[j][i] / A[i][i]; for (k = i; k <= nu; k++) A[j][k] -= f * A[i][k]; }
@@ -599,9 +718,19 @@
     return { e_hi: eHi, e_lo: eLo, y_center: y, in_slab: inSlab, top_cover: topCov, bot_cover: botCov,
              x_offsets: xo, s_clear: sClear, s_req: sReq, s_ok: sOk, ok: inSlab && sOk };
   };
-  BC.continuousPrestress = function (spans, groups, nSub) {
-    return BC.secondaryMomentsForce(spans, function (x, probe) { return BC.primaryMomentAt(groups, x, probe); },
-                                    BC.groupBreaks(groups), nSub);
+  // stiff：變斷面剖面（BC.haunchProfile）→ M1＝Σ −P·(e−Δȳ)/1000、被積函數 ÷I_rel
+  BC.continuousPrestress = function (spans, groups, nSub, stiff) {
+    if (!stiff) return BC.secondaryMomentsForce(spans, function (x, probe) { return BC.primaryMomentAt(groups, x, probe); },
+                                                BC.groupBreaks(groups), nSub);
+    return BC.secondaryMomentsForce(spans, function (x, probe) {
+      var M = 0, t = probe == null ? x : probe;
+      groups.forEach(function (g) {
+        for (var k = 0; k < g.segs.length; k++) { var sg = g.segs[k];
+          if (t >= sg.x1 - 1e-9 && t <= sg.x2 + 1e-9) { var P = typeof g.P === 'function' ? g.P(x) : g.P;
+            M += -P * (BC.segE(sg, x) - stiff.dyb(x)) / 1000; return; } }
+      });
+      return M;
+    }, BC.groupBreaks(groups).concat(stiff.breaks), nSub, stiff.Irel);
   };
 
   // ═══════════════ 耐震（台灣單軌 S1/S2/S3/S5）（原 seismic-engine.js）═══════════════

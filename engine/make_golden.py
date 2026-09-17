@@ -36,7 +36,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         parabola_seg, cont_tendon_segs, TendonGroup, primary_moment_at,
                         continuous_prestress, taiwan_cont_envelope, taiwan_cont_live_moment,
                         cont_moment_il, cont_dl_moment, taiwan_lane_reduction,
-                        pier_cap_tendon_segs, top_slab_tendon_check)
+                        pier_cap_tendon_segs, top_slab_tendon_check,
+                        section_from_dims, haunch_profile, ContFlex)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -150,6 +151,35 @@ def _pier_cap_tendon():
         "dual_M2_pier_kNm": round(dual.X[1], 1),
         "three_span_lengths": pc3.lengths,
         "_note": "算例_連續梁次彎矩頂板腱（b 15、錨 +300、墩 −646）；頂板 250＝75+100+75 恰容一層",
+    }
+
+
+def _variable_section_haunch():
+    """變斷面（中墩底板加厚）：斷面性質、變 EI 柔度（階梯 EI 解析驗證）、M2 與包絡。"""
+    dims = (11000, 250, 5800, 200, 350, 2, 2100)
+    ref = section_from_dims(*dims)
+    pr = haunch_profile([40, 40], *dims, 400, 8)
+    pr0 = haunch_profile([40, 40], *dims, 200, 8)
+    s40 = pr.section_at(40)
+    tp = cont_tendon_segs([40, 40], 0, 1109, -600)
+    g = [TendonGroup(23724, tp.segs)]
+    bot, top = _cont_case_groups()
+    e_h = taiwan_cont_envelope([40, 40], 124.0925, 20, 2, n_per_span=20, stiff=pr)
+    e_0 = taiwan_cont_envelope([40, 40], 124.0925, 20, 2, n_per_span=20, stiff=pr0)
+    step = ContFlex([40, 40], lambda x: 2.0 if abs(x - 40) < 8 else 1.0, breaks=[32, 48])
+    return {
+        "ref_A": round(ref.A), "ref_I_e12": round(ref.I / 1e12, 5), "ref_yb": round(ref.yb, 3),
+        "pier_A": round(s40.A), "pier_I_e12": round(s40.I / 1e12, 5), "pier_yb": round(s40.yb, 3),
+        "dyb_pier": round(pr.dyb(40), 3), "I_rel_pier": round(pr.I_rel(40), 6), "bot_t_x36": pr.bot_t_at(36),
+        "numeric0_M2_pier": round(continuous_prestress([40, 40], g, stiff=pr0).X[1], 2),
+        "numeric0_env_pier_Mu_neg": round(e_0[20].Mu_neg, 1),
+        "step_EI_dl_pier_w10": round(step.support_moments_dist(lambda t: 10.0)[1], 3),
+        "step_EI_point_p20": round(step.support_moments_point(20)[1], 6),
+        "haunch_M2_pier_default": round(continuous_prestress([40, 40], g, stiff=pr).X[1], 1),
+        "haunch_M2_pier_dual": round(continuous_prestress([40, 40], [bot, top], stiff=pr).X[1], 1),
+        "haunch_env_pier_M_dc": round(e_h[20].M_dc, 1), "haunch_env_pier_M_ll_neg": round(e_h[20].M_ll_neg, 1),
+        "haunch_env_pier_Mu_neg": round(e_h[20].Mu_neg, 1), "haunch_env_x16_Mu_pos": round(e_h[8].Mu_pos, 1),
+        "_note": "底板 200→400（墩心）線性加厚、單側 8 m；階梯 EI（墩兩側 8 m 內 2 倍）解析值 −2,406.349（w=10）",
     }
 
 
@@ -342,6 +372,7 @@ golden = {
     "cont_tendon_force_default": _cont_tendon_force_default(),
     "cont_envelope_taiwan": _cont_envelope_taiwan(),
     "pier_cap_tendon": _pier_cap_tendon(),
+    "variable_section_haunch": _variable_section_haunch(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

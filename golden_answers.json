@@ -233,6 +233,28 @@
     ],
     "_note": "算例_連續梁次彎矩頂板腱（b 15、錨 +300、墩 −646）；頂板 250＝75+100+75 恰容一層"
   },
+  "variable_section_haunch": {
+    "ref_A": 5065000,
+    "ref_I_e12": 3.2867,
+    "ref_yb": 1328.949,
+    "pier_A": 6085000,
+    "pier_I_e12": 4.18899,
+    "pier_yb": 1156.471,
+    "dyb_pier": 172.478,
+    "I_rel_pier": 1.274527,
+    "bot_t_x36": 300.0,
+    "numeric0_M2_pier": 14184.79,
+    "numeric0_env_pier_Mu_neg": -47463.1,
+    "step_EI_dl_pier_w10": -2406.349,
+    "step_EI_point_p20": -4.616402,
+    "haunch_M2_pier_default": 14871.3,
+    "haunch_M2_pier_dual": 17139.9,
+    "haunch_env_pier_M_dc": -26353.6,
+    "haunch_env_pier_M_ll_neg": -6283.4,
+    "haunch_env_pier_Mu_neg": -50252.7,
+    "haunch_env_x16_Mu_pos": 29587.6,
+    "_note": "底板 200→400（墩心）線性加厚、單側 8 m；階梯 EI（墩兩側 8 m 內 2 倍）解析值 −2,406.349（w=10）"
+  },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",
     "Tu_C": 6.91,

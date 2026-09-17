@@ -254,7 +254,8 @@ class ForceMethodM2Result:
 
 def secondary_moments_force(spans: Sequence[float],
                             M1: Callable[[float, float], float],
-                            breaks: Sequence[float] = (), n_sub: int = 8) -> ForceMethodM2Result:
+                            breaks: Sequence[float] = (), n_sub: int = 8,
+                            I_rel: Optional[Callable[[float], float]] = None) -> ForceMethodM2Result:
     """連續梁預力次彎矩 M2（力法／柔度法，EI 常數）。
 
     以各內支承彎矩 X_i 為贅餘力，M2 在支承間為直線、端支承為 0：
@@ -266,6 +267,9 @@ def secondary_moments_force(spans: Sequence[float],
     breaks：M1 的折點／跳躍里程（線形段交界、錨碇點）；支承里程自動加入。
     積分以 Simpson，子區間對齊所有折點；M1 為分段二次、m_i 分段線性 → 被積函數分段三次，
     Simpson **精確**（P 沿長度變時 n_sub 加密）。
+
+    I_rel：變斷面時 I(x)/I_ref（中墩底板加厚等）；被積函數改為 M1·m/I_rel、柔度 F 改數值積分。
+    未給時為等斷面，F 用閉合式（結果與先前完全相同）。
 
     與等效載重法的關係：兩者等價，但力法**不需**把 M1 二次微分成等效載重，
     故端錨偏心彎矩、墩頂折角集中力、部分長度鋼腱的錨碇力都自動計入。
@@ -302,13 +306,17 @@ def secondary_moments_force(spans: Sequence[float],
             for j in range(2 * n_sub + 1):
                 x = a + j * h
                 w = 1 if j in (0, 2 * n_sub) else (4 if j % 2 else 2)
-                s += w * M1(x, mid) * m_hat(i + 1, x)
+                s += w * M1(x, mid) * m_hat(i + 1, x) / (I_rel(x) if I_rel else 1.0)
             bvec[i] += s * h / 3
-    F = [[0.0] * nu for _ in range(nu)]
-    for i in range(nu):
-        F[i][i] = (spans[i] + spans[i + 1]) / 3
-        if i + 1 < nu:
-            F[i][i + 1] = F[i + 1][i] = spans[i + 1] / 6
+    if I_rel is None:
+        F = [[0.0] * nu for _ in range(nu)]
+        for i in range(nu):
+            F[i][i] = (spans[i] + spans[i + 1]) / 3
+            if i + 1 < nu:
+                F[i][i + 1] = F[i + 1][i] = spans[i + 1] / 6
+    else:
+        from .variable_section import ContFlex
+        F = ContFlex(spans, I_rel, breaks, grid=max(spans)).F
     # 高斯消去（F 為對稱正定三對角）
     A = [row[:] + [-bvec[i]] for i, row in enumerate(F)]
     for i in range(nu):
@@ -324,11 +332,28 @@ def secondary_moments_force(spans: Sequence[float],
 
 
 def continuous_prestress(spans: Sequence[float], groups: Sequence[TendonGroup],
-                         n_sub: int = 8) -> ForceMethodM2Result:
-    """便利函式：由鋼腱組直接求 M2（M1 = Σ −P·e/1000）。"""
-    return secondary_moments_force(
-        spans, lambda x, probe: primary_moment_at(groups, x, probe),
-        group_breaks(groups), n_sub)
+                         n_sub: int = 8, stiff=None) -> ForceMethodM2Result:
+    """便利函式：由鋼腱組直接求 M2（M1 = Σ −P·e/1000）。
+
+    stiff：變斷面剖面（variable_section.haunch_profile），需有 I_rel(x)、dyb(x)、breaks。
+    鋼腱 e 相對等斷面形心（參考軸）；局部形心下移 Δȳ 時 M1 = Σ −P·(e − Δȳ)/1000。
+    """
+    if stiff is None:
+        return secondary_moments_force(
+            spans, lambda x, probe: primary_moment_at(groups, x, probe),
+            group_breaks(groups), n_sub)
+
+    def M1(x, probe):
+        m = 0.0
+        for g in groups:
+            sg = _group_seg(g, x, probe)
+            if sg is None:
+                continue
+            P = g.P(x) if callable(g.P) else g.P
+            m += -P * (sg.e(x) - stiff.dyb(x)) / 1000.0
+        return m
+    return secondary_moments_force(spans, M1, group_breaks(groups) + list(stiff.breaks),
+                                   n_sub, stiff.I_rel)
 
 
 @dataclass

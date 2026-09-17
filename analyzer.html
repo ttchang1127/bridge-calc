@@ -130,7 +130,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <tr><th>跨徑／斷面</th><td x-text="L+' m　｜　頂寬 '+topW+' × 高 '+h+' mm　｜　f\'c = '+fc+' MPa'"></td></tr>
     <tr><th>箱梁檢核結果</th><td x-text="R.npass+' / '+R.ntot+' 通過'+(R.matchGolden?'（對齊 40m 黃金範例）':'')"></td></tr>
   </table>
-  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 242 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
+  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 259 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
 </div>
 
 <!-- 送審計算書：目錄 -->
@@ -150,7 +150,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <div class="bar no-print">
   <div class="bar-row">
-    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 242 項驗證）</div></div>
+    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 259 項驗證）</div></div>
   </div>
   <div class="bar-row" style="margin-top:8px">
     <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
@@ -528,7 +528,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </table>
     <div class="hint" x-show="DS.lossBad" x-cloak style="color:var(--ng)">✗ 預力損失已達 <b x-text="fmt(DS.lossPct,1)+'%'"></b>（f<sub>pe</sub> 過低）——此配置不合理，反解結果不可用，請先加大斷面或減少鋼腱。</div>
     <div class="hint no-print" x-show="DS.cgsBot<100" x-cloak style="color:var(--ng)">⚠ 套用該垂度後 CGS 距梁底僅 <b x-text="fmt(DS.cgsBot)"></b> mm，請確認保護層與管道尺寸。</div>
-    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 52/52・JS 242/242）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
+    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 53/53・JS 259/259）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
   </div>
   <div class="card"><h2>鋼腱縱剖面（G1・拋物線）</h2>
     <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElev"></svg></div>
@@ -721,6 +721,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <label>頂板 PT Aps (mm²)<input type="number" x-model.number="contApsTop" step="100" :disabled="contTopOn"></label>
       <label>中墩底板寬 b (mm)<input type="number" x-model.number="contB" step="50"></label>
       <label>中墩底板厚 h_f (mm)<input type="number" x-model.number="contHf" step="10"></label>
+      <label title="自墩心起、底板厚由 h_f 線性漸變回 ① 底板厚；0＝等斷面（M₂／包絡仍用稜柱模型）">加厚段單側長度 (m，0＝等斷面)<input type="number" x-model.number="contHaunchLen" step="1" min="0"></label>
       <label>腹板合計寬 b_w (mm)<input type="number" x-model.number="contBw" step="50"></label>
       <label>中墩 d_p (mm)<input type="number" x-model.number="contDp" step="10" :disabled="contTopOn"></label>
     </div>
@@ -798,7 +799,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </div>
     <div class="cite"><b>偏心的參考軸</b>：e<sub>end</sub>／e<sub>mid</sub>／e<sub>pier</sub> 皆相對<b>等斷面（①）形心</b>——M₂、包絡、3D 與上表實配共用這一條參考軸（稜柱模型），故上表的保護層判定只看鋼腱<b>絕對高度</b>、與形心位置無關。
       中墩底板加厚（⑦「中墩底板厚 h<sub>f</sub>」大於 ① 底板厚）時形心下移 Δȳ，<b>同一根鋼腱</b>相對中墩形心的偏心變為 e<sub>local</sub>＝e<sub>pier</sub>−Δȳ（更負＝力臂更大），上限同樣平移 Δȳ——可行的<b>實體位置不變</b>，變的是力臂。
-      墩頂服務性即以中墩斷面性質與 e<sub>local</sub>（含逐腱合力偏移 Δe）、M<sub>ext</sub>＝M<sub>DL</sub>+M<sub>LL</sub>+M₂ 的正負包絡檢核（壓 ≥ −0.45f′c、頂緣零拉）。⚠ M₂ 與包絡仍用 EI 常數的稜柱模型、恆載未計加厚自重。</div>
+      墩頂服務性即以中墩斷面性質與 e<sub>local</sub>（含逐腱合力偏移 Δe）、M<sub>ext</sub>＝M<sub>DL</sub>+M<sub>LL</sub>+M₂ 的正負包絡檢核（壓 ≥ −0.45f′c、頂緣零拉）。<span x-show="!contHaunch">⚠ 目前為等斷面：M₂ 與包絡用 EI 常數稜柱模型；填入「加厚段單側長度」即改用變斷面。</span><span x-show="contHaunch" x-cloak>✓ 已啟用變斷面：底板厚自墩心 h<sub>f</sub> 線性漸變回 ① 底板厚（單側 <b x-text="contHaunch?fmt(contHaunch.lengths[0],1):''"></b> m），M₂ 以變 EI 柔度（BC.contFlex）與局部偏心 e−Δȳ(x) 計算，包絡之影響線同步改變斷面柔度、自重依斷面積 A(x) 放大。</span></div>
   </div>
 
   <div class="card" x-show="CB" x-cloak><h2>設計效應包絡（剛度法影響線・真實多跨）</h2>
@@ -1368,6 +1369,10 @@ function elevSVG(d,sec,o){
     '<line x1="'+x0+'" y1="'+Y(d.topT)+'" x2="'+(x0+W)+'" y2="'+Y(d.topT)+'" stroke="#93c5fd"/>'+
     '<line x1="'+x0+'" y1="'+Y(d.h-d.botT)+'" x2="'+(x0+W)+'" y2="'+Y(d.h-d.botT)+'" stroke="#93c5fd"/>'+
     '<line x1="'+(x0-6)+'" y1="'+yC+'" x2="'+(x0+W+6)+'" y2="'+yC+'" stroke="#16a34a" stroke-dasharray="4 3"/><text x="'+(x0+W+8)+'" y="'+(yC+3)+'" font-size="9" fill="#16a34a">形心</text>';
+  if(cont&&cont.haunch){                                 // 中墩底板加厚：底板頂面沿長度變化
+    var hp=[]; for(var q=0;q<=240;q++){ var xq=L*q/240; hp.push({x:xq, t:cont.haunch.botTAt(xq)}); }
+    g+=polyline(hp,function(p){return X(p.x)},function(p){return Y(d.h-p.t)},'stroke="#1d4ed8" stroke-width="1.1"');
+  }
   sup.forEach(function(sx){ g+='<path d="M'+X(sx)+','+yB+' l-7,11 h14z" fill="#94a3b8"/>'; });
   g+='<text x="'+(x0+W/2)+'" y="'+(yB+24)+'" font-size="10" fill="#555" text-anchor="middle">'+
      (cont?('L = '+cont.spans.map(function(v){return fmt(v,0)}).join('＋')+' = '+fmt(L,1)):('L = '+fmt(d.L,1)))+
@@ -1748,10 +1753,10 @@ function apply3D(o){
 // §3.9 負彎矩車道另加一個等集中載重於他跨；§3.13 衝擊長度：正彎矩＝該跨、負彎矩＝相鄰兩跨平均。
 // ⚠ 2026-09-17 以前用 influence-lines.js 數值剛度法：衝擊以全長計（兩跨 80 m → 12.9%，應 19.5%）、
 //   負彎矩車道只放 1 個集中載重、未計多車道折減——三者皆使活載偏低，已修。
-function contEnvelope(spans,wDC,wDW,lanes,pt){
+function contEnvelope(spans,wDC,wDW,lanes,pt,stiff){
   var tot=spans.reduce(function(a,b){return a+b},0);
   var ne=Math.max(12,Math.round(100/spans.length));
-  var env=window.BC.taiwanContEnvelope(spans,wDC,wDW,lanes,ne);
+  var env=window.BC.taiwanContEnvelope(spans,wDC,wDW,lanes,ne,0.25,400,stiff||null);
   var sx=[0]; spans.forEach(function(L){ sx.push(sx[sx.length-1]+L); });
   var nodes=env.map(function(r){return r.x}), sIdx=sx.map(function(v){
     var b=0; nodes.forEach(function(x,i){ if(Math.abs(x-v)<Math.abs(nodes[b]-v)) b=i; }); return b; });
@@ -1761,10 +1766,10 @@ function contEnvelope(spans,wDC,wDW,lanes,pt){
             MsP:r.Ms_pos, MsN:r.Ms_neg, MuP:r.Mu_pos, MuN:r.Mu_neg, Ipos:r.I_pos, Ineg:r.I_neg};
   });
   var pierIdx=m.sIdx.slice(1,-1);                       // 內支承（中墩）
-  var C={m:m, IM:rows[0].Ipos, rows:rows, tot:tot, ne:ne, spans:spans, nPier:pierIdx.length};
+  var C={m:m, IM:rows[0].Ipos, rows:rows, tot:tot, ne:ne, spans:spans, nPier:pierIdx.length, stiff:stiff||null};
   if(pt && pt.Pe>0){                                    // 預力次彎矩（含入組合，載重因數 1.0）
     var m2=contPrestressM2(C, pt.Pe, pt.eEnd, pt.eMid, pt.ePier,
-                           {kPier:pt.kPier, rEnd:pt.rEnd, Pfn:pt.Pfn, deFn:pt.deFn, top:pt.top});
+                           {kPier:pt.kPier, rEnd:pt.rEnd, Pfn:pt.Pfn, deFn:pt.deFn, top:pt.top, stiff:stiff});
     rows.forEach(function(r,t){ var q=m2.at(t);
       r.e=q.e; r.M1=q.M1; r.Mtot=q.Mtot; r.M2=q.M2; r.P=q.P; r.de=q.de; r.eEff=q.eEff;
       r.Ptop=q.Ptop; r.eTop=q.eTop; r.Ptot=q.Ptot; r.eEffTot=q.eEffTot;
@@ -1817,10 +1822,15 @@ function contPrestressM2(C, PeN, eEnd, eMid, ePier, opt){
   var tp=contTendonSegs(C.spans, eEnd, eMid, ePier, opt), eAt=tp.eAt, P0=PeN/1e3;
   var Pfn=opt.Pfn||function(){return P0}, deFn=opt.deFn||function(){return 0};
   var top=opt.top, B=window.BC;                       // 雙系統：墩頂局部頂板腱（錨碇處 M₁ 跳躍 → probe 取單側）
-  var M1fn=function(x,probe){ return -Pfn(x)*(eAt(x)+deFn(x))/1000+(top?B.primaryMomentAt([top],x,probe):0); };
+  var st=opt.stiff, dyb=st?st.dyb:function(){return 0};  // 變斷面：e 相對等斷面形心，局部偏心＝e−Δȳ(x)
+  var M1fn=function(x,probe){ var dy=dyb(x), m=-Pfn(x)*(eAt(x)+deFn(x)-dy)/1000;
+    if(top){ var t=probe==null?x:probe;
+      for(var i=0;i<top.segs.length;i++){ var g=top.segs[i]; if(t>=g.x1-1e-9&&t<=g.x2+1e-9){ m+=-top.P*(B.segE(g,x)-dy)/1000; break; } } }
+    return m; };
   var brk=[]; tp.segs.forEach(function(g){ brk.push(g.x1, g.x2); });
   if(top) top.segs.forEach(function(g){ brk.push(g.x1, g.x2); });
-  var fm=B.secondaryMomentsForce(C.spans, M1fn, brk, opt.Pfn?8:1);   // P 常數時 Simpson 已精確
+  if(st) brk=brk.concat(st.breaks);
+  var fm=B.secondaryMomentsForce(C.spans, M1fn, brk, (opt.Pfn||st)?8:1, st?st.Irel:null);   // P 常數且等斷面時 Simpson 已精確
   function topAt(x){ if(!top) return null;
     for(var i=0;i<top.segs.length;i++){ var g=top.segs[i]; if(x>=g.x1-1e-9&&x<=g.x2+1e-9) return B.segE(g,x); } return null; }
   var segs=tp.segs.map(function(g){                   // 顯示用：常數 P 的等效上揚
@@ -1829,7 +1839,7 @@ function contPrestressM2(C, PeN, eEnd, eMid, ePier, opt){
   return {segs:segs, eAt:eAt, infl:tp.infl, lows:tp.lows, Rmin:tp.Rmin, hasSamp:!!opt.Pfn, X:fm.X,
     at:function(t){
       var x=C.m.nodes[t], P=Pfn(x), de=deFn(x), et=eAt(x)+de, eT=topAt(x), Pt=eT==null?0:top.P;
-      var M1=-P*et/1000-(eT==null?0:Pt*eT/1000), M2=fm.M2At(x), Ptot=P+Pt;
+      var dy=dyb(x), M1=-P*(et-dy)/1000-(eT==null?0:Pt*(eT-dy)/1000), M2=fm.M2At(x), Ptot=P+Pt;
       return {x:x, e:eAt(x), de:de, eEff:et, P:P, Mtot:M1+M2, M1:M1, M2:M2,
               Ptop:Pt, eTop:eT, Ptot:Ptot, eEffTot:Ptot>0?(P*et+Pt*(eT||0))/Ptot:et};
     }};
@@ -1848,7 +1858,7 @@ var PARAM_KEYS=[
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
   // ⑦ 連續梁
-  'contMuP','contApsTop','contSpans','contAuto','contB','contHf','contBw','contDp',
+  'contMuP','contApsTop','contSpans','contAuto','contB','contHf','contBw','contDp','contHaunchLen',
   'contTopOn','contTopN','contTopLen','contTopEAnc','contTopEPier','contTopPeAuto','contTopPe',
   'contM2On','contPeAuto','contPe','contEEnd','contEMid','contEPier','contKPier','contREnd','contLine','lbrTarget','sigLimBot',
   // ⑧ 施工
@@ -1920,7 +1930,8 @@ function calc(){
                pt.kPier,pt.rEnd,this.jackEnd,this.fricMu,this.fricK,this.ductCover,this.ductSv,
                this.ductRule,this.ductOD,this.ntd,this.nWeb,this.webT,
                topG?[topG.P.toFixed(1),this.contTopLen,this.contTopEAnc,this.contTopEPier].join(','):'-'].join('|');
-      if(cbCache.key!==key){ cbCache.key=key; cbCache.val=contEnvelope(sp,wDC,this.wDW,this.lanes,pt); }
+      var hn=this.contHaunch; key+='|'+(hn?[this.contHf,this.contHaunchLen,this.topW,this.topT,this.botW,this.botT,this.h].join(','):'-');
+      if(cbCache.key!==key){ cbCache.key=key; cbCache.val=contEnvelope(sp,wDC,this.wDW,this.lanes,pt,hn); }
       return cbCache.val;
     },
     // 連續梁彎矩包絡圖（正彎矩畫在受拉側＝軸下；負彎矩在軸上）
@@ -1955,6 +1966,13 @@ function calc(){
                                    this.ductOD,this.ductCover,this.dAgg,this.ductRule);
       var n=Math.max(1,this.contTopN|0), Aps=n*this.strands*this.strandAp;
       return {pc:pc, segs:pc.segs, chk:chk, n:n, Aps:Aps, width:width, yb:sec.yb};
+    },
+    // 中墩底板加厚剖面（引擎 BC.haunchProfile）：h_f > ① 底板厚且長度 > 0 才啟用；M₂ 與包絡改變斷面柔度
+    get contHaunch(){
+      if(!(this.contHaunchLen>0&&this.contHf>this.botT)) return null;
+      var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
+      if(sp.length<2) return null;
+      return window.BC.haunchProfile(sp,this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h,this.contHf,this.contHaunchLen);
     },
     get contApsTopUse(){ var t=this.contTop; return t?t.Aps:this.contApsTop; },
     get contDpUse(){ var t=this.contTop; return t?t.yb-this.contTopEPier:this.contDp; },
@@ -2239,7 +2257,7 @@ function calc(){
     contTopOn:false, contTopN:4, contTopLen:15, contTopEAnc:300, contTopEPier:-646, contTopPeAuto:true, contTopPe:12557,   // 雙系統配束：墩頂局部頂板腱
     contM2On:true, contPeAuto:true, contPe:23724,        // ⑦ 次彎矩：是否計入、Pe 來源（自動＝依③鋼腱配置）
     contEEnd:0, contEMid:1109, contEPier:-600, contKPier:0.12, contREnd:0.42,          // 鋼腱線形控制點（mm，正＝形心下方）         // ⑦ 連續梁：跨長組成、Mu 自動由包絡帶入
-    contB:1400, contHf:200, contBw:700, contDp:1975,   // 中墩受壓區（底板寬/厚、腹板合計寬、d_p）
+    contB:1400, contHf:200, contBw:700, contDp:1975, contHaunchLen:0,   // contHaunchLen：中墩底板加厚單側長度 m（0＝等斷面）   // 中墩受壓區（底板寬/厚、腹板合計寬、d_p）
     lbrTarget:0.985, sigLimBot:0,      // 反解設計目標：荷重平衡率、底緣容許拉應力（台灣零拉=0）
     // ⑩ 補強（既有 RC 構材，中國 JTG）——預設＝R1/R2/R4 算例（重現 golden）
     method:'CFRP',
@@ -2476,7 +2494,7 @@ function calc(){
         if(spE.length>=2){
           var tpE=contTendonSegs(spE,this.contEEnd,this.contEMid,this.contEPier,
                                  {kPier:this.contKPier,rEnd:this.contREnd});
-          contLine={eAt:tpE.eAt, tot:tpE.total, sx:tpE.sx, infl:tpE.infl, lows:tpE.lows, spans:spE,
+          contLine={eAt:tpE.eAt, tot:tpE.total, sx:tpE.sx, infl:tpE.infl, lows:tpE.lows, spans:spE, haunch:this.contHaunch,
                     eMid:this.contEMid, ePier:this.contEPier, kPier:tpE.kPier, rEnd:tpE.rEnd,
                     top:this.contTop?{segs:this.contTop.segs, ePier:this.contTopEPier, ok:this.contTop.chk.ok}:null};
         }

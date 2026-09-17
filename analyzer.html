@@ -78,7 +78,8 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
   .bar,.tabs,.no-print{display:none!important}
   body{max-width:none;padding:0;font-size:11pt}
   .card{break-inside:avoid;border-color:#ccc;margin:8px 0}
-  [x-show]{display:block!important}.print-only{display:block!important}
+  /* 只強制展開「分頁面板」與「公式明細」；其餘條件式內容依實際狀態（否則互斥說明會同時印出、x-show 的 tr 被設成 block 而表格跑版） */
+  div[x-show^="tab==='"],.chk-d{display:block!important}.print-only{display:block!important}
   .chk{break-inside:avoid}
   table{break-inside:auto}thead{display:table-header-group}tr{break-inside:avoid}
   .figbox{overflow:visible}
@@ -1165,7 +1166,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <label>日期<input type="text" x-model="pjDate"></label>
     </div>
     <button class="btn" style="margin-top:12px;background:var(--blue);color:#fff;border-color:var(--blue)" @click="window.print()">🖨 列印完整計算書（全分頁展開）</button>
-    <div class="cite">列印時：分頁列與輸入欄自動隱藏，所有檢核面板與公式（KaTeX）自動展開成線性送審計算書，專案資訊列於頁首。目前涵蓋箱梁 ①~⑦＋施工⑧＋耐震⑨＋補強⑩（全分頁上線）。</div>
+    <div class="cite">列印時：分頁列與輸入欄自動隱藏，所有檢核面板與公式（KaTeX）自動展開成線性送審計算書，專案資訊列於頁首。目前涵蓋箱梁 ①~⑦（含連續梁：力法 M₂、解析影響線彎矩／剪力包絡、雙系統配束、變斷面）＋施工⑧＋耐震⑨＋補強⑩（全分頁上線）；附錄 B 另列連續梁檢核彙總。</div>
   </div>
 
   <div class="card no-print"><h2>參數存檔</h2>
@@ -1200,10 +1201,10 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           <tr><td x-text="r[0]"></td><td x-text="r[1]"></td><td class="mut" x-text="r[2]"></td>
               <td style="text-align:center" :class="r[3]==null?'mut':(r[3]?'ok':'ng')" x-text="r[3]==null?'—':(r[3]?'✓':'✗')"></td></tr>
         </template>
-        <tr x-show="CB"><td>連續梁中墩 φMn（第 7 章）</td>
-            <td x-text="fmt(R.cont.ftP.phiMn)+' kN·m（CR '+R.cont.ftP.CR.toFixed(2)+'）'"></td>
-            <td class="mut" x-text="'≥ Mu '+fmt(contMuUse)+' kN·m'"></td>
-            <td style="text-align:center" :class="R.cont.ftP.ok?'ok':'ng'" x-text="R.cont.ftP.ok?'✓':'✗'"></td></tr>
+        <template x-for="r in contSummaryRows" :key="r[0]">
+          <tr><td x-text="r[0]"></td><td x-text="r[1]"></td><td class="mut" x-text="r[2]"></td>
+              <td style="text-align:center" :class="r[3]==null?'mut':(r[3]?'ok':'ng')" x-text="r[3]==null?'—':(r[3]?'✓':'✗')"></td></tr>
+        </template>
       </tbody></table>
     <div class="cite">箱梁 <b x-text="R.npass+'/'+R.ntot"></b> 通過。施工（第 8 章）、耐震（第 9 章）、補強（第 10 章）之判定詳各章；耐震為台灣單軌、補強為中國 JTG 單軌，不可跨軌混用。</div>
   </div>
@@ -1261,6 +1262,10 @@ var DET={
   'E2 伸縮縫 最大開度':{tex:'g_{\\max} \\;\\le\\; \\text{接縫容量}',cite:'道示・伸縮縫位移量（溫度+潛變+乾縮）'},
   'F1 錨碇 螺旋 Pult':{tex:'P_{ult} = 0.8f\'_c\\sqrt{\\tfrac{A}{A_b}}\\,A_b + 4.1\\,f_{lat}A_{core}\\left(1-\\tfrac{s}{D}\\right)^2 \\ge P_u',cite:'AASHTO 5.9.5・局部承壓＋螺旋圍束'},
   'P1 疲勞 鋼腱Δσ_ps':{tex:'\\Delta\\sigma_{ps} \\le 125\\text{ MPa},\\quad \\sigma_{c,\\max} \\le 0.4\\,f\'_c',cite:'AASHTO 5.5.3・Fatigue I（γ=1.75）'},
+  '連續梁 次彎矩 M₂（力法）':{tex:'\\int (M_1+M_2)\\,\\dfrac{m_i}{EI}\\,dx = 0,\\quad M_1=-P\\,(e-\\Delta\\bar y)',cite:'G1 §五（次彎矩）・AASHTO 3.4.1 γ_P＝1.0（次效應）・算例_連續梁次彎矩'},
+  '連續梁 活載包絡 HS20-44':{tex:'M_{LL+IM} = \\max(M_{truck},\\,M_{lane})\\,(1+I)\\,n\\,m',cite:'台灣公路橋梁設計規範 §3.6（中後軸距 4.25～9.15 m）・§3.8 車道集中載重 80／116 kN・§3.9 連續梁負彎矩另加一集中載重・§3.13 衝擊長度'},
+  '連續梁 剪力 D1':{tex:'V_u = \\max(|V_{載重}|,\\,|V_{載重}+V_2|),\\; V_2 = dM_2/dx',cite:'D1 台灣主拉 0.3√f′c(kgf/cm²)・φV_n＝φ(V_cw+A_v f_y d_v/s)・算例_端跨propped cantilever次彎矩力法'},
+  '連續梁 頂板腱構造（雙系統）':{tex:'\\bar y_b-(h-c-\\tfrac{OD}{2}) \\le e \\le \\bar y_b-(h-t_{top}+c+\\tfrac{OD}{2})',cite:'B3 §4-1／G1 §7.1（保護層、淨間距）・算例_連續梁次彎矩 §2.4'},
   'T1 溫度 負梯度底Service':{tex:'\\sigma_{\\text{base}} + 0.5\\,\\sigma_{TG}^{-} \\;\\le\\; 0',cite:'AASHTO 5.4.2 / T1・溫度梯度自平衡應力'}
 };
 // ── P4 呈現層繪圖（不進引擎；數值一律回頭對 BC 核對）──
@@ -1806,6 +1811,8 @@ function scanInputs(tabNames){
     var tab=mm[1]; if(tab==='⑪') return;                       // ⑪ 案件資訊已在封面
     panel.querySelectorAll('label').forEach(function(lb){
       var inp=lb.querySelector('input,select'); if(!inp||inp.type==='file') return;
+      // 略過目前未啟用而被 x-show 隱藏的輸入（如未勾選雙系統時的頂板腱欄）；分頁面板本身不算
+      for(var el=lb; el&&el!==panel; el=el.parentElement){ if(el.style&&el.style.display==='none') return; }
       // 只取 label 自己的文字（略過 select 的 option 文字，否則會把所有選項抓進來）
       var label='';
       Array.prototype.forEach.call(lb.childNodes,function(nd){
@@ -2228,6 +2235,22 @@ function calc(){
     saved:'', msgIO:'', inputRows:[],
     get chapMap(){ var m={}; this.tabs.forEach(function(t,i){ m[t.id]='第 '+(i+1)+' 章 '+t.name; }); return m; },
     refreshSummary(){ this.inputRows=scanInputs(this.chapMap); },
+    // 附錄 B：連續梁（第 7 章）檢核彙總——僅在 ⑦ 有有效多跨配置時列出
+    get contSummaryRows(){
+      var C=this.CB; if(!C) return [];
+      var f=function(v,d){return fmt(v,d)}, rows=[], ft=this.R.cont.ftP;
+      rows.push(['連續梁 中墩 φMn（第 7 章）', f(ft.phiMn)+' kN·m（CR '+ft.CR.toFixed(2)+'）', '≥ Mu '+f(this.contMuUse)+' kN·m'+(C.m2?'（含 M₂）':''), ft.ok]);
+      var fb=this.pierFb;
+      if(fb.st!=null) rows.push(['連續梁 墩頂服務性（中墩斷面・含 M₂）', 'σt '+f(fb.st,2)+'／σb '+f(fb.sb,2)+' MPa', '頂緣零拉、壓 ≥ −0.45f′c', fb.ok]);
+      var cs=this.contShear;
+      if(cs){ var bad=cs.rows.filter(function(r){return !r.ok}), w=cs.worst;
+        rows.push(['連續梁 剪力 φVn（支承兩側 d_v，'+cs.rows.length+' 斷面）', '最不利 '+w.name+'：φVn '+f(w.phiVn)+' kN', '≥ Vu/腹板 '+f(w.VuW)+' kN（含 V₂）', bad.length===0]); }
+      var fits=this.DLmid.fits&&this.DLpier.fits;
+      rows.push(['連續梁 鋼腱實配（跨中／墩頂）', (this.DLmid.fits?'跨中 ✓':'跨中 ✗')+'、'+(this.DLpier.fits?'墩頂 ✓':'墩頂 ✗'), '保護層／淨距／曲率', fits]);
+      var t=this.contTop;
+      if(t) rows.push(['連續梁 頂板腱構造（雙系統）', 'e '+f(this.contTopEPier)+'（可行 '+f(t.chk.e_lo)+'～'+f(t.chk.e_hi)+'）、淨距 '+f(t.chk.s_clear), '管在頂板內、淨距 ≥ '+f(t.chk.s_req), t.chk.ok]);
+      return rows;
+    },
     get citeRows(){ var out=[]; for(var k in DET) out.push([k, DET[k].cite]); return out; },
     get paramCount(){ return PARAM_KEYS.length; },
     init(){

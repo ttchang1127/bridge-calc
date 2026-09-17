@@ -15,7 +15,8 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from bridgecalc import (Section, flexural_strength_T, pier_service_stress,
                         parabola_seg, TendonGroup, primary_moment_at, continuous_prestress,
-                        cont_tendon_segs, taiwan_cont_envelope)
+                        cont_tendon_segs, taiwan_cont_envelope, taiwan_cont_shear_at,
+                        secondary_shear, design_shear_with_V2, shear_web_at, phiVn, Av_s_min_TW)
 
 # ── 40+40 兩跨連續後張箱梁（同 40m 參考斷面）──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -72,6 +73,22 @@ WB0, _ = scan(G, fm, with_M2=False)
 Mu_pier = -(PIER.Mu_neg + M2_pier)               # γ_P = 1.0（AASHTO 3.4.1）
 ft = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, Mu_pier)
 ft0 = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, -PIER.Mu_neg)
+
+# 中墩左側 d_v 斷面剪力（d_v = max(0.9 d_p, 0.72h)；中墩側 d_p 自底緣量至合力 CGS）
+DV = 0.72 * 2100
+for _ in range(3):
+    XS = 40 - DV / 1000
+    _P, _e = P_e(G, XS)
+    DV = max(0.9 * (sec.yb - _e), 0.72 * 2100)
+XS = 40 - DV / 1000
+PS = sum(g.P * sg.slope(XS) / 1000 for g in G for sg in g.segs if sg.x1 <= XS <= sg.x2)
+PSX, _ = P_e(G, XS)
+SROW = taiwan_cont_shear_at([40, 40], XS, "L", W_DC, W_DW, LANES)
+V2S = secondary_shear(fm, [40, 40], XS, "L")
+VUS = design_shear_with_V2(SROW.Vu_pos, SROW.Vu_neg, V2S)
+SH = shear_web_at(PSX * 1e3, sec, PS / PSX, 40, 250, DV, VUS / 2 * 1e3, 2)
+AV = 397.4                                       # D16 × 2 肢
+PHI250, PHI200 = phiVn(SH.Vcw, AV / 250, DV) / 1e3, phiVn(SH.Vcw, AV / 200, DV) / 1e3
 
 BS = "\\"
 MPa = BS + " MPa"
@@ -143,9 +160,21 @@ sec5 = f"""<p>M_u = 1.25M_DC + 1.50M_DW + 1.75M_LL + 1.0M₂ = {-PIER.Mu_neg:,.0
 <p class="note">不計 M₂ 時 M_u={-PIER.Mu_neg:,.0f}、CR={ft0.CR:.2f} ✗——<b>M₂ 在墩頂有利，是中墩強度剛好足夠的關鍵</b>；餘裕僅 {(ft.CR-1)*100:.0f}%，且只計頂板腱（底板腱在墩頂位於形心附近、保守略去）。</p>"""
 sections.append(("五、中墩負彎矩 T 斷面極限強度", sec5))
 
+r_v = row("中墩左側 d_v 斷面腹板抗剪（每腹板）", r"\phi V_n=\phi\left(V_{cw}+\frac{A_v}{s}f_y d_v\right),\quad V_{cw}=(0.094\sqrt{f'_c}+0.3f_{pc})b_w d_v+V_p",
+          f"V_{{cw}}={SH.Vcw/1e3:,.0f},\ A_v/s=397.4/200", f"{PHI200:,.0f}" + BS + " kN",
+          f"≥ V_u/腹板 = {abs(VUS)/2:,.0f} kN（@250 僅 {PHI250:,.0f}）", PHI200 >= abs(VUS) / 2, "D1/連續")
+sec5b = f"""<p>斷面 x = {XS:.3f} m（d_v = {DV:,.0f} mm）。V_DC {SROW.V_dc:,.0f}、V_DW {SROW.V_dw:,.0f}、V_LL+IM {SROW.V_ll_neg:,.0f}（I={SROW.I*100:.1f}%，衝擊長度＝至較遠支點）；
+次剪力 V₂ = dM₂/dx = {V2S:+,.0f} kN（於墩左有利 → 依 V_u＝max(|V|,|V+V₂|) 不折減）→ 設計 V_u = {VUS:,.0f} kN。
+P_e = {PSX:,.0f} kN、ΣP·de/dx = {PS:,.0f} kN → V_p = {SH.Vp/1e3:,.0f} kN/腹板（腱往墩頂上升，與 V_u 同號而有利）；f_pc = {SH.fpc:.2f} MPa、b_w = 250 mm/腹板。</p>
+{r_v}
+<p class="note">主拉應力 σ₁ = {SH.sigma1:.2f} MPa &gt; 台灣限值 {SH.sigma1_limit:.3f} → 靠箍筋；需 A_v/s = {SH.Av_s_req:.2f} mm²/mm（最小 {Av_s_min_TW(40, 250):.2f}）。
+<b>D16×2 @250 不足（φV_n {PHI250:,.0f} kN），須加密至 @200</b>。</p>"""
+sections.append(("五之二、中墩剪力（d_v 斷面）", sec5b))
+
 sec6 = f"""<table class="props">
 <tr><td>① 跨中服務性</td><td>底緣最不利 {WB[0]:+.2f} MPa {'✓' if WB[0] <= 0 else '✗'}</td><td>② B 墩服務性</td><td>底緣 {sb_p:+.2f} ✓</td></tr>
 <tr><td>③ 中墩強度</td><td>CR={ft.CR:.2f} {'✓' if ft.ok else '✗'}</td><td>④ 次彎矩</td><td>M₂(B墩) {M2_pier:+,.0f}（墩頂有利、跨中不利）</td></tr>
+<tr><td>⑤ 中墩剪力</td><td colspan="3">V_u/腹板 {abs(VUS)/2:,.0f} kN：D16×2@250 φV_n {PHI250:,.0f} ✗ → @200 {PHI200:,.0f} ✓</td></tr>
 </table>
 <p class="note">中墩強度餘裕小，對頂板腱束數與 M₂ 敏感；若線形改為更接近吻合線形（M₂ 變小），中墩強度須重新確認。</p>"""
 sections.append(("六、結論", sec6))
@@ -178,8 +207,8 @@ table.props td{{padding:4px 8px;border:0.5px solid #e5e7eb}} table.props td:nth-
 <div class="meta">兩跨連續後張箱梁｜同 40m 參考斷面｜聚焦次彎矩 M₂ 與控制斷面｜
 由 bridgecalc 計算引擎自動產生・M₂/T 斷面極限對齊 golden・與 40m 簡支計算書互補</div></div>
 {body}
-<div class="summary">設計結論：M₂ 全長為正彎矩（B 墩 {M2_pier:+,.0f} kN·m）。外力以引擎包絡實算後——跨中底緣最不利 {WB[0]:+.2f} MPa、B 墩底緣 {sb_p:+.2f} MPa，服務性全數通過；中墩強度 CR={ft.CR:.2f}（計入 M₂ 後剛好足夠，不計 M₂ 為 {ft0.CR:.2f}）。</div>
-<p class="note">本計算書全部數值由單一真理源 bridgecalc 產生並對齊 golden continuous_pier／cont_envelope_taiwan（2026-09-17：M₂ 力法、頂板腱 e=646、外力解析包絡）。</p>
+<div class="summary">設計結論：M₂ 全長為正彎矩（B 墩 {M2_pier:+,.0f} kN·m）。外力以引擎包絡實算後——跨中底緣最不利 {WB[0]:+.2f} MPa、B 墩底緣 {sb_p:+.2f} MPa，服務性全數通過；中墩強度 CR={ft.CR:.2f}（計入 M₂ 後剛好足夠，不計 M₂ 為 {ft0.CR:.2f}）；中墩剪力須箍筋加密至 D16×2@200。</div>
+<p class="note">本計算書全部數值由單一真理源 bridgecalc 產生並對齊 golden continuous_pier／cont_envelope_taiwan／cont_shear_taiwan（2026-09-17：M₂ 力法、頂板腱 e=646、外力解析包絡）。</p>
 </body></html>"""
 
 if __name__ == "__main__":

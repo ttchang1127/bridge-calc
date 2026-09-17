@@ -67,11 +67,22 @@ table.props td{padding:4px 8px;border:0.5px solid #e5e7eb} table.props td:nth-ch
   <div class="eq sub">$$ = c=767>h_f=200\Rightarrow\text{NA進腹板} = \boxed{32,399\ kN\cdot m} $$</div>
   <div class="chk">容許：φM_n=31,647 ≥ M_u=30,109（CR=1.05）　<span class="ok">✓ OK</span></div>
 </div>
-<p class="note">不計 M₂ 時 M_u=47,463、CR=0.67 ✗——<b>M₂ 在墩頂有利，是中墩強度剛好足夠的關鍵</b>；餘裕僅 5%，且只計頂板腱（底板腱在墩頂位於形心附近、保守略去）。</p></section><section><h2>六、結論</h2><table class="props">
+<p class="note">不計 M₂ 時 M_u=47,463、CR=0.67 ✗——<b>M₂ 在墩頂有利，是中墩強度剛好足夠的關鍵</b>；餘裕僅 5%，且只計頂板腱（底板腱在墩頂位於形心附近、保守略去）。</p></section><section><h2>五之二、中墩剪力（d_v 斷面）</h2><p>斷面 x = 38.488 m（d_v = 1,512 mm）。V_DC -2,915、V_DW -470、V_LL+IM -802（I=19.9%，衝擊長度＝至較遠支點）；
+次剪力 V₂ = dM₂/dx = +434 kN（於墩左有利 → 依 V_u＝max(|V|,|V+V₂|) 不折減）→ 設計 V_u = -5,752 kN。
+P_e = 36,257 kN、ΣP·de/dx = -2,416 kN → V_p = 1,208 kN/腹板（腱往墩頂上升，與 V_u 同號而有利）；f_pc = 7.16 MPa、b_w = 250 mm/腹板。</p>
+<div class="row">
+  <div class="rt">中墩左側 d_v 斷面腹板抗剪（每腹板） <span class="cite">D1/連續</span></div>
+  <div class="eq">$$ \phi V_n=\phi\left(V_{cw}+\frac{A_v}{s}f_y d_v\right),\quad V_{cw}=(0.094\sqrt{f'_c}+0.3f_{pc})b_w d_v+V_p $$</div>
+  <div class="eq sub">$$ = V_{cw}=2,245,\ A_v/s=397.4/200 = \boxed{2,980\ kN} $$</div>
+  <div class="chk">容許：≥ V_u/腹板 = 2,876 kN（@250 僅 2,766）　<span class="ok">✓ OK</span></div>
+</div>
+<p class="note">主拉應力 σ₁ = 4.83 MPa &gt; 台灣限值 0.595 → 靠箍筋；需 A_v/s = 1.79 mm²/mm（最小 0.75）。
+<b>D16×2 @250 不足（φV_n 2,766 kN），須加密至 @200</b>。</p></section><section><h2>六、結論</h2><table class="props">
 <tr><td>① 跨中服務性</td><td>底緣最不利 -1.71 MPa ✓</td><td>② B 墩服務性</td><td>底緣 -10.16 ✓</td></tr>
 <tr><td>③ 中墩強度</td><td>CR=1.05 ✓</td><td>④ 次彎矩</td><td>M₂(B墩) +17,354（墩頂有利、跨中不利）</td></tr>
+<tr><td>⑤ 中墩剪力</td><td colspan="3">V_u/腹板 2,876 kN：D16×2@250 φV_n 2,766 ✗ → @200 2,980 ✓</td></tr>
 </table>
 <p class="note">中墩強度餘裕小，對頂板腱束數與 M₂ 敏感；若線形改為更接近吻合線形（M₂ 變小），中墩強度須重新確認。</p></section>
-<div class="summary">設計結論：M₂ 全長為正彎矩（B 墩 +17,354 kN·m）。外力以引擎包絡實算後——跨中底緣最不利 -1.71 MPa、B 墩底緣 -10.16 MPa，服務性全數通過；中墩強度 CR=1.05（計入 M₂ 後剛好足夠，不計 M₂ 為 0.67）。</div>
-<p class="note">本計算書全部數值由單一真理源 bridgecalc 產生並對齊 golden continuous_pier／cont_envelope_taiwan（2026-09-17：M₂ 力法、頂板腱 e=646、外力解析包絡）。</p>
+<div class="summary">設計結論：M₂ 全長為正彎矩（B 墩 +17,354 kN·m）。外力以引擎包絡實算後——跨中底緣最不利 -1.71 MPa、B 墩底緣 -10.16 MPa，服務性全數通過；中墩強度 CR=1.05（計入 M₂ 後剛好足夠，不計 M₂ 為 0.67）；中墩剪力須箍筋加密至 D16×2@200。</div>
+<p class="note">本計算書全部數值由單一真理源 bridgecalc 產生並對齊 golden continuous_pier／cont_envelope_taiwan／cont_shear_taiwan（2026-09-17：M₂ 力法、頂板腱 e=646、外力解析包絡）。</p>
 </body></html>

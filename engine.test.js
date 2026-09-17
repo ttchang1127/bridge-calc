@@ -173,15 +173,42 @@ function chkEq(name, got, exp) {
   chk('T1 負梯度底σ_SE', tg.sigma_neg['底'], g.temperature_integrated_T1.sigSE_bot_neg_MPa, 0.03);
   chk('T1 Service(含預力)', BC.thermalServiceCheck(tg.sigma_neg['底'], s.sb, 0.5).total, g.temperature_integrated_T1.service_total_MPa, 0.05);
 
-  // ── 連續梁中墩（次彎矩 M2 + T 斷面）──
+  // ── 連續梁（次彎矩 M2 力法 + 服務性 + 中墩 T 斷面）──
   var cp = g.continuous_pier;
-  chk('連續 M2 跨中', BC.secondaryMoment(8320, BC.primaryMoment([[23700, 0.950], [12557, -0.300]])), cp.M2_mid_kNm, 5);
-  chk('連續 M2 B墩', BC.secondaryMoment(-10594, BC.primaryMoment([[23700, -0.080], [12557, 0.900]])), cp.M2_pier_kNm, 5);
-  var ft = BC.flexuralStrengthT(11292, 1860, 40, 1400, 200, 700, 1950, 75337);
-  chk('中墩 T斷面 c', ft.c, cp.pier_c_mm, 2);
-  chk('中墩 fps', ft.fps, cp.pier_fps_MPa, 5);
-  chk('中墩 Mn', ft.Mn, cp.pier_Mn_kNm, 100);
-  chk('中墩 CR(不足)', ft.CR, cp.pier_CR, 0.02);
+  var cb = -(950 + 80) / 400, ctp = (300 + 646) / 225;
+  var gBot = { P: 23700, segs: [BC.parabolaSeg(0, 40, 20, 950, cb), BC.parabolaSeg(40, 80, 60, 950, cb)] };
+  var gTop = { P: 12557, segs: [BC.parabolaSeg(25, 40, 40, -646, ctp), BC.parabolaSeg(40, 55, 40, -646, ctp)] };
+  var fmc = BC.continuousPrestress([40, 40], [gBot, gTop]);
+  chk('連續 M1 x=15', BC.primaryMomentAt([gBot, gTop], 15), cp.M1_x15_kNm, 1);
+  chk('連續 M1 跨中', BC.primaryMomentAt([gBot, gTop], 20), cp.M1_mid_kNm, 1);
+  chk('連續 M1 B墩', BC.primaryMomentAt([gBot, gTop], 40), cp.M1_pier_kNm, 1);
+  chk('連續 M2 x=15（力法）', fmc.M2At(15), cp.M2_x15_kNm, 1);
+  chk('連續 M2 跨中（力法）', fmc.M2At(20), cp.M2_mid_kNm, 1);
+  chk('連續 M2 B墩（力法）', fmc.X[1], cp.M2_pier_kNm, 1);
+  chk('連續 ∫M1·m', fmc.b[0], cp.int_M1_m_kNm2, 1);
+  chk('連續 M2 底板腱單獨', BC.continuousPrestress([40, 40], [gBot]).X[1], cp.M2_pier_bot_only_kNm, 1);
+  chk('連續 M2 頂板腱單獨', BC.continuousPrestress([40, 40], [gTop]).X[1], cp.M2_pier_top_only_kNm, 1);
+  var ft = BC.flexuralStrengthT(11292, 1860, 40, 1400, 200, 700, 1975, 75337 - fmc.X[1]);
+  chk('中墩 Mu(含M2)', 75337 - fmc.X[1], cp.pier_Mu_kNm, 1);
+  chk('中墩 T斷面 c', ft.c, cp.pier_c_mm, 1);
+  chk('中墩 fps', ft.fps, cp.pier_fps_MPa, 1);
+  chk('中墩 Mn', ft.Mn, cp.pier_Mn_kNm, 1);
+  chk('中墩 CR(不足)', ft.CR, cp.pier_CR, 0.01);
+  // 分析器預設全長連續腱（分段拋物線）＋三跨
+  var ctd = g.cont_tendon_force_default, tpd = BC.contTendonSegs([40, 40], 0, 1109, -600);
+  var fmd = BC.continuousPrestress([40, 40], [{ P: 23724, segs: tpd.segs }]);
+  chkEq('線形段數', tpd.segs.length, ctd.n_segs);
+  chk('反曲點1', tpd.infl[0], ctd.infl_m[0], 0.001);
+  chk('反曲點2', tpd.infl[1], ctd.infl_m[1], 0.001);
+  chk('線形 R_min', tpd.Rmin, ctd.R_min_mm, 1);
+  chk('線形 e(10)', tpd.eAt(10), ctd.e_at_10, 0.01);
+  chk('線形 e(36)', tpd.eAt(36), ctd.e_at_36, 0.01);
+  chk('預設 M2 B墩（力法）', fmd.X[1], ctd.M2_pier_kNm, 0.1);
+  chk('預設 M2 x=20', fmd.M2At(20), ctd.M2_x20_kNm, 0.1);
+  var tp3 = BC.contTendonSegs([30, 40, 30], 0, 900, -500);
+  var fm3 = BC.continuousPrestress([30, 40, 30], [{ P: 20000, segs: tp3.segs }]);
+  chk('三跨 M2 墩1', fm3.X[1], ctd.three_span_X_kNm[1], 0.1);
+  chk('三跨 M2 墩2', fm3.X[2], ctd.three_span_X_kNm[2], 0.1);
 })();
 
 // ═══════════════ 耐震 S1/S2/S3/S5（原 seismic-engine.test.js）═══════════════

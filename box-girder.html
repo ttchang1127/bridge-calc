@@ -104,9 +104,9 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
   <table>
     <thead><tr><th>項目</th><th>計算值</th><th>說明</th><th style="text-align:center">判定</th></tr></thead>
     <tbody>
-      <tr><td>次彎矩 M2（跨中 / B墩）</td><td x-text="R.cont.f(R.cont.M2mid)+' / '+R.cont.f(R.cont.M2pier)+' kN·m'"></td><td style="color:#888">M2=M_total−M1（超靜定約束；漏算→低估底拉）</td><td class="mut" style="text-align:center">—</td></tr>
+      <tr><td>次彎矩 M2（跨中 / B墩）</td><td x-text="R.cont.f(R.cont.M2mid)+' / '+R.cont.f(R.cont.M2pier)+' kN·m'"></td><td style="color:#888">力法實算；全長正彎矩→跨中不利、墩頂有利（漏算→低估跨中底拉）</td><td class="mut" style="text-align:center">—</td></tr>
       <tr><td>中墩 NA 位置</td><td x-text="'c = '+R.cont.ftP.c.toFixed(0)+' mm'"></td><td style="color:#888" x-text="R.cont.ftP.flanged?'＞翼板厚200 → 進腹板，需 T 斷面公式':'翼板內'"></td><td class="mut" style="text-align:center">—</td></tr>
-      <tr><td>中墩 φMn / CR</td><td x-text="R.cont.f(R.cont.ftP.phiMn)+' kN·m（CR '+R.cont.ftP.CR.toFixed(2)+'）'"></td><td style="color:#888" x-text="'≥ Mu '+R.cont.f(contMuP)+'？fps '+R.cont.ftP.fps.toFixed(0)+' MPa'"></td>
+      <tr><td>中墩 φMn / CR</td><td x-text="R.cont.f(R.cont.ftP.phiMn)+' kN·m（CR '+R.cont.ftP.CR.toFixed(2)+'）'"></td><td style="color:#888" x-text="'≥ Mu '+R.cont.f(contMuP)+'（含 M2）？fps '+R.cont.ftP.fps.toFixed(0)+' MPa'"></td>
         <td style="text-align:center" :class="R.cont.ftP.ok?'ok':'ng'" x-text="R.cont.ftP.ok?'✓':'✗ 不足'"></td></tr>
     </tbody>
   </table>
@@ -135,7 +135,7 @@ function calc(){
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, Av:397.4, sv:250, Vu:2069,
     Tu:1900, dMfat:3222, deltaS:40, jointSh:29.4,
-    contMuP:75337, contApsTop:11292,
+    contMuP:57983, contApsTop:11292,
     get R(){
       var B=window.BC;
       var sec=B.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
@@ -218,9 +218,13 @@ function calc(){
         '<line x1="'+(mcx+sh.sigma1_limit*ms)+'" y1="'+(mcy-30)+'" x2="'+(mcx+sh.sigma1_limit*ms)+'" y2="'+(mcy+30)+'" stroke="#dc2626" stroke-dasharray="3 2"/><text x="'+(mcx+sh.sigma1_limit*ms)+'" y="'+(mcy+40)+'" font-size="7" fill="#dc2626" text-anchor="middle">限 '+f1(sh.sigma1_limit)+'</text>'+
         '<circle cx="'+(mcx+sh.sigma1*ms)+'" cy="'+mcy+'" r="3" fill="#dc2626"/><text x="'+(mcx+sh.sigma1*ms)+'" y="'+(mcy-7)+'" font-size="8" fill="#dc2626" text-anchor="middle">σ1='+f1(sh.sigma1)+'</text>';
       // 連續梁中墩（延伸：40+40 兩跨，負彎矩控制斷面）
-      var ftP=B.flexuralStrengthT(this.contApsTop,1860,this.fc,1400,200,700,1950,this.contMuP);
-      var M2mid=B.secondaryMoment(8320,B.primaryMoment([[23700,0.950],[12557,-0.300]]));
-      var M2pier=B.secondaryMoment(-10594,B.primaryMoment([[23700,-0.080],[12557,0.900]]));
+      // 算例_連續梁次彎矩（2026-09-17 校正）：M2 力法實算；頂板腱 e=−646 → d_p=1,975；中墩 Mu 預設已計入 M2
+      var ftP=B.flexuralStrengthT(this.contApsTop,1860,this.fc,1400,200,700,1975,this.contMuP);
+      var cbo=-(950+80)/400, cto=(300+646)/225;
+      var fmc=B.continuousPrestress([40,40],[
+        {P:23700,segs:[B.parabolaSeg(0,40,20,950,cbo),B.parabolaSeg(40,80,60,950,cbo)]},
+        {P:12557,segs:[B.parabolaSeg(25,40,40,-646,cto),B.parabolaSeg(40,55,40,-646,cto)]}]);
+      var M2mid=fmc.M2At(20), M2pier=fmc.X[1];
       var cont={ftP:ftP,M2mid:M2mid,M2pier:M2pier,f:f};
       return {sec:sec,wsw:wsw,Mdc:Mdc,Mdw:Mdw,IM:IM,perLane:perLane,Mll:Mll,loss:loss,
               rows:rows,npass:np,ntot:nt,matchGolden:mg,cont:cont,

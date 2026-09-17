@@ -28,7 +28,10 @@ from .bearing import bearing_check, BearingResult
 from .anchorage import anchorage_check, AnchorageResult, spiral_local_bearing
 from .expansion import expansion_joint, JointResult
 from .continuous import (secondary_moment, primary_moment, flexural_strength_T,
-                        TFlexureResult, pier_service_stress)
+                        TFlexureResult, pier_service_stress,
+                        ParabolaSeg, parabola_seg, ContTendonProfile, cont_tendon_segs,
+                        TendonGroup, primary_moment_at, group_breaks,
+                        ForceMethodM2Result, secondary_moments_force, continuous_prestress)
 from .tendon_profile import (tendon_profile, TendonProfileResult, equivalent_load,
                             end_slope, radius_of_curvature, balance_ratio, friction_loss,
                             duct_layout, duct_spacing_required, DuctLayoutResult,
@@ -82,6 +85,9 @@ __all__ = [
     "torsion_check", "TorsionResult",
     "slab_flexure", "SlabResult", "As_min_slab", "temp_gradient_AASHTO", "ThermalBand", "ThermalResult", "self_equilibrating_stress", "thermal_service_check", "bearing_check", "BearingResult", "anchorage_check", "AnchorageResult", "spiral_local_bearing", "expansion_joint", "JointResult",
     "secondary_moment", "primary_moment", "flexural_strength_T", "TFlexureResult", "pier_service_stress",
+    "ParabolaSeg", "parabola_seg", "ContTendonProfile", "cont_tendon_segs",
+    "TendonGroup", "primary_moment_at", "group_breaks",
+    "ForceMethodM2Result", "secondary_moments_force", "continuous_prestress",
     "tendon_profile", "TendonProfileResult", "equivalent_load", "end_slope",
     "radius_of_curvature", "balance_ratio", "friction_loss",
     "duct_layout", "duct_spacing_required", "DuctLayoutResult",

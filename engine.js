@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 186 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 204 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -366,6 +366,116 @@
     dt = dt == null ? dp : dt;
     var eps_t = (dt - c) / c * 0.003, phi = eps_t >= 0.005 ? 1.0 : eps_t <= 0.002 ? 0.75 : 0.75 + 0.25 * (eps_t - 0.002) / 0.003;
     return { c: c, flanged: flanged, a: a, fps: fps, Mn: Mn, eps_t: eps_t, phi: phi, phiMn: phi * Mn, CR: phi * Mn / Mu, ok: phi * Mn >= Mu };
+  };
+
+  // ── 連續梁鋼腱線形（分段拋物線）＋ 次彎矩 M2（力法）──────────────
+  // 慣例：x m、e mm（形心下為正）、P kN、M kN·m（正彎矩為正）；M1 = −P·e/1000
+  BC.parabolaSeg = function (x1, x2, xv, ev, c, kind) {
+    return { x1: x1, x2: x2, xv: xv, ev: ev, c: c, kind: kind || '',
+             R: Math.abs(c) > 1e-12 ? 1e6 / (2 * Math.abs(c)) : Infinity };
+  };
+  BC.segE = function (g, x) { var d = x - g.xv; return g.ev + g.c * d * d; };
+  // G1 §五之補・FHWA Eqn. 3.30–3.35：墩頂段頂點在墩心（長 kPier×跨長）、跨中段頂點在低點，坡度連續
+  BC.contTendonSegs = function (spans, eEnd, eMid, ePier, kPier, rEnd) {
+    kPier = kPier == null ? 0.12 : kPier; rEnd = rEnd == null ? 0.42 : rEnd;
+    var n = spans.length, xs = [0], i;
+    spans.forEach(function (L) { xs.push(xs[xs.length - 1] + L); });
+    var lows = spans.map(function (L, i) {
+      if (n === 1) return xs[0] + L / 2;
+      if (i === 0) return xs[0] + rEnd * L;
+      if (i === n - 1) return xs[n - 1] + (1 - rEnd) * L;
+      return xs[i] + L / 2;
+    });
+    var segs = [], infl = [];
+    function push(x1, x2, xv, ev, c, kind) { if (x2 > x1 + 1e-9) segs.push(BC.parabolaSeg(x1, x2, xv, ev, c, kind)); }
+    function halfToPier(xl, xp, L, l2r) {
+      var s = Math.abs(xp - xl), b1 = Math.min(kPier * L, s * 0.9), b2 = s - b1, D = eMid - ePier;
+      var h1 = D * b1 / s, h2 = D * b2 / s;
+      if (l2r) { push(xl, xp - b1, xl, eMid, -h2 / (b2 * b2), 'sag'); push(xp - b1, xp, xp, ePier, h1 / (b1 * b1), 'hog'); infl.push(xp - b1); }
+      else { push(xp, xp + b1, xp, ePier, h1 / (b1 * b1), 'hog'); push(xp + b1, xl, xl, eMid, -h2 / (b2 * b2), 'sag'); infl.push(xp + b1); }
+    }
+    for (i = 0; i < n; i++) {
+      var L = spans[i], xa = xs[i], xb = xs[i + 1], xl = lows[i], be, he;
+      if (i === 0) { be = xl - xa; he = eMid - eEnd; push(xa, xl, xl, eMid, -he / (be * be), 'sag'); }
+      else halfToPier(xl, xa, L, false);
+      if (i === n - 1) { be = xb - xl; he = eMid - eEnd; push(xl, xb, xl, eMid, -he / (be * be), 'sag'); }
+      else halfToPier(xl, xb, L, true);
+    }
+    function eAt(x) {
+      for (var k = 0; k < segs.length; k++) { var g = segs[k]; if (x >= g.x1 - 1e-9 && x <= g.x2 + 1e-9) return BC.segE(g, x); }
+      return BC.segE(segs[segs.length - 1], x);
+    }
+    return { segs: segs, eAt: eAt, sx: xs, lows: lows, infl: infl, total: xs[n], kPier: kPier, rEnd: rEnd,
+             Rmin: Math.min.apply(null, segs.map(function (g) { return g.R; })) };
+  };
+  // groups: [{P: kN 或 function(x), segs:[parabolaSeg]}]；probe＝判定所在段的里程（錨碇跳躍取單側極限）
+  BC.primaryMomentAt = function (groups, x, probe) {
+    var t = probe == null ? x : probe, M = 0;
+    groups.forEach(function (g) {
+      for (var k = 0; k < g.segs.length; k++) { var s = g.segs[k];
+        if (t >= s.x1 - 1e-9 && t <= s.x2 + 1e-9) {
+          var P = typeof g.P === 'function' ? g.P(x) : g.P;
+          M += -P * BC.segE(s, x) / 1000; return; } }
+    });
+    return M;
+  };
+  BC.groupBreaks = function (groups) {
+    var o = [];
+    groups.forEach(function (g) { g.segs.forEach(function (s) { o.push(s.x1, s.x2); }); });
+    return o;
+  };
+  // 力法（EI 常數）：Σ_j F_ij X_j = −∫M1·m_i dx，F_ii=(L左+L右)/3、F_i,i+1=L/6。
+  // 子區間對齊折點＋Simpson：M1 分段二次 × m_i 分段線性＝分段三次 → 精確。
+  BC.secondaryMomentsForce = function (spans, M1, breaks, nSub) {
+    nSub = nSub || 8; breaks = breaks || [];
+    var n = spans.length, sx = [0], i, j, k;
+    spans.forEach(function (L) { sx.push(sx[sx.length - 1] + L); });
+    var X = sx.map(function () { return 0; });
+    function M2at(x) {
+      for (var q = 0; q < sx.length - 1; q++) if (x >= sx[q] - 1e-9 && x <= sx[q + 1] + 1e-9) {
+        var t = (x - sx[q]) / (sx[q + 1] - sx[q]); return X[q] * (1 - t) + X[q + 1] * t; }
+      return 0;
+    }
+    if (n < 2) return { sx: sx, X: X, F: [], b: [], M2At: M2at };
+    var r9 = function (v) { return Math.round(v * 1e9) / 1e9; }, seen = {}, pts = [];
+    sx.concat(breaks.filter(function (v) { return v > sx[0] && v < sx[n]; })).forEach(function (v) {
+      v = r9(v); if (!seen[v]) { seen[v] = 1; pts.push(v); } });
+    pts.sort(function (a, b) { return a - b; });
+    function mHat(i, x) {
+      var a = sx[i - 1], c0 = sx[i], b = sx[i + 1];
+      if (x >= a && x <= c0) return (x - a) / (c0 - a);
+      if (x >= c0 && x <= b) return (b - x) / (b - c0);
+      return 0;
+    }
+    var nu = n - 1, bv = [];
+    for (i = 0; i < nu; i++) bv.push(0);
+    for (k = 0; k < pts.length - 1; k++) {
+      var a = pts[k], b = pts[k + 1]; if (b - a < 1e-9) continue;
+      var mid = 0.5 * (a + b), h = (b - a) / (2 * nSub);
+      for (i = 0; i < nu; i++) {
+        if (!(mid >= sx[i] - 1e-9 && mid <= sx[i + 2] + 1e-9)) continue;
+        var s = 0;
+        for (j = 0; j <= 2 * nSub; j++) {
+          var x = a + j * h, w = (j === 0 || j === 2 * nSub) ? 1 : (j % 2 ? 4 : 2);
+          s += w * M1(x, mid) * mHat(i + 1, x);
+        }
+        bv[i] += s * h / 3;
+      }
+    }
+    var F = [];
+    for (i = 0; i < nu; i++) { F.push([]); for (j = 0; j < nu; j++) F[i].push(0); }
+    for (i = 0; i < nu; i++) { F[i][i] = (spans[i] + spans[i + 1]) / 3; if (i + 1 < nu) F[i][i + 1] = F[i + 1][i] = spans[i + 1] / 6; }
+    var A = F.map(function (row, i) { return row.slice().concat([-bv[i]]); });
+    for (i = 0; i < nu; i++) for (j = i + 1; j < nu; j++) {
+      var f = A[j][i] / A[i][i]; for (k = i; k <= nu; k++) A[j][k] -= f * A[i][k]; }
+    var Xi = []; for (i = 0; i < nu; i++) Xi.push(0);
+    for (i = nu - 1; i >= 0; i--) { var sm = A[i][nu]; for (k = i + 1; k < nu; k++) sm -= A[i][k] * Xi[k]; Xi[i] = sm / A[i][i]; }
+    for (i = 0; i < nu; i++) X[i + 1] = Xi[i];
+    return { sx: sx, X: X, F: F, b: bv, M2At: M2at };
+  };
+  BC.continuousPrestress = function (spans, groups, nSub) {
+    return BC.secondaryMomentsForce(spans, function (x, probe) { return BC.primaryMomentAt(groups, x, probe); },
+                                    BC.groupBreaks(groups), nSub);
   };
 
   // ═══════════════ 耐震（台灣單軌 S1/S2/S3/S5）（原 seismic-engine.js）═══════════════

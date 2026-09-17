@@ -34,9 +34,19 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         min_tendon_groups, required_drape, min_section_modulus_Sb,
                         duct_layout, duct_spacing_required,
                         parabolic_curv_segs, friction_angle, friction_at, friction_profile,
-                        tendon_forces, assign_jack)
+                        tendon_forces, assign_jack,
+                        parabola_seg, cont_tendon_segs, TendonGroup, primary_moment_at,
+                        continuous_prestress)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
+
+import json
+_eng = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_gp = next(p for p in (os.path.join(_eng, "golden_answers.json"),              # bridge_kb/計算引擎
+                       os.path.join(os.path.dirname(_eng), "golden_answers.json"))  # bridge-calc/engine
+           if os.path.exists(p))
+with open(_gp, encoding="utf-8") as _f:
+    golden = json.load(_f)
 
 # ── 40m 參考橋輸入 ──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -283,25 +293,63 @@ def test_temperature_integrated_T1():
 
 
 def test_continuous_pier():
-    """★ 連續梁中墩：次彎矩 M2、中墩 T 斷面 M1（NA 進腹板 c>hf → CR≈0.42 嚴重不足）。
-    彙整最大缺口/真實控制工況（簡支不會出現）。"""
-    M2_mid = secondary_moment(8320, primary_moment([(23700, 0.950), (12557, -0.300)]))
-    M2_pier = secondary_moment(-10594, primary_moment([(23700, -0.080), (12557, 0.900)]))
-    _close(M2_mid, -10428, 5)
-    _close(M2_pier, -20000, 5)
-    ft = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1950, 75337)
+    """★ 連續梁（算例_連續梁次彎矩，2026-09-17 校正）：M2 以力法實算、頂板腱 e=646（y_t−75−50）。
+    M2 全長正彎矩 → 跨中不利、墩頂有利；B 墩底緣通過，正彎矩區底緣出現拉應力。"""
+    g = golden["continuous_pier"]
+    cb = -(950 + 80) / 20 ** 2
+    bot = TendonGroup(23700, [parabola_seg(0, 40, 20, 950, cb), parabola_seg(40, 80, 60, 950, cb)])
+    ct = (300 + 646) / 15 ** 2
+    top = TendonGroup(12557, [parabola_seg(25, 40, 40, -646, ct), parabola_seg(40, 55, 40, -646, ct)])
+    r = continuous_prestress([40, 40], [bot, top])
+    _close(r.X[1], 17354, 1)
+    assert r.X[0] == 0 and r.X[2] == 0
+    _close(r.M2_at(20), r.X[1] / 2, 1e-6)              # 支承間直線
+    _close(primary_moment_at([bot, top], 40), 10008, 1)  # 頂板腱在形心上 → 正彎矩
+    _close(primary_moment_at([bot, top], 20), -22515, 1) # 跨中無頂板腱
+    # 手算等效載重（底板腱）：w=8Pa/L²=122.06 上揚 → +wL²/8；端錨 +1,896 傳遞 −1/2；減 M1
+    w = 8 * 23700 * 1.030 / 40 ** 2
+    hand = w * 40 ** 2 / 8 - 23700 * 0.080 / 2 - 23700 * 0.080
+    _close(continuous_prestress([40, 40], [bot]).X[1], hand, 0.5)
+    _close(g["M2_pier_kNm"], r.X[1], 1)
+    # 服務性：含 M2 → B 墩 −12.70 ✓；不計 M2 → −19.72（假性超限）
+    assert g["pier_service_sigma_bot_MPa"] > -18.0 > g["pier_service_sigma_bot_noM2_MPa"]
+    assert g["x15_service_sigma_bot_MPa"] > 0 > g["x15_service_sigma_bot_noM2_MPa"]  # 漏算 M2 偏不保守
+    ft = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, 75337 - r.X[1])
     assert ft.flanged                          # NA 進腹板 → T 斷面
-    _close(ft.c, 766, 2)
-    _close(ft.fps, 1655, 5)
-    _close(ft.Mn, 31888, 100)
-    assert ft.CR < 0.5 and not ft.ok           # 嚴重不足（CR≈0.42）
+    _close(ft.c, 767, 2)
+    _close(ft.Mn, 32399, 50)
+    assert ft.CR < 0.6 and not ft.ok           # 仍嚴重不足（CR≈0.55）
     # 對照：簡支跨中正彎矩同公式 → 矩形(翼板內)、CR>1
     fr = flexural_strength_T(21280, 1860, 40, 8000, 250, 700, 1880, 48965)
     assert not fr.flanged and fr.CR > 1
-    # B 墩服務性底緣（雙控之二）：Pe=36,257(底+頂)、e=-259(頂板PT形心上)、M_ext=-41,080
-    _, sb_pier = pier_service_stress(36257e3, sec, -259, -41080)
-    _close(sb_pier, -19.97, 0.05)              # 壓 19.97 > 0.45f'c=18（1.11 倍）
-    assert sb_pier < -18.0                      # 超限 → B 墩底緣為控制斷面
+
+
+def test_secondary_moments_force():
+    """力法 M2：Simpson 對齊折點為精確、吻合線形 M2≡0、三跨對稱、analyzer 預設與 IL 等效載重互驗。"""
+    # 吻合鋼腱：e ∝ 兩跨連續梁均布載重彎矩圖（e=120x−4x²，墩頂 −1,600）→ M2 = 0
+    conc = TendonGroup(20000, [parabola_seg(0, 40, 15, 900, -4.0), parabola_seg(40, 80, 65, 900, -4.0)])
+    assert abs(continuous_prestress([40, 40], [conc]).X[1]) < 1e-6
+    # Simpson 精確：n_sub=1 與 20 相同
+    tp = cont_tendon_segs([40, 40], 0, 1109, -600)
+    grp = [TendonGroup(23724, tp.segs)]
+    _close(continuous_prestress([40, 40], grp, n_sub=1).X[1], continuous_prestress([40, 40], grp, n_sub=20).X[1], 1e-6)
+    g = golden["cont_tendon_force_default"]
+    r = continuous_prestress([40, 40], grp)
+    _close(r.X[1], g["M2_pier_kNm"], 0.1)
+    _close(r.X[1], 13937 * 23724 / 23307, 5)          # analyzer IL 等效載重法（μ=K=0）
+    assert [round(v, 3) for v in tp.infl] == g["infl_m"]
+    # 墩頂段頂點在墩心（斜率 0）、反曲點兩側斜率相等
+    for x in tp.infl:
+        sl = [s.slope(x) for s in tp.segs if abs(s.x1 - x) < 1e-9 or abs(s.x2 - x) < 1e-9]
+        _close(sl[0], sl[1], 1e-9)
+    # 三跨對稱
+    tp3 = cont_tendon_segs([30, 40, 30], 0, 900, -500)
+    r3 = continuous_prestress([30, 40, 30], [TendonGroup(20000, tp3.segs)])
+    _close(r3.X[1], r3.X[2], 1e-6)
+    # 端錨偏心 e_end≠0：M2 端點仍為 0（力法自動計入端錨彎矩）
+    tpe = cont_tendon_segs([40, 40], -200, 1109, -600)
+    re = continuous_prestress([40, 40], [TendonGroup(23724, tpe.segs)])
+    assert re.M2_at(0) == 0 and re.M2_at(80) == 0
 
 
 def test_moment_envelope():

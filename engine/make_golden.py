@@ -34,7 +34,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         parabolic_curv_segs, friction_angle, friction_at, friction_profile,
                         tendon_forces, assign_jack,
                         parabola_seg, cont_tendon_segs, TendonGroup, primary_moment_at,
-                        continuous_prestress)
+                        continuous_prestress, taiwan_cont_envelope, taiwan_cont_live_moment,
+                        cont_moment_il, cont_dl_moment, taiwan_lane_reduction)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -51,41 +52,108 @@ def _cont_case_groups(e_top=646.0):
     return bot, top
 
 
+def _cont_P_e(groups, x):
+    """斷面 x 的總預力 P 與合力偏心（形心下為正）；錨碇點以該處存在的鋼腱計。"""
+    P = Pe = 0.0
+    for g in groups:
+        for sg in g.segs:
+            if sg.x1 - 1e-9 <= x <= sg.x2 + 1e-9:
+                P += g.P
+                Pe += g.P * sg.e(x)
+                break
+    return P, Pe / P
+
+
+def _cont_service_scan(groups, rows, fm, with_M2=True):
+    """跨 1 逐斷面（含墩）服務性：回傳 (底緣最拉值, x, 頂緣最拉值, x)；M_ext 取正負包絡、加 M2。"""
+    wb = wt = None
+    for r in rows:
+        if r.x > 40 + 1e-9:
+            break
+        P, e = _cont_P_e(groups, r.x)
+        M2 = fm.M2_at(r.x) if with_M2 else 0.0
+        for Ms in (r.Ms_pos, r.Ms_neg):
+            st, sb = pier_service_stress(P * 1e3, sec, e, Ms + M2)
+            if wb is None or sb > wb[0]:
+                wb = (sb, r.x)
+            if wt is None or st > wt[0]:
+                wt = (st, r.x)
+    return wb, wt
+
+
 def _continuous_pier():
     bot, top = _cont_case_groups()
     g = [bot, top]
     r = continuous_prestress([40, 40], g)
-    M2p, M2m, M215 = r.X[1], r.M2_at(20), r.M2_at(15)
-    e15 = bot.segs[0].e(15)
+    M2p = r.X[1]
+    w_dc = sec.A / 1e6 * 24.5
+    rows = taiwan_cont_envelope([40, 40], w_dc, 20, 2, n_per_span=40)
+    pier = next(rw for rw in rows if abs(rw.x - 40) < 1e-9)
     e_eff = -(23700 * 80 + 12557 * 646) / 36257
-    st_p, sb_p = pier_service_stress(36257e3, sec, e_eff, -41080 + M2p)
-    _, sb_p0 = pier_service_stress(36257e3, sec, e_eff, -41080)
-    st_15, sb_15 = pier_service_stress(23700e3, sec, e15, 14670 + 12000 + M215)
-    _, sb_150 = pier_service_stress(23700e3, sec, e15, 14670 + 12000)
-    Mu = 75337 - M2p
+    st_p, sb_p = zip(*(pier_service_stress(36257e3, sec, e_eff, Ms + M2p) for Ms in (pier.Ms_pos, pier.Ms_neg)))
+    sb_p0 = pier_service_stress(36257e3, sec, e_eff, pier.Ms_neg)[1]
+    (wb, xb), (wt, xt) = _cont_service_scan(g, rows, r)
+    (wb0, xb0), _ = _cont_service_scan(g, rows, r, with_M2=False)
+    Mu = -(pier.Mu_neg + M2p)
+    Mu0 = -pier.Mu_neg
     ft = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, Mu)
+    ft0 = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, Mu0)
+    pos = max((rw for rw in rows if rw.x <= 40), key=lambda rw: rw.Mu_pos + r.M2_at(rw.x))
     tp = cont_tendon_segs([40, 40], -80, 950, -600, 0.12, 0.40)
-    ra = continuous_prestress([40, 40], [TendonGroup(23700, tp.segs), top])
-    _, sb_a15 = pier_service_stress(23700e3, sec, tp.e_at(15), 14670 + 12000 + ra.M2_at(15))
+    ga = [TendonGroup(23700, tp.segs), top]
+    ra = continuous_prestress([40, 40], ga)
+    (wba, xba), _ = _cont_service_scan(ga, rows, ra)
     return {
-        "M1_x15_kNm": round(primary_moment_at(g, 15)), "M1_mid_kNm": round(primary_moment_at(g, 20)),
-        "M1_pier_kNm": round(primary_moment_at(g, 40)),
-        "M2_x15_kNm": round(M215), "M2_mid_kNm": round(M2m), "M2_pier_kNm": round(M2p),
+        "M1_mid_kNm": round(primary_moment_at(g, 20)), "M1_pier_kNm": round(primary_moment_at(g, 40)),
+        "M2_x15_kNm": round(r.M2_at(15)), "M2_mid_kNm": round(r.M2_at(20)), "M2_pier_kNm": round(M2p),
         "M2_pier_bot_only_kNm": round(continuous_prestress([40, 40], [bot]).X[1]),
         "M2_pier_top_only_kNm": round(continuous_prestress([40, 40], [top]).X[1]),
         "int_M1_m_kNm2": round(r.b[0]), "flex_F_m": round(r.F[0][0], 3),
+        "w_dc_kNm": round(w_dc, 2),
+        "pier_M_dc_kNm": round(pier.M_dc), "pier_M_dw_kNm": round(pier.M_dw), "pier_M_ll_neg_kNm": round(pier.M_ll_neg),
+        "pier_impact": round(pier.I_neg, 4),
         "e_pier_eff_mm": round(e_eff, 1),
-        "pier_service_sigma_top_MPa": round(st_p, 2), "pier_service_sigma_bot_MPa": round(sb_p, 2),
+        "pier_service_sigma_top_MPa": round(max(st_p), 2), "pier_service_sigma_bot_MPa": round(min(sb_p), 2),
         "pier_service_sigma_bot_noM2_MPa": round(sb_p0, 2),
-        "x15_service_sigma_top_MPa": round(st_15, 2), "x15_service_sigma_bot_MPa": round(sb_15, 2),
-        "x15_service_sigma_bot_noM2_MPa": round(sb_150, 2),
-        "pier_Mu_kNm": round(Mu), "pier_c_mm": round(ft.c), "pier_flanged": ft.flanged,
+        "span_max_sigma_bot_MPa": round(wb, 2), "span_max_sigma_bot_x_m": xb,
+        "span_max_sigma_top_MPa": round(wt, 2), "span_max_sigma_top_x_m": xt,
+        "span_max_sigma_bot_noM2_MPa": round(wb0, 2), "span_max_sigma_bot_noM2_x_m": xb0,
+        "pos_Mu_max_kNm": round(pos.Mu_pos + r.M2_at(pos.x)), "pos_Mu_max_x_m": pos.x,
+        "pier_Mu_kNm": round(Mu), "pier_Mu_noM2_kNm": round(Mu0),
+        "pier_c_mm": round(ft.c), "pier_flanged": ft.flanged,
         "pier_fps_MPa": round(ft.fps), "pier_Mn_kNm": round(ft.Mn), "pier_phiMn_kNm": round(ft.phiMn),
-        "pier_CR": round(ft.CR, 2), "pier_inadequate": not ft.ok,
-        "adj_M2_pier_kNm": round(ra.X[1]), "adj_x15_sigma_bot_MPa": round(sb_a15, 2),
-        "_note": "2026-09-17 校正：頂板腱 e 900→646(y_t−75−50)、底板腱垂度 1030、M2 改力法→正彎矩(跨中不利/墩頂有利)。"
-                 "B墩底緣含M2 −12.70✓(不計M2 −19.72 為假性超限)；x=15m 底緣 +0.25 拉(台灣零拉✗)；"
-                 "中墩 Mu=75,337−M2、dp=1975 → CR 0.55✗；調整：底板腱墩頂 −600 分段拋物線 → −2.02✓",
+        "pier_CR": round(ft.CR, 2), "pier_CR_noM2": round(ft0.CR, 2), "pier_inadequate": not ft.ok,
+        "adj_M2_pier_kNm": round(ra.X[1]), "adj_span_max_sigma_bot_MPa": round(wba, 2),
+        "_note": "2026-09-17 二次校正：外力改引擎實算（taiwan_cont_envelope：自重 A×24.5、SDL 20、HS20-44 2車道、"
+                 "負彎矩車道 2 集中載重、衝擊依跨長）。算例原估活載 12,000/−15,000 → 實算 5,510/−5,966。"
+                 "M2 力法全長正彎矩；全線服務性通過；中墩 Mu 含 M2 → CR 1.05✓（不計 M2 為 0.67✗）",
+    }
+
+
+def _cont_envelope_taiwan():
+    """連續梁解析影響線＋台灣 HS20-44 包絡的檢核點。"""
+    sp = [40, 40]
+    lv_p = taiwan_cont_live_moment(sp, 40)
+    lv_15 = taiwan_cont_live_moment(sp, 15)
+    lv_s = taiwan_cont_live_moment([40], 20)
+    sp3 = [30, 40, 30]
+    lv3 = taiwan_cont_live_moment(sp3, 30)
+    rows = taiwan_cont_envelope(sp, 124.0925, 20, 2, n_per_span=20)
+    return {
+        "il_pier_p20": round(cont_moment_il(sp, 40, 20), 6),
+        "il_x15_p15": round(cont_moment_il(sp, 15, 15), 6),
+        "dl_pier_w130_4": round(cont_dl_moment(sp, 130.4, 40), 3), "dl_x15_w130_4": round(cont_dl_moment(sp, 130.4, 15), 3),
+        "pier_truck_neg": round(lv_p.truck_neg, 2), "pier_lane_neg": round(lv_p.lane_neg, 2), "pier_I_neg": round(lv_p.I_neg, 6),
+        "x15_truck_pos": round(lv_15.truck_pos, 2), "x15_lane_pos": round(lv_15.lane_pos, 2),
+        "x15_truck_neg": round(lv_15.truck_neg, 2), "x15_lane_neg": round(lv_15.lane_neg, 2),
+        "single_span_lane_mid": round(lv_s.lane_pos, 2), "single_span_truck_mid": round(lv_s.truck_pos, 2),
+        "three_span_pier1_lane_neg": round(lv3.lane_neg, 2), "three_span_pier1_truck_neg": round(lv3.truck_neg, 2),
+        "three_span_pier1_I_neg": round(lv3.I_neg, 6),
+        "env_min_Mu_neg_kNm": round(min(r.Mu_neg for r in rows), 1),
+        "env_max_Mu_pos_kNm": round(max(r.Mu_pos for r in rows), 1),
+        "env_max_Ms_pos_x_m": max(rows, key=lambda r: r.Ms_pos).x,
+        "lane_reduction_3": taiwan_lane_reduction(3), "lane_reduction_4": taiwan_lane_reduction(4),
+        "_note": "三彎矩解析（EI常數）。§3.9 負彎矩車道 2 集中載重（不同跨最負縱距）；§3.13 衝擊 L：正＝該跨、負＝相鄰兩跨平均",
     }
 
 
@@ -249,6 +317,7 @@ golden = {
     # ★ 接線：config A 斷面 + 引擎實際服務性底緣（含預力）→ 真實參考橋的 T1 整合檢核
     "continuous_pier": _continuous_pier(),
     "cont_tendon_force_default": _cont_tendon_force_default(),
+    "cont_envelope_taiwan": _cont_envelope_taiwan(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

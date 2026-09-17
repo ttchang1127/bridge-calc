@@ -36,7 +36,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         parabolic_curv_segs, friction_angle, friction_at, friction_profile,
                         tendon_forces, assign_jack,
                         parabola_seg, cont_tendon_segs, TendonGroup, primary_moment_at,
-                        continuous_prestress)
+                        continuous_prestress, taiwan_cont_live_moment, cont_moment_il,
+                        cont_dl_moment, taiwan_lane_reduction)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -293,8 +294,8 @@ def test_temperature_integrated_T1():
 
 
 def test_continuous_pier():
-    """★ 連續梁（算例_連續梁次彎矩，2026-09-17 校正）：M2 以力法實算、頂板腱 e=646（y_t−75−50）。
-    M2 全長正彎矩 → 跨中不利、墩頂有利；B 墩底緣通過，正彎矩區底緣出現拉應力。"""
+    """★ 連續梁（算例_連續梁次彎矩，2026-09-17 校正）：M2 以力法實算、頂板腱 e=646（y_t−75−50）、
+    外力以 taiwan_cont_envelope 實算。M2 全長正彎矩 → 跨中不利、墩頂有利；全線服務性通過、中墩強度 CR≈1.05。"""
     g = golden["continuous_pier"]
     cb = -(950 + 80) / 20 ** 2
     bot = TendonGroup(23700, [parabola_seg(0, 40, 20, 950, cb), parabola_seg(40, 80, 60, 950, cb)])
@@ -311,17 +312,43 @@ def test_continuous_pier():
     hand = w * 40 ** 2 / 8 - 23700 * 0.080 / 2 - 23700 * 0.080
     _close(continuous_prestress([40, 40], [bot]).X[1], hand, 0.5)
     _close(g["M2_pier_kNm"], r.X[1], 1)
-    # 服務性：含 M2 → B 墩 −12.70 ✓；不計 M2 → −19.72（假性超限）
-    assert g["pier_service_sigma_bot_MPa"] > -18.0 > g["pier_service_sigma_bot_noM2_MPa"]
-    assert g["x15_service_sigma_bot_MPa"] > 0 > g["x15_service_sigma_bot_noM2_MPa"]  # 漏算 M2 偏不保守
-    ft = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, 75337 - r.X[1])
+    # 外力改引擎實算（taiwan_cont_envelope）：全線服務性通過；不計 M2 在墩頂偏保守（更壓）
+    assert g["pier_service_sigma_bot_MPa"] > -18.0 and g["pier_service_sigma_top_MPa"] <= 0
+    assert g["pier_service_sigma_bot_noM2_MPa"] < g["pier_service_sigma_bot_MPa"]
+    assert g["span_max_sigma_bot_MPa"] <= 0 and g["span_max_sigma_top_MPa"] <= 0
+    assert g["span_max_sigma_bot_MPa"] > g["span_max_sigma_bot_noM2_MPa"]     # M2 吃掉跨中壓應力餘裕
+    Mu = g["pier_Mu_noM2_kNm"] - r.X[1]
+    _close(Mu, g["pier_Mu_kNm"], 1)
+    ft = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, Mu)
     assert ft.flanged                          # NA 進腹板 → T 斷面
     _close(ft.c, 767, 2)
     _close(ft.Mn, 32399, 50)
-    assert ft.CR < 0.6 and not ft.ok           # 仍嚴重不足（CR≈0.55）
+    assert ft.ok and ft.CR < 1.1               # 計入 M2 後剛好足夠（CR≈1.05）
+    assert not flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, g["pier_Mu_noM2_kNm"]).ok
     # 對照：簡支跨中正彎矩同公式 → 矩形(翼板內)、CR>1
     fr = flexural_strength_T(21280, 1860, 40, 8000, 250, 700, 1880, 48965)
     assert not fr.flanged and fr.CR > 1
+
+
+def test_cont_envelope_taiwan():
+    """連續梁解析影響線＋台灣 HS20-44：閉合解獨立驗算。"""
+    g = golden["cont_envelope_taiwan"]
+    L = 40.0
+    # 兩等跨、單位載重於 a：M_B = −a(L²−a²)/(4L²)
+    _close(cont_moment_il([L, L], 40, 20), -20 * (L * L - 400) / (4 * L * L), 1e-9)
+    _close(cont_dl_moment([L, L], 130.4, 40), -130.4 * L * L / 8, 1e-6)
+    _close(cont_dl_moment([L, L], 130.4, 15), 9 / 128 * 130.4 * L * L, 1e-6)
+    # 墩頂負彎矩車道：均布載滿兩跨（面積 −L²/8）＋2 個 80 kN 於兩跨最負縱距 −L/(6√3)
+    lv = taiwan_cont_live_moment([L, L], 40)
+    _close(lv.lane_neg, 9.4 * (-L * L / 8) + 2 * 80 * (-L / (6 * 3 ** 0.5)), 0.05)
+    _close(lv.I_neg, taiwan_impact(40), 1e-12)               # 相鄰兩跨平均＝40（非全長 80）
+    # 單跨退化為簡支
+    _close(taiwan_cont_live_moment([L], 20).lane_pos, taiwan_lane_moment(40), 1e-6)
+    # 三跨：負彎矩衝擊長度＝相鄰兩跨平均 35
+    _close(taiwan_cont_live_moment([30, 40, 30], 30).I_neg, taiwan_impact(35), 1e-12)
+    _close(cont_dl_moment([30, 40, 30], 10, 30), cont_dl_moment([30, 40, 30], 10, 70), 1e-9)
+    assert taiwan_lane_reduction(2) == 1.0 and taiwan_lane_reduction(3) == 0.9 and taiwan_lane_reduction(5) == 0.75
+    _close(lv.lane_neg, g["pier_lane_neg"], 0.01)
 
 
 def test_secondary_moments_force():

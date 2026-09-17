@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 204 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 227 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -366,6 +366,106 @@
     dt = dt == null ? dp : dt;
     var eps_t = (dt - c) / c * 0.003, phi = eps_t >= 0.005 ? 1.0 : eps_t <= 0.002 ? 0.75 : 0.75 + 0.25 * (eps_t - 0.002) / 0.003;
     return { c: c, flanged: flanged, a: a, fps: fps, Mn: Mn, eps_t: eps_t, phi: phi, phiMn: phi * Mn, CR: phi * Mn / Mu, ok: phi * Mn >= Mu };
+  };
+
+  // ── 連續梁影響線與台灣 HS20-44 彎矩包絡（解析三彎矩法，EI 常數；同 influence_cont.py）──
+  // 點載重 P 距跨左端 a（b=L−a）：∫M0·m＝P·a·b·(L+a)/(6L)（右端支承）、P·a·b·(L+b)/(6L)（左端）
+  // 台灣 §3.9：負彎矩車道另加一個等集中載重於他跨（共 2 個）；§3.13 衝擊 L：正彎矩＝該跨、負彎矩＝相鄰兩跨平均
+  function contXs(spans) { var xs = [0]; spans.forEach(function (L) { xs.push(xs[xs.length - 1] + L); }); return xs; }
+  function contSpanOf(xs, x) { var n = xs.length - 1; for (var i = 0; i < n; i++) if (x <= xs[i + 1] + 1e-9) return i; return n - 1; }
+  function contTridiag(spans, rhs) {
+    var n = spans.length, nu = n - 1, i;
+    if (nu <= 0) { var z = []; for (i = 0; i <= n; i++) z.push(0); return z; }
+    var a = [], b = [], c = [], d = rhs.slice();
+    for (i = 0; i < nu; i++) { a.push(spans[i]); b.push(2 * (spans[i] + spans[i + 1])); c.push(spans[i + 1]); }
+    for (i = 1; i < nu; i++) { var w = a[i] / b[i - 1]; b[i] -= w * c[i - 1]; d[i] -= w * d[i - 1]; }
+    var X = new Array(nu); X[nu - 1] = d[nu - 1] / b[nu - 1];
+    for (i = nu - 2; i >= 0; i--) X[i] = (d[i] - c[i] * X[i + 1]) / b[i];
+    return [0].concat(X, [0]);
+  }
+  BC.contSupportMomentsPoint = function (spans, p, P) {
+    P = P == null ? 1 : P;
+    var xs = contXs(spans), n = spans.length, rhs = [], i;
+    for (i = 0; i < n - 1; i++) rhs.push(0);
+    if (n < 2 || p < -1e-9 || p > xs[n] + 1e-9) { var z = []; for (i = 0; i <= n; i++) z.push(0); return z; }
+    var k = contSpanOf(xs, p), L = spans[k], aa = Math.min(Math.max(p - xs[k], 0), L), bb = L - aa;
+    if (k >= 1) rhs[k - 1] += -6 * P * aa * bb * (L + bb) / (6 * L);
+    if (k <= n - 2) rhs[k] += -6 * P * aa * bb * (L + aa) / (6 * L);
+    return contTridiag(spans, rhs);
+  };
+  BC.contSupportMomentsUniform = function (spans, w) {
+    var n = spans.length, rhs = [], k;
+    for (k = 0; k < n - 1; k++) rhs.push(0);
+    for (k = 0; k < n; k++) { var t = -6 * w[k] * Math.pow(spans[k], 3) / 24;
+      if (k >= 1) rhs[k - 1] += t; if (k <= n - 2) rhs[k] += t; }
+    return contTridiag(spans, rhs);
+  };
+  function contMomentAt(spans, xs, X, x, M0) { var i = contSpanOf(xs, x), t = (x - xs[i]) / spans[i]; return M0 + X[i] * (1 - t) + X[i + 1] * t; }
+  function contEta(spans, xs, X, x, p) {
+    var i = contSpanOf(xs, x), k = contSpanOf(xs, p), M0 = 0;
+    if (i === k) { var L = spans[i], a = x - xs[i], q = p - xs[i]; M0 = q <= a ? q * (L - a) / L : a * (L - q) / L; }
+    return contMomentAt(spans, xs, X, x, M0);
+  }
+  BC.contMomentIL = function (spans, x, p) { var xs = contXs(spans); return contEta(spans, xs, BC.contSupportMomentsPoint(spans, p), x, p); };
+  BC.contDLMoment = function (spans, w, x) {
+    var xs = contXs(spans), X = BC.contSupportMomentsUniform(spans, spans.map(function () { return w; }));
+    var i = contSpanOf(xs, x), a = x - xs[i];
+    return contMomentAt(spans, xs, X, x, w * a * (spans[i] - a) / 2);
+  };
+  BC.taiwanLaneReduction = function (lanes) { return lanes <= 2 ? 1.0 : (lanes === 3 ? 0.90 : 0.75); };
+  BC.contImpactLength = function (spans, x, sign) {
+    var xs = contXs(spans), n = spans.length, i = contSpanOf(xs, x), j;
+    if (sign > 0 || n === 1) return spans[i];
+    for (j = 1; j < n; j++) if (Math.abs(x - xs[j]) < 1e-6) return (spans[j - 1] + spans[j]) / 2;
+    var li = i >= 1, ri = i <= n - 2;
+    if (li && (!ri || x - xs[i] <= xs[i + 1] - x)) return (spans[i - 1] + spans[i]) / 2;
+    return (spans[i] + spans[i + 1]) / 2;
+  };
+  function contCache(spans) {
+    var xs = contXs(spans), memo = {};
+    return { spans: spans, xs: xs, tot: xs[xs.length - 1],
+      eta: function (x, p) { var key = Math.round(p * 1e6); var X = memo[key] || (memo[key] = BC.contSupportMomentsPoint(spans, p)); return contEta(spans, xs, X, x, p); } };
+  }
+  function contLiveAt(c, x, step, grid) {
+    var spans = c.spans, xs = c.xs, tot = c.tot, A = BC.TW, P0 = A.P, D0 = A.x, sp = D0[2];
+    var sets = [[P0, D0], [P0.slice().reverse(), D0.map(function (d) { return sp - d; }).reverse()]];
+    var nstep = Math.round((tot + sp) / step), tp = 0, tn = 0, si, k, j, q;
+    for (si = 0; si < 2; si++) for (k = 0; k <= nstep; k++) {
+      var s = -sp + k * step, v = 0;
+      for (j = 0; j < 3; j++) { var ax = s + sets[si][1][j];
+        if (ax >= -1e-9 && ax <= tot + 1e-9) v += sets[si][0][j] * c.eta(x, Math.min(Math.max(ax, 0), tot)); }
+      if (v > tp) tp = v; if (v < tn) tn = v;
+    }
+    var posA = 0, negA = 0, spanMin = [], etaMax = 0;
+    for (j = 0; j < spans.length; j++) {
+      var h = spans[j] / grid, vals = [], mn = Infinity;
+      for (q = 0; q <= grid; q++) { var e = c.eta(x, xs[j] + q * h); vals.push(e); if (e < mn) mn = e; if (e > etaMax) etaMax = e; }
+      for (q = 0; q < grid; q++) { var u = vals[q], w = vals[q + 1];
+        if (u >= 0 && w >= 0) posA += (u + w) * h / 2;
+        else if (u <= 0 && w <= 0) negA += (u + w) * h / 2;
+        else { var r = u / (u - w);
+          if (u > 0) { posA += u * r * h / 2; negA += w * (1 - r) * h / 2; }
+          else { negA += u * r * h / 2; posA += w * (1 - r) * h / 2; } } }
+      spanMin.push(mn);
+    }
+    var negs = spanMin.filter(function (v) { return v < 0; }).sort(function (a, b) { return a - b; });
+    var lanePos = A.lane * posA + A.PM * etaMax, laneNeg = A.lane * negA + A.PM * ((negs[0] || 0) + (negs[1] || 0));
+    return { x: x, truck_pos: tp, truck_neg: tn, lane_pos: lanePos, lane_neg: laneNeg,
+             pos: Math.max(tp, lanePos), neg: Math.min(tn, laneNeg),
+             I_pos: BC.taiwanImpact(BC.contImpactLength(spans, x, 1)), I_neg: BC.taiwanImpact(BC.contImpactLength(spans, x, -1)) };
+  }
+  BC.taiwanContLiveMoment = function (spans, x, step, grid) { return contLiveAt(contCache(spans), x, step || 0.25, grid || 400); };
+  // 回傳各斷面：x、M_dc、M_dw、M_ll_pos/neg（含衝擊×車道數×折減）、Ms/Mu 正負、I_pos/I_neg（不含預力 M2）
+  BC.taiwanContEnvelope = function (spans, wdc, wdw, lanes, nPerSpan, step, grid) {
+    nPerSpan = nPerSpan || 20; step = step || 0.25; grid = grid || 400;
+    var c = contCache(spans), xs = c.xs, fac = lanes * BC.taiwanLaneReduction(lanes), pts = [0], i, k;
+    for (i = 0; i < spans.length; i++) for (k = 1; k <= nPerSpan; k++) pts.push(xs[i] + spans[i] * k / nPerSpan);
+    return pts.map(function (x) {
+      var dc = BC.contDLMoment(spans, wdc, x), dw = BC.contDLMoment(spans, wdw, x), lv = contLiveAt(c, x, step, grid);
+      var lp = lv.pos * (1 + lv.I_pos) * fac, ln = lv.neg * (1 + lv.I_neg) * fac;
+      return { x: x, M_dc: dc, M_dw: dw, M_ll_pos: lp, M_ll_neg: ln, Ms_pos: dc + dw + lp, Ms_neg: dc + dw + ln,
+               Mu_pos: 1.25 * dc + 1.5 * dw + 1.75 * lp, Mu_neg: 1.25 * dc + 1.5 * dw + 1.75 * ln, I_pos: lv.I_pos, I_neg: lv.I_neg };
+    });
   };
 
   // ── 連續梁鋼腱線形（分段拋物線）＋ 次彎矩 M2（力法）──────────────

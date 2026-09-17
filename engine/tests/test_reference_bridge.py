@@ -37,7 +37,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         tendon_forces, assign_jack,
                         parabola_seg, cont_tendon_segs, TendonGroup, primary_moment_at,
                         continuous_prestress, taiwan_cont_live_moment, cont_moment_il,
-                        cont_dl_moment, taiwan_lane_reduction)
+                        cont_dl_moment, taiwan_lane_reduction, pier_cap_tendon_segs,
+                        top_slab_tendon_check)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -349,6 +350,27 @@ def test_cont_envelope_taiwan():
     _close(cont_dl_moment([30, 40, 30], 10, 30), cont_dl_moment([30, 40, 30], 10, 70), 1e-9)
     assert taiwan_lane_reduction(2) == 1.0 and taiwan_lane_reduction(3) == 0.9 and taiwan_lane_reduction(5) == 0.75
     _close(lv.lane_neg, g["pier_lane_neg"], 0.01)
+
+
+def test_pier_cap_tendon():
+    """雙系統配束：墩頂局部腱＝算例頂板腱；頂板恰容一層；與全長腱合成的 M2 可疊加。"""
+    g = golden["pier_cap_tendon"]
+    pc = pier_cap_tendon_segs([40, 40], 15, 300, -646)
+    _close(pc.segs[0].c, (300 + 646) / 225, 1e-12)
+    _close(pc.segs[0].slope(40), 0.0, 1e-12)                 # 墩心斜率 0
+    _close(pc.segs[0].e(25), 300, 1e-9)
+    top = TendonGroup(12557, pc.segs)
+    _close(continuous_prestress([40, 40], [top]).X[1], -4213, 1)   # 同算例頂板腱
+    c75 = top_slab_tendon_check(2100, 1329, 250, -646, 4, 5100, 100, 75)
+    assert c75.ok and c75.e_hi == c75.e_lo == -646                # 250＝75+100+75
+    assert not top_slab_tendon_check(2100, 1329, 250, -700, 4, 5100, 100, 40).in_slab
+    # 線性疊加：合成 M2 ＝ 各組 M2 之和
+    tp = cont_tendon_segs([40, 40], 0, 1109, -600)
+    full = TendonGroup(23724, tp.segs)
+    _close(continuous_prestress([40, 40], [full, top]).X[1],
+           continuous_prestress([40, 40], [full]).X[1] + continuous_prestress([40, 40], [top]).X[1], 1e-6)
+    _close(g["dual_M2_pier_kNm"], continuous_prestress([40, 40], [full, top]).X[1], 0.1)
+    assert pier_cap_tendon_segs([30, 40, 30], 20, 300, -600).lengths == [15.0, 15.0]   # ≤0.5×30
 
 
 def test_secondary_moments_force():

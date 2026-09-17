@@ -208,6 +208,31 @@
     "lane_reduction_4": 0.75,
     "_note": "三彎矩解析（EI常數）。§3.9 負彎矩車道 2 集中載重（不同跨最負縱距）；§3.13 衝擊 L：正＝該跨、負＝相鄰兩跨平均"
   },
+  "pier_cap_tendon": {
+    "c_mm_per_m2": 4.204444,
+    "R_min_mm": 118922,
+    "anchors_m": [
+      25.0,
+      55.0
+    ],
+    "M2_top_only_kNm": -4213,
+    "slab75_e_hi": -646.0,
+    "slab75_e_lo": -646.0,
+    "slab75_ok": true,
+    "slab40_e_hi": -611.0,
+    "slab40_e_lo": -681.0,
+    "slab40_s_clear": 1175.0,
+    "bad_in_slab": false,
+    "bad_top_cover": 21.0,
+    "bad_s_clear": 325.0,
+    "bad_s_ok": true,
+    "dual_M2_pier_kNm": 9971.8,
+    "three_span_lengths": [
+      15.0,
+      15.0
+    ],
+    "_note": "算例_連續梁次彎矩頂板腱（b 15、錨 +300、墩 −646）；頂板 250＝75+100+75 恰容一層"
+  },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",
     "Tu_C": 6.91,

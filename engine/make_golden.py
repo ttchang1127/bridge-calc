@@ -35,7 +35,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         tendon_forces, assign_jack,
                         parabola_seg, cont_tendon_segs, TendonGroup, primary_moment_at,
                         continuous_prestress, taiwan_cont_envelope, taiwan_cont_live_moment,
-                        cont_moment_il, cont_dl_moment, taiwan_lane_reduction)
+                        cont_moment_il, cont_dl_moment, taiwan_lane_reduction,
+                        pier_cap_tendon_segs, top_slab_tendon_check)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -127,6 +128,28 @@ def _continuous_pier():
         "_note": "2026-09-17 二次校正：外力改引擎實算（taiwan_cont_envelope：自重 A×24.5、SDL 20、HS20-44 2車道、"
                  "負彎矩車道 2 集中載重、衝擊依跨長）。算例原估活載 12,000/−15,000 → 實算 5,510/−5,966。"
                  "M2 力法全長正彎矩；全線服務性通過；中墩 Mu 含 M2 → CR 1.05✓（不計 M2 為 0.67✗）",
+    }
+
+
+def _pier_cap_tendon():
+    """雙系統配束：墩頂局部腱線形＋頂板構造檢核＋與全長腱合成的 M2。"""
+    pc = pier_cap_tendon_segs([40, 40], 15, 300, -646)
+    top = TendonGroup(12557, pc.segs)
+    chk75 = top_slab_tendon_check(2100, 1329, 250, -646, 4, 5800 - 700, 100, 75)
+    chk40 = top_slab_tendon_check(2100, 1329, 250, -646, 4, 5800 - 700, 100, 40)
+    bad = top_slab_tendon_check(2100, 1329, 250, -700, 12, 5800 - 700, 100, 40, 25, "od")
+    tp = cont_tendon_segs([40, 40], 0, 1109, -600)
+    dual = continuous_prestress([40, 40], [TendonGroup(23724, tp.segs), top])
+    pc3 = pier_cap_tendon_segs([30, 40, 30], 20, 300, -600)
+    return {
+        "c_mm_per_m2": round(pc.segs[0].c, 6), "R_min_mm": round(pc.R_min), "anchors_m": pc.anchors,
+        "M2_top_only_kNm": round(continuous_prestress([40, 40], [top]).X[1]),
+        "slab75_e_hi": chk75.e_hi, "slab75_e_lo": chk75.e_lo, "slab75_ok": chk75.ok,
+        "slab40_e_hi": chk40.e_hi, "slab40_e_lo": chk40.e_lo, "slab40_s_clear": chk40.s_clear,
+        "bad_in_slab": bad.in_slab, "bad_top_cover": bad.top_cover, "bad_s_clear": round(bad.s_clear, 2), "bad_s_ok": bad.s_ok,
+        "dual_M2_pier_kNm": round(dual.X[1], 1),
+        "three_span_lengths": pc3.lengths,
+        "_note": "算例_連續梁次彎矩頂板腱（b 15、錨 +300、墩 −646）；頂板 250＝75+100+75 恰容一層",
     }
 
 
@@ -318,6 +341,7 @@ golden = {
     "continuous_pier": _continuous_pier(),
     "cont_tendon_force_default": _cont_tendon_force_default(),
     "cont_envelope_taiwan": _cont_envelope_taiwan(),
+    "pier_cap_tendon": _pier_cap_tendon(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

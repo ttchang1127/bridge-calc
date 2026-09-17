@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 227 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 242 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -572,6 +572,32 @@
     for (i = nu - 1; i >= 0; i--) { var sm = A[i][nu]; for (k = i + 1; k < nu; k++) sm -= A[i][k] * Xi[k]; Xi[i] = sm / A[i][i]; }
     for (i = 0; i < nu; i++) X[i + 1] = Xi[i];
     return { sx: sx, X: X, F: F, b: bv, M2At: M2at };
+  };
+  // 雙系統配束的墩頂局部腱（頂板腱）：每一內支承兩側各一段拋物線，頂點在墩心；b＝min(length, 0.5×該側跨長)
+  BC.pierCapTendonSegs = function (spans, length, eAnchor, ePier) {
+    var xs = [0], segs = [], lens = [], anchors = [];
+    spans.forEach(function (L) { xs.push(xs[xs.length - 1] + L); });
+    for (var j = 1; j < spans.length; j++) {
+      var xp = xs[j], bl = Math.min(length, 0.5 * spans[j - 1]), br = Math.min(length, 0.5 * spans[j]);
+      segs.push(BC.parabolaSeg(xp - bl, xp, xp, ePier, (eAnchor - ePier) / (bl * bl), 'hog'));
+      segs.push(BC.parabolaSeg(xp, xp + br, xp, ePier, (eAnchor - ePier) / (br * br), 'hog'));
+      lens.push(Math.min(bl, br)); anchors.push(xp - bl, xp + br);
+    }
+    return { segs: segs, lengths: lens, anchors: anchors,
+             Rmin: segs.length ? Math.min.apply(null, segs.map(function (g) { return g.R; })) : Infinity };
+  };
+  // 頂板腱墩頂斷面構造檢核（同 tendon_profile.top_slab_tendon_check）
+  BC.topSlabTendonCheck = function (h, yb, topT, ePier, n, width, od, cover, dAgg, rule) {
+    od = od == null ? 100 : od; cover = cover == null ? 40 : cover;
+    var y = yb - ePier, eLo = yb - (h - cover - od / 2), eHi = yb - (h - topT + cover + od / 2);
+    var topCov = h - (y + od / 2), botCov = (y - od / 2) - (h - topT);
+    var inSlab = topCov >= cover - 1e-6 && botCov >= cover - 1e-6;
+    n = Math.max(1, n | 0);
+    var pitch = width / n, xo = [], i;
+    for (i = 0; i < n; i++) xo.push(-width / 2 + pitch * (i + 0.5));
+    var sClear = n > 1 ? pitch - od : Infinity, sReq = BC.ductSpacingRequired(od, dAgg, rule), sOk = sClear >= sReq - 1e-6;
+    return { e_hi: eHi, e_lo: eLo, y_center: y, in_slab: inSlab, top_cover: topCov, bot_cover: botCov,
+             x_offsets: xo, s_clear: sClear, s_req: sReq, s_ok: sOk, ok: inSlab && sOk };
   };
   BC.continuousPrestress = function (spans, groups, nSub) {
     return BC.secondaryMomentsForce(spans, function (x, probe) { return BC.primaryMomentAt(groups, x, probe); },

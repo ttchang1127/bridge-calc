@@ -310,3 +310,45 @@ def assign_jack(n_per_web: int, mode: str = "alt") -> list:
     if mode in ("both", "start", "end"):
         return [mode] * n_per_web
     return ["start" if i % 2 == 0 else "end" for i in range(n_per_web)]
+
+
+@dataclass
+class TopSlabTendonResult:
+    e_hi: float          # 可行偏心上界（形心下為正；管位於頂板最下緣時）
+    e_lo: float          # 可行偏心下界（最負；管位於頂板最上緣時）
+    y_center: float      # 管中心距梁底 mm
+    in_slab: bool        # 管（含保護層）完全位於頂板內
+    top_cover: float     # 管外緣距梁頂 mm
+    bot_cover: float     # 管外緣距頂板底面 mm
+    x_offsets: list      # 各腱水平位置（相對箱梁中心）mm
+    s_clear: float       # 水平淨距 mm
+    s_req: float
+    s_ok: bool
+    ok: bool
+
+
+def top_slab_tendon_check(h: float, yb: float, top_t: float, e_pier: float, n: int,
+                          width: float, duct_od: float = 100.0, cover: float = 40.0,
+                          d_agg: float = 25.0, rule: str = "tw") -> TopSlabTendonResult:
+    """頂板腱（墩頂局部負彎矩腱）於墩頂斷面的構造檢核。
+
+    垂直：管中心 y = ȳb − e 須使管外緣距梁頂 ≥ cover、距頂板底面 ≥ cover
+        → e ∈ [ȳb − (h − cover − OD/2), ȳb − (h − top_t + cover + OD/2)]
+        例：h 2,100、ȳb 1,329、頂板 250、φ100、保護層 75 → 上下界皆 −646（頂板剛好容納一層）。
+    水平：n 束於寬度 width 內等分（間距 width/n、置中），淨距 = 間距 − OD ≥ duct_spacing_required。
+        width 由呼叫端決定（建議取兩腹板內緣間，避開腹板內的全長腱）。
+    """
+    y = yb - e_pier
+    e_lo = yb - (h - cover - duct_od / 2)
+    e_hi = yb - (h - top_t + cover + duct_od / 2)
+    top_cov = h - (y + duct_od / 2)
+    bot_cov = (y - duct_od / 2) - (h - top_t)
+    in_slab = top_cov >= cover - 1e-6 and bot_cov >= cover - 1e-6
+    n = max(1, int(n))
+    pitch = width / n
+    xo = [(-width / 2 + pitch * (i + 0.5)) for i in range(n)]
+    s_clear = pitch - duct_od if n > 1 else float("inf")
+    s_req = duct_spacing_required(duct_od, d_agg, rule)
+    s_ok = s_clear >= s_req - 1e-6
+    return TopSlabTendonResult(e_hi, e_lo, y, in_slab, top_cov, bot_cov, xo,
+                               s_clear, s_req, s_ok, in_slab and s_ok)

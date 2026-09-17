@@ -329,3 +329,36 @@ def continuous_prestress(spans: Sequence[float], groups: Sequence[TendonGroup],
     return secondary_moments_force(
         spans, lambda x, probe: primary_moment_at(groups, x, probe),
         group_breaks(groups), n_sub)
+
+
+@dataclass
+class PierCapTendonResult:
+    segs: List[ParabolaSeg]
+    lengths: List[float]   # 各內支承實際採用的單側長度（受 ≤0.5×相鄰跨限制）
+    anchors: List[float]   # 錨碇里程
+    R_min: float
+
+
+def pier_cap_tendon_segs(spans: Sequence[float], length: float, e_anchor: float,
+                         e_pier: float) -> PierCapTendonResult:
+    """雙系統配束的墩頂局部腱（頂板腱）線形：每一內支承兩側各一段拋物線。
+
+    頂點在墩心（斜率 0、e = e_pier，形心下為正→墩頂取負），兩端錨於距墩 length 處（e = e_anchor）：
+        e(x) = e_pier + (e_anchor − e_pier)·((x − x_p)/b)²
+    單側長度 b = min(length, 0.5×該側跨長)，避免相鄰墩的頂板腱在跨內重疊。
+    例：算例_連續梁次彎矩 40+40、b 15、錨 +300、墩 −646。
+    """
+    xs = [0.0]
+    for L in spans:
+        xs.append(xs[-1] + L)
+    segs, lens, anchors = [], [], []
+    for j in range(1, len(spans)):
+        xp = xs[j]
+        bl = min(length, 0.5 * spans[j - 1])
+        br = min(length, 0.5 * spans[j])
+        segs.append(parabola_seg(xp - bl, xp, xp, e_pier, (e_anchor - e_pier) / (bl * bl), "hog"))
+        segs.append(parabola_seg(xp, xp + br, xp, e_pier, (e_anchor - e_pier) / (br * br), "hog"))
+        lens.append(min(bl, br))
+        anchors += [xp - bl, xp + br]
+    R_min = min((s.R for s in segs), default=float("inf"))
+    return PierCapTendonResult(segs, lens, anchors, R_min)

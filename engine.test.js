@@ -224,6 +224,24 @@ function chkEq(name, got, exp) {
   chk('包絡 max Mu+', Math.max.apply(null, env20.map(function (r) { return r.Mu_pos; })), ce.env_max_Mu_pos_kNm, 0.1);
   chk('多車道折減 3', BC.taiwanLaneReduction(3), ce.lane_reduction_3, 1e-9);
   chk('多車道折減 4', BC.taiwanLaneReduction(4), ce.lane_reduction_4, 1e-9);
+  // 雙系統配束：墩頂局部腱＋頂板構造檢核
+  var pcg = g.pier_cap_tendon, pc = BC.pierCapTendonSegs([40, 40], 15, 300, -646);
+  chk('頂板腱 c', pc.segs[0].c, pcg.c_mm_per_m2, 1e-6);
+  chk('頂板腱 R_min', pc.Rmin, pcg.R_min_mm, 1);
+  chk('頂板腱 錨點1', pc.anchors[0], pcg.anchors_m[0], 1e-9);
+  chk('頂板腱 M2 單獨', BC.continuousPrestress([40, 40], [{ P: 12557, segs: pc.segs }]).X[1], pcg.M2_top_only_kNm, 1);
+  var c75 = BC.topSlabTendonCheck(2100, 1329, 250, -646, 4, 5100, 100, 75), c40 = BC.topSlabTendonCheck(2100, 1329, 250, -646, 4, 5100, 100, 40);
+  var cbad = BC.topSlabTendonCheck(2100, 1329, 250, -700, 12, 5100, 100, 40, 25, 'od');
+  chk('頂板 e_hi(75)', c75.e_hi, pcg.slab75_e_hi, 1e-9); chk('頂板 e_lo(75)', c75.e_lo, pcg.slab75_e_lo, 1e-9);
+  chkEq('頂板 ok(75)', c75.ok, pcg.slab75_ok);
+  chk('頂板 e_hi(40)', c40.e_hi, pcg.slab40_e_hi, 1e-9); chk('頂板 e_lo(40)', c40.e_lo, pcg.slab40_e_lo, 1e-9);
+  chk('頂板 水平淨距', c40.s_clear, pcg.slab40_s_clear, 1e-9);
+  chkEq('頂板 超出(in_slab)', cbad.in_slab, pcg.bad_in_slab);
+  chk('頂板 超出 頂保護層', cbad.top_cover, pcg.bad_top_cover, 1e-9);
+  chk('頂板 12束淨距', cbad.s_clear, pcg.bad_s_clear, 0.01);
+  var tpD = BC.contTendonSegs([40, 40], 0, 1109, -600);
+  chk('雙系統 合成 M2', BC.continuousPrestress([40, 40], [{ P: 23724, segs: tpD.segs }, { P: 12557, segs: pc.segs }]).X[1], pcg.dual_M2_pier_kNm, 0.1);
+  chk('三跨 頂板腱長受限', BC.pierCapTendonSegs([30, 40, 30], 20, 300, -600).lengths[0], pcg.three_span_lengths[0], 1e-9);
   // 分析器預設全長連續腱（分段拋物線）＋三跨
   var ctd = g.cont_tendon_force_default, tpd = BC.contTendonSegs([40, 40], 0, 1109, -600);
   var fmd = BC.continuousPrestress([40, 40], [{ P: 23724, segs: tpd.segs }]);

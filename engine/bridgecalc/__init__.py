@@ -35,10 +35,12 @@ from .continuous import (secondary_moment, primary_moment, flexural_strength_T,
                         TFlexureResult, pier_service_stress,
                         ParabolaSeg, parabola_seg, ContTendonProfile, cont_tendon_segs,
                         TendonGroup, primary_moment_at, group_breaks,
-                        ForceMethodM2Result, secondary_moments_force, continuous_prestress)
+                        ForceMethodM2Result, secondary_moments_force, continuous_prestress,
+                        PierCapTendonResult, pier_cap_tendon_segs)
 from .tendon_profile import (tendon_profile, TendonProfileResult, equivalent_load,
                             end_slope, radius_of_curvature, balance_ratio, friction_loss,
                             duct_layout, duct_spacing_required, DuctLayoutResult,
+                            top_slab_tendon_check, TopSlabTendonResult,
                             parabolic_curv_segs, friction_angle, friction_at,
                             friction_profile, FrictionProfileResult,
                             tendon_forces, assign_jack, TendonForceResult)
@@ -95,6 +97,7 @@ __all__ = [
     "ParabolaSeg", "parabola_seg", "ContTendonProfile", "cont_tendon_segs",
     "TendonGroup", "primary_moment_at", "group_breaks",
     "ForceMethodM2Result", "secondary_moments_force", "continuous_prestress",
+    "PierCapTendonResult", "pier_cap_tendon_segs", "TopSlabTendonResult", "top_slab_tendon_check",
     "tendon_profile", "TendonProfileResult", "equivalent_load", "end_slope",
     "radius_of_curvature", "balance_ratio", "friction_loss",
     "duct_layout", "duct_spacing_required", "DuctLayoutResult",

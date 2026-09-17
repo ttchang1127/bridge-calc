@@ -23,6 +23,69 @@ from .influence import (TW_HS20_AXLES, TW_HS20_SPACING, TW_LANE_W, TW_LANE_PM,
                         taiwan_impact)
 
 
+# ── HS20-44 設計卡車：中後軸距 V 可調 4.25～9.15 m（§3.6）──
+# 軸序 36 —4.25— 144 —V— 144，雙向行駛。簡支跨恆以 V=4.25 最不利（影響線同號、軸越近越大），
+# 故 influence.py 簡支函式維持固定軸距；連續梁兩後軸可能分落兩跨負區，須掃描 V。
+TW_REAR_MIN, TW_REAR_MAX, TW_REAR_STEP = 4.25, 9.15, 0.25
+_GRID = 0.05                                     # 影響線取樣格距（m）；軸距 4.25、9.15 皆為其整數倍
+
+
+def taiwan_rear_spacings(step: float = TW_REAR_STEP) -> List[float]:
+    out, v = [], TW_REAR_MIN
+    while v < TW_REAR_MAX - 1e-9:
+        out.append(round(v, 6))
+        v += step
+    out.append(TW_REAR_MAX)
+    return out
+
+
+def _truck_sets(V: float):
+    P = TW_HS20_AXLES
+    d = (0.0, 4.25, 4.25 + V)
+    return ((P, d), (tuple(reversed(P)), tuple(d[-1] - t for t in reversed(d))))
+
+
+def _truck_extremes(vals: Sequence[float], tot: float, at_x=None, s_every: int = 2,
+                    spacings: Sequence[float] = None):
+    """vals[k] = η(k·_GRID)；回傳 (最大, 最小, 最大時 V, 最小時 V)。
+
+    at_x：(x, eta_side_fn) 時另將各軸逐一放在斷面 x 上（左右極限）評估，
+    補足格點未必落在斷面上（剪力影響線於斷面跳 1、彎矩峰值在斷面）的情形。
+    """
+    N = len(vals) - 1
+    best_p = best_n = 0.0
+    vp = vn = TW_REAR_MIN
+    for V in (spacings or taiwan_rear_spacings()):
+        for P_set, d_set in _truck_sets(V):
+            di = [int(round(t / _GRID)) for t in d_set]
+            span_i = di[-1]
+            for k in range(-span_i, N + 1, s_every):
+                v = 0.0
+                for P, o in zip(P_set, di):
+                    j = k + o
+                    if 0 <= j <= N:
+                        v += P * vals[j]
+                if v > best_p:
+                    best_p, vp = v, V
+                if v < best_n:
+                    best_n, vn = v, V
+            if at_x is not None:
+                x, fn = at_x
+                for a_idx in range(3):
+                    s0 = x - d_set[a_idx]
+                    for side in (-1, 1):
+                        v = 0.0
+                        for i2, (P, t) in enumerate(zip(P_set, d_set)):
+                            ax = s0 + t
+                            if -1e-9 <= ax <= tot + 1e-9:
+                                v += P * fn(min(max(ax, 0.0), tot), side if i2 == a_idx else 0)
+                        if v > best_p:
+                            best_p, vp = v, V
+                        if v < best_n:
+                            best_n, vn = v, V
+    return best_p, best_n, vp, vn
+
+
 def _supports(spans: Sequence[float]) -> List[float]:
     xs = [0.0]
     for L in spans:
@@ -152,6 +215,8 @@ class ContLiveMoment:
     neg: float
     I_pos: float
     I_neg: float
+    V_pos: float = 4.25  # 卡車控制時之中後軸距
+    V_neg: float = 4.25
 
 
 class _ILCache:
@@ -187,21 +252,10 @@ class _ILCache:
 
 def _live_at(c: _ILCache, x: float, step: float, grid_per_span: int) -> ContLiveMoment:
     spans, xs, tot = c.spans, c.xs, c.tot
-    # 設計卡車：雙向、整數步進、軸位夾到 [0, tot]
-    span_t = TW_HS20_SPACING[-1]
-    sets = ((TW_HS20_AXLES, TW_HS20_SPACING),
-            (tuple(reversed(TW_HS20_AXLES)), tuple(span_t - d for d in reversed(TW_HS20_SPACING))))
-    nstep = int(round((tot + span_t) / step))
-    tp = tn = 0.0
-    for P_set, d_set in sets:
-        for k in range(nstep + 1):
-            s = -span_t + k * step
-            v = 0.0
-            for P, d in zip(P_set, d_set):
-                ax = s + d
-                if -1e-9 <= ax <= tot + 1e-9:
-                    v += P * c.eta(x, min(max(ax, 0.0), tot))
-            tp, tn = max(tp, v), min(tn, v)
+    # 設計卡車：雙向、中後軸距 V 掃描；影響線取 0.05 m 格點，另將各軸放在斷面上補峰值
+    N = int(round(tot / _GRID))
+    vals = [c.eta(x, min(k * _GRID, tot)) for k in range(N + 1)]
+    tp, tn, Vp_, Vn_ = _truck_extremes(vals, tot, (x, lambda p, sd: c.eta(x, p)))
     # 車道：分跨細格、逐小段依正負拆分（跨零點以線性內插切開）積分同號面積；
     # 集中載重取最大縱距，負彎矩另加他跨一個（共 2 個，取不同跨之最負縱距）
     pos_area = neg_area = 0.0
@@ -232,7 +286,7 @@ def _live_at(c: _ILCache, x: float, step: float, grid_per_span: int) -> ContLive
     pos, neg = max(tp, lane_pos), min(tn, lane_neg)
     return ContLiveMoment(x, tp, tn, lane_pos, lane_neg, pos, neg,
                           taiwan_impact(cont_impact_length(spans, x, +1)),
-                          taiwan_impact(cont_impact_length(spans, x, -1)))
+                          taiwan_impact(cont_impact_length(spans, x, -1)), Vp_, Vn_)
 
 
 def taiwan_cont_live_moment(spans: Sequence[float], x: float, step: float = 0.25,
@@ -372,21 +426,10 @@ def _live_shear_at(c: "_ILCache", x: float, side: str, step: float, grid_per_spa
 
     def eta(p, ps=0):
         return cont_shear_il(spans, x, p, side, ps, c.X(p))
-    span_t = TW_HS20_SPACING[-1]
-    sets = ((TW_HS20_AXLES, TW_HS20_SPACING),
-            (tuple(reversed(TW_HS20_AXLES)), tuple(span_t - d for d in reversed(TW_HS20_SPACING))))
-    nstep = int(round((tot + span_t) / step))
-    tp = tn = 0.0
-    for P_set, d_set in sets:
-        for k in range(nstep + 1):
-            s = -span_t + k * step
-            for ps in (-1, 1):                          # 軸恰在斷面時左右極限都取
-                v = 0.0
-                for P, d in zip(P_set, d_set):
-                    ax = s + d
-                    if -1e-9 <= ax <= tot + 1e-9:
-                        v += P * eta(min(max(ax, 0.0), tot), ps)
-                tp, tn = max(tp, v), min(tn, v)
+    N = int(round(tot / _GRID))
+    vals = [eta(min(k * _GRID, tot), (1 if k * _GRID > x else -1) if abs(k * _GRID - x) < 1e-9 else 0)
+            for k in range(N + 1)]
+    tp, tn, _, _ = _truck_extremes(vals, tot, (x, lambda p, sd: eta(p, sd)))
     pos_area = neg_area = 0.0
     eta_max = eta_min = 0.0
     for j, L in enumerate(spans):

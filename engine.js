@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 281 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 287 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -541,16 +541,46 @@
     return { spans: spans, xs: xs, tot: xs[xs.length - 1], flex: flex, X: getX,
       eta: function (x, p) { return contEta(spans, xs, getX(p), x, p); } };
   }
+  // HS20-44 中後軸距 V 可調 4.25～9.15（§3.6）：連續梁掃描 V；簡支恆 4.25 最不利（同 influence_cont.py）
+  var TW_GRID = 0.05;
+  BC.taiwanRearSpacings = function (step) {
+    step = step || 0.25; var out = [], v = 4.25;
+    while (v < 9.15 - 1e-9) { out.push(Math.round(v * 1e6) / 1e6); v += step; }
+    out.push(9.15); return out;
+  };
+  function truckSetsV(V) {
+    var P = BC.TW.P, d = [0, 4.25, 4.25 + V];
+    return [[P, d], [P.slice().reverse(), d.slice().reverse().map(function (t) { return d[2] - t; })]];
+  }
+  // vals[k]＝η(k·0.05)；atFn(p, side) 另將各軸逐一放在斷面 x 上（左右極限）
+  function truckExtremes(vals, tot, x, atFn, spacings, sEvery) {
+    sEvery = sEvery || 2; var N = vals.length - 1, bp = 0, bn = 0, vp = 4.25, vn = 4.25;
+    (spacings || BC.taiwanRearSpacings()).forEach(function (V) {
+      truckSetsV(V).forEach(function (set) {
+        var Ps = set[0], di = set[1].map(function (t) { return Math.round(t / TW_GRID); }), sp = di[2], k, j, v, q;
+        for (k = -sp; k <= N; k += sEvery) {
+          v = 0;
+          for (q = 0; q < 3; q++) { j = k + di[q]; if (j >= 0 && j <= N) v += Ps[q] * vals[j]; }
+          if (v > bp) { bp = v; vp = V; } if (v < bn) { bn = v; vn = V; }
+        }
+        if (atFn) for (var a = 0; a < 3; a++) {
+          var s0 = x - set[1][a];
+          [-1, 1].forEach(function (sd) {
+            var w = 0;
+            for (var i2 = 0; i2 < 3; i2++) { var ax = s0 + set[1][i2];
+              if (ax >= -1e-9 && ax <= tot + 1e-9) w += Ps[i2] * atFn(Math.min(Math.max(ax, 0), tot), i2 === a ? sd : 0); }
+            if (w > bp) { bp = w; vp = V; } if (w < bn) { bn = w; vn = V; }
+          });
+        }
+      });
+    });
+    return [bp, bn, vp, vn];
+  }
   function contLiveAt(c, x, step, grid) {
-    var spans = c.spans, xs = c.xs, tot = c.tot, A = BC.TW, P0 = A.P, D0 = A.x, sp = D0[2];
-    var sets = [[P0, D0], [P0.slice().reverse(), D0.map(function (d) { return sp - d; }).reverse()]];
-    var nstep = Math.round((tot + sp) / step), tp = 0, tn = 0, si, k, j, q;
-    for (si = 0; si < 2; si++) for (k = 0; k <= nstep; k++) {
-      var s = -sp + k * step, v = 0;
-      for (j = 0; j < 3; j++) { var ax = s + sets[si][1][j];
-        if (ax >= -1e-9 && ax <= tot + 1e-9) v += sets[si][0][j] * c.eta(x, Math.min(Math.max(ax, 0), tot)); }
-      if (v > tp) tp = v; if (v < tn) tn = v;
-    }
+    var spans = c.spans, xs = c.xs, tot = c.tot, A = BC.TW, j, q;
+    var N = Math.round(tot / TW_GRID), vals = [];
+    for (q = 0; q <= N; q++) vals.push(c.eta(x, Math.min(q * TW_GRID, tot)));
+    var te = truckExtremes(vals, tot, x, function (p) { return c.eta(x, p); }), tp = te[0], tn = te[1];
     var posA = 0, negA = 0, spanMin = [], etaMax = 0;
     for (j = 0; j < spans.length; j++) {
       var h = spans[j] / grid, vals = [], mn = Infinity;
@@ -567,7 +597,8 @@
     var lanePos = A.lane * posA + A.PM * etaMax, laneNeg = A.lane * negA + A.PM * ((negs[0] || 0) + (negs[1] || 0));
     return { x: x, truck_pos: tp, truck_neg: tn, lane_pos: lanePos, lane_neg: laneNeg,
              pos: Math.max(tp, lanePos), neg: Math.min(tn, laneNeg),
-             I_pos: BC.taiwanImpact(BC.contImpactLength(spans, x, 1)), I_neg: BC.taiwanImpact(BC.contImpactLength(spans, x, -1)) };
+             I_pos: BC.taiwanImpact(BC.contImpactLength(spans, x, 1)), I_neg: BC.taiwanImpact(BC.contImpactLength(spans, x, -1)),
+             V_pos: te[2], V_neg: te[3] };
   }
   BC.taiwanContLiveMoment = function (spans, x, step, grid) { return contLiveAt(contCache(spans), x, step || 0.25, grid || 400); };
   // 回傳各斷面：x、M_dc、M_dw、M_ll_pos/neg（含衝擊×車道數×折減）、Ms/Mu 正負、I_pos/I_neg（不含預力 M2）
@@ -623,17 +654,9 @@
   function contLiveShearAt(c, x, side, step, grid) {
     var spans = c.spans, xs = c.xs, tot = c.tot, A = BC.TW, P0 = A.P, D0 = A.x, sp = D0[2], i = contShearSpan(xs, spans, x, side);
     function eta(p, ps) { return BC.contShearIL(spans, x, p, side, ps, c.X(p)); }
-    var sets = [[P0, D0], [P0.slice().reverse(), D0.map(function (d) { return sp - d; }).reverse()]];
-    var nstep = Math.round((tot + sp) / step), tp = 0, tn = 0, si, k, j, q;
-    for (si = 0; si < 2; si++) for (k = 0; k <= nstep; k++) {
-      var s = -sp + k * step;
-      [-1, 1].forEach(function (ps) {
-        var v = 0;
-        for (j = 0; j < 3; j++) { var ax = s + sets[si][1][j];
-          if (ax >= -1e-9 && ax <= tot + 1e-9) v += sets[si][0][j] * eta(Math.min(Math.max(ax, 0), tot), ps); }
-        if (v > tp) tp = v; if (v < tn) tn = v;
-      });
-    }
+    var N = Math.round(tot / TW_GRID), vals = [], j, q;
+    for (q = 0; q <= N; q++) { var pq = Math.min(q * TW_GRID, tot); vals.push(eta(pq, Math.abs(pq - x) < 1e-9 ? (pq > x ? 1 : -1) : 0)); }
+    var te = truckExtremes(vals, tot, x, function (p, sd) { return eta(p, sd); }), tp = te[0], tn = te[1];
     var posA = 0, negA = 0, eMax = 0, eMin = 0;
     for (j = 0; j < spans.length; j++) {
       var a0 = xs[j], b0 = xs[j + 1], L = spans[j], pieces = [[a0, b0]];

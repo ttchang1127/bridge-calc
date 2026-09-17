@@ -294,6 +294,14 @@ function chkEq(name, got, exp) {
   chk('算例墩左 Av/s 需', shS.Av_s_req, csg.case_Av_s_req, 1e-4);
   chk('算例墩左 φVn @250', BC.phiVn(shS.Vcw, 397.4 / 250, 1512) / 1e3, csg.case_phiVn_D16x2_s250_kN, 0.1);
   chk('算例墩左 φVn @200', BC.phiVn(shS.Vcw, 397.4 / 200, 1512) / 1e3, csg.case_phiVn_D16x2_s200_kN, 0.1);
+  // HS20-44 中後軸距 4.25～9.15 掃描
+  var ras = g.rear_axle_scan, rs = BC.taiwanRearSpacings(), l15 = BC.taiwanContLiveMoment([15, 15], 15), s40 = BC.taiwanContLiveMoment([40], 20);
+  chkEq('軸距候選數', rs.length, ras.spacings_n);
+  chk('軸距上限', rs[rs.length - 1], ras.spacings_last, 1e-9);
+  chk('15+15 墩頂卡車（掃描）', l15.truck_neg, ras.p15_truck_neg_scan, 0.001);
+  chk('15+15 控制軸距', l15.V_neg, ras.p15_V_neg, 1e-9);
+  chk('簡支40 x20 卡車', s40.truck_pos, ras.simple40_x20_truck, 0.001);
+  chk('簡支40 控制軸距', s40.V_pos, ras.simple40_x20_V, 1e-9);
   // 分析器預設全長連續腱（分段拋物線）＋三跨
   var ctd = g.cont_tendon_force_default, tpd = BC.contTendonSegs([40, 40], 0, 1109, -600);
   var fmd = BC.continuousPrestress([40, 40], [{ P: 23724, segs: tpd.segs }]);

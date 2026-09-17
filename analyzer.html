@@ -130,7 +130,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <tr><th>跨徑／斷面</th><td x-text="L+' m　｜　頂寬 '+topW+' × 高 '+h+' mm　｜　f\'c = '+fc+' MPa'"></td></tr>
     <tr><th>箱梁檢核結果</th><td x-text="R.npass+' / '+R.ntot+' 通過'+(R.matchGolden?'（對齊 40m 黃金範例）':'')"></td></tr>
   </table>
-  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 281 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
+  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 287 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
 </div>
 
 <!-- 送審計算書：目錄 -->
@@ -150,7 +150,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <div class="bar no-print">
   <div class="bar-row">
-    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 281 項驗證）</div></div>
+    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 287 項驗證）</div></div>
   </div>
   <div class="bar-row" style="margin-top:8px">
     <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
@@ -528,7 +528,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </table>
     <div class="hint" x-show="DS.lossBad" x-cloak style="color:var(--ng)">✗ 預力損失已達 <b x-text="fmt(DS.lossPct,1)+'%'"></b>（f<sub>pe</sub> 過低）——此配置不合理，反解結果不可用，請先加大斷面或減少鋼腱。</div>
     <div class="hint no-print" x-show="DS.cgsBot<100" x-cloak style="color:var(--ng)">⚠ 套用該垂度後 CGS 距梁底僅 <b x-text="fmt(DS.cgsBot)"></b> mm，請確認保護層與管道尺寸。</div>
-    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 54/54・JS 281/281）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
+    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 55/55・JS 287/287）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
   </div>
   <div class="card"><h2>鋼腱縱剖面（G1・拋物線）</h2>
     <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElev"></svg></div>
@@ -846,7 +846,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
             <td x-text="CB?fmt(CB.mid.MsP):''"></td><td x-text="CB?fmt(CB.mid.MuP):''"></td></tr>
       </tbody>
     </table>
-    <div class="cite">包絡由引擎 <code>BC.taiwanContEnvelope</code> 算出（解析三彎矩法、EI 常數；Python <code>taiwan_cont_envelope</code> 同式、golden 驗證）：DL＝均布解析解；LL＝HS20-44 軸組雙向掃描與車道載重取大 ×(1+I)× 車道數 × 多車道折減（3 車道 0.90、≥4 車道 0.75）。<b>負彎矩車道載重另加一個等集中載重於他跨</b>（§3.9，共 2 個）；<b>衝擊長度</b>正彎矩取該跨、負彎矩取相鄰兩跨平均（§3.13）。每跨取 <b x-text="CB?CB.ne:''"></b> 個斷面。自重取 ① 斷面（<span x-text="R.wsw.toFixed(0)"></span> kN/m）、SDL 與車道數取 ②。</div>
+    <div class="cite">包絡由引擎 <code>BC.taiwanContEnvelope</code> 算出（解析三彎矩法、EI 常數；Python <code>taiwan_cont_envelope</code> 同式、golden 驗證）：DL＝均布解析解；LL＝HS20-44 軸組雙向掃描（<b>中後軸距 4.25～9.15 m 逐 0.25 m 掃描</b>，短跨墩頂常由長軸距控制）與車道載重取大 ×(1+I)× 車道數 × 多車道折減（3 車道 0.90、≥4 車道 0.75）。<b>負彎矩車道載重另加一個等集中載重於他跨</b>（§3.9，共 2 個）；<b>衝擊長度</b>正彎矩取該跨、負彎矩取相鄰兩跨平均（§3.13）。每跨取 <b x-text="CB?CB.ne:''"></b> 個斷面。自重取 ① 斷面（<span x-text="R.wsw.toFixed(0)"></span> kN/m）、SDL 與車道數取 ②。</div>
   </div>
 
   <div class="card" x-show="contShear" x-cloak><h2>連續梁剪力檢核（各支承兩側 d<sub>v</sub> 斷面・D1）</h2>
@@ -864,7 +864,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           <td style="text-align:center" :class="r.ok?'ok':'ng'" x-text="r.ok?'✓':'✗'"></td></tr>
       </template></tbody></table></div>
     <div class="hint" x-show="contShear" x-text="contShear?('現配箍筋 A_v/s = '+fmt(contShear.Avs,2)+' mm²/mm（⑤ 箍筋號數×肢數÷間距）、最小 '+fmt(contShear.AvsMin,2)+'；最不利：'+contShear.worst.name+'（V_u/φV_n = '+fmt(contShear.worst.VuW/contShear.worst.phiVn,2)+'）'):''"></div>
-    <div class="cite">剪力由引擎 <code>BC.taiwanContShearAt</code>（解析影響線；斷面處剪力影響線跳 1、左右側分開）：DL＋HS20-44 卡車雙向掃描與車道載重（集中 116 kN）取大 ×(1+I)× 車道數 × 折減，衝擊長度取<b>該點至所屬跨較遠支點</b>（§3.13）。次剪力 V₂＝dM₂/dx（力法 M₂ 的支承彎矩梯度，載重因數 1.0），依 <b>V<sub>u</sub>＝max(|V<sub>載重</sub>|, |V<sub>載重</sub>+V₂|)</b>——有利時不折減（算例_端跨 propped cantilever）。d<sub>v</sub>＝max(0.9d<sub>p</sub>, 0.72h)，中墩側 d<sub>p</sub> 自底緣量至合力 CGS、端支承側自頂緣量起。V<sub>p</sub>＝Σ P·de/dx（含頂板腱；變斷面時用 e−Δȳ），僅與 V<sub>u</sub> 反向時有利（BC.shearWebAt）。主拉應力 σ₁ 與 φV<sub>n</sub>＝φ(V<sub>cw</sub>+A<sub>v</sub>/s·f<sub>y</sub>·d<sub>v</sub>) 同 ⑤ D1 公式；變斷面時 f<sub>pc</sub> 用該處斷面積。</div>
+    <div class="cite">剪力由引擎 <code>BC.taiwanContShearAt</code>（解析影響線；斷面處剪力影響線跳 1、左右側分開）：DL＋HS20-44 卡車雙向掃描（中後軸距 4.25～9.15 m）與車道載重（集中 116 kN）取大 ×(1+I)× 車道數 × 折減，衝擊長度取<b>該點至所屬跨較遠支點</b>（§3.13）。次剪力 V₂＝dM₂/dx（力法 M₂ 的支承彎矩梯度，載重因數 1.0），依 <b>V<sub>u</sub>＝max(|V<sub>載重</sub>|, |V<sub>載重</sub>+V₂|)</b>——有利時不折減（算例_端跨 propped cantilever）。d<sub>v</sub>＝max(0.9d<sub>p</sub>, 0.72h)，中墩側 d<sub>p</sub> 自底緣量至合力 CGS、端支承側自頂緣量起。V<sub>p</sub>＝Σ P·de/dx（含頂板腱；變斷面時用 e−Δȳ），僅與 V<sub>u</sub> 反向時有利（BC.shearWebAt）。主拉應力 σ₁ 與 φV<sub>n</sub>＝φ(V<sub>cw</sub>+A<sub>v</sub>/s·f<sub>y</sub>·d<sub>v</sub>) 同 ⑤ D1 公式；變斷面時 f<sub>pc</sub> 用該處斷面積。</div>
   </div>
   <div class="card"><h2>中墩負彎矩控制斷面 <span class="gold" style="background:#fef2f2;color:#dc2626">★ 簡支不會出現</span></h2>
     <table><thead><tr><th>項目</th><th>計算值</th><th>說明</th><th style="text-align:center">判定</th></tr></thead>

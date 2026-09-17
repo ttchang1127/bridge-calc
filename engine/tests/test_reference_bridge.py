@@ -40,7 +40,9 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         cont_dl_moment, taiwan_lane_reduction, pier_cap_tendon_segs,
                         top_slab_tendon_check, section_from_dims, haunch_profile, ContFlex,
                         cont_support_moments_point, taiwan_cont_envelope, cont_shear_il,
-                        cont_dl_shear, taiwan_cont_live_shear, taiwan_lane_shear, shear_web_at)
+                        cont_dl_shear, taiwan_cont_live_shear, taiwan_lane_shear, shear_web_at,
+                        taiwan_rear_spacings, max_moment_moving)
+from bridgecalc.influence import TW_HS20_AXLES, TW_HS20_SPACING
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -424,6 +426,23 @@ def test_cont_shear_taiwan():
     assert g["case_phiVn_D16x2_s250_kN"] < abs(g["case_Vu_design"]) / 2 < g["case_phiVn_D16x2_s200_kN"]
     assert shear_web_at(1e6, sec, -0.05, 40, 250, 1500, -1e6).Vp > 0      # 同號（墩左：腱上升、剪力負）→ 有利
     assert shear_web_at(1e6, sec, -0.05, 40, 250, 1500, 1e6).Vp < 0       # 反號 → 不利
+
+
+def test_rear_axle_scan():
+    """HS20-44 中後軸距 4.25～9.15：簡支恆為 4.25（與 influence.py 相同）；短跨連續梁墩頂由 9.15 控制。"""
+    from bridgecalc.influence_cont import _ILCache, _truck_extremes, _GRID
+    sp = taiwan_rear_spacings()
+    assert sp[0] == 4.25 and sp[-1] == 9.15
+    for L in (20.0, 30.0, 40.0):
+        m = taiwan_cont_live_moment([L], L / 2)
+        assert m.V_pos == 4.25
+        _close(m.truck_pos, max_moment_moving(L, L / 2, TW_HS20_AXLES, TW_HS20_SPACING, 0.05), 1e-6)
+        _close(taiwan_cont_live_shear([L], 0, "R").truck_pos, taiwan_truck_shear(L), 1e-6)
+    lv = taiwan_cont_live_moment([15, 15], 15)
+    c = _ILCache([15, 15])
+    vals = [c.eta(15, k * _GRID) for k in range(int(round(30 / _GRID)) + 1)]
+    fixed = _truck_extremes(vals, 30, (15, lambda p, sd: c.eta(15, p)), spacings=[4.25])
+    assert lv.V_neg == 9.15 and lv.truck_neg < fixed[1] - 30      # 長軸距使兩後軸分落兩跨最負區
 
 
 def test_secondary_moments_force():

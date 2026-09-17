@@ -33,7 +33,8 @@ from .influence_cont import (cont_support_moments_point, cont_support_moments_un
                              taiwan_cont_envelope, ContEnvelopeRow,
                              cont_shear_il, cont_dl_shear, cont_shear_impact_length,
                              ContLiveShear, taiwan_cont_live_shear, ContShearRow,
-                             taiwan_cont_shear_at, secondary_shear, design_shear_with_V2)
+                             taiwan_cont_shear_at, secondary_shear, design_shear_with_V2,
+                             taiwan_rear_spacings)
 from .variable_section import (section_from_dims, HaunchProfile, haunch_profile,
                                ContFlex, gauss_integrate)
 from .continuous import (secondary_moment, primary_moment, flexural_strength_T,
@@ -101,7 +102,7 @@ __all__ = [
     "ContLiveMoment", "taiwan_cont_envelope", "ContEnvelopeRow",
     "cont_shear_il", "cont_dl_shear", "cont_shear_impact_length", "ContLiveShear",
     "taiwan_cont_live_shear", "ContShearRow", "taiwan_cont_shear_at", "secondary_shear",
-    "design_shear_with_V2", "shear_web_at",
+    "design_shear_with_V2", "shear_web_at", "taiwan_rear_spacings",
     "section_from_dims", "HaunchProfile", "haunch_profile", "ContFlex", "gauss_integrate",
     "ParabolaSeg", "parabola_seg", "ContTendonProfile", "cont_tendon_segs",
     "TendonGroup", "primary_moment_at", "group_breaks",

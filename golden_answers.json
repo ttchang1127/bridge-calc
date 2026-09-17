@@ -189,7 +189,7 @@
     "il_x15_p15": 8.166504,
     "dl_pier_w130_4": -26080.0,
     "dl_x15_w130_4": 14670.0,
-    "pier_truck_neg": -1219.6,
+    "pier_truck_neg": -1219.59,
     "pier_lane_neg": -2495.83,
     "pier_I_neg": 0.195134,
     "x15_truck_pos": 2305.0,
@@ -281,6 +281,16 @@
     "case_phiVn_D16x2_s250_kN": 2765.9,
     "case_phiVn_D16x2_s200_kN": 2980.4,
     "_note": "算例雙系統 40+40 墩左 d_v 斷面：每腹板 Vu 2,876 kN；D16×2@250 φVn 2,766✗、@200 2,980✓；V2 +434 於墩左有利→不折減"
+  },
+  "rear_axle_scan": {
+    "spacings_n": 21,
+    "spacings_last": 9.15,
+    "p15_truck_neg_scan": -434.649,
+    "p15_V_neg": 9.15,
+    "p15_truck_neg_fixed425": -398.707,
+    "simple40_x20_truck": 2857.5,
+    "simple40_x20_V": 4.25,
+    "_note": "15+15 墩頂：兩後軸分落兩跨負區 → V=9.15 控制；簡支 40 m 仍 4.25（與 influence.py 相同）"
   },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",

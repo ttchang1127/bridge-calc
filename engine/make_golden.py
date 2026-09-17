@@ -39,7 +39,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         pier_cap_tendon_segs, top_slab_tendon_check,
                         section_from_dims, haunch_profile, ContFlex,
                         cont_shear_il, cont_dl_shear, taiwan_cont_live_shear, taiwan_cont_shear_at,
-                        secondary_shear, design_shear_with_V2, shear_web_at)
+                        secondary_shear, design_shear_with_V2, shear_web_at, taiwan_rear_spacings)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -220,6 +220,24 @@ def _cont_shear_taiwan():
         "case_phiVn_D16x2_s250_kN": round(phiVn(sh.Vcw, 397.4 / 250, 1512) / 1e3, 1),
         "case_phiVn_D16x2_s200_kN": round(phiVn(sh.Vcw, 397.4 / 200, 1512) / 1e3, 1),
         "_note": "算例雙系統 40+40 墩左 d_v 斷面：每腹板 Vu 2,876 kN；D16×2@250 φVn 2,766✗、@200 2,980✓；V2 +434 於墩左有利→不折減",
+    }
+
+
+def _rear_axle_scan():
+    """HS20-44 中後軸距 4.25～9.15 m 掃描：短跨連續梁墩頂由長軸距控制；簡支跨恆為 4.25。"""
+    from bridgecalc.influence_cont import _ILCache, _truck_extremes, _GRID
+    c = _ILCache([15, 15])
+    N = int(round(c.tot / _GRID))
+    vals = [c.eta(15, k * _GRID) for k in range(N + 1)]
+    fixed = _truck_extremes(vals, c.tot, (15, lambda p, sd: c.eta(15, p)), spacings=[4.25])
+    lv = taiwan_cont_live_moment([15, 15], 15)
+    s40 = taiwan_cont_live_moment([40], 20)
+    return {
+        "spacings_n": len(taiwan_rear_spacings()), "spacings_last": taiwan_rear_spacings()[-1],
+        "p15_truck_neg_scan": round(lv.truck_neg, 3), "p15_V_neg": lv.V_neg,
+        "p15_truck_neg_fixed425": round(fixed[1], 3),
+        "simple40_x20_truck": round(s40.truck_pos, 3), "simple40_x20_V": s40.V_pos,
+        "_note": "15+15 墩頂：兩後軸分落兩跨負區 → V=9.15 控制；簡支 40 m 仍 4.25（與 influence.py 相同）",
     }
 
 
@@ -414,6 +432,7 @@ golden = {
     "pier_cap_tendon": _pier_cap_tendon(),
     "variable_section_haunch": _variable_section_haunch(),
     "cont_shear_taiwan": _cont_shear_taiwan(),
+    "rear_axle_scan": _rear_axle_scan(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

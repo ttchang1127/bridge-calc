@@ -288,3 +288,187 @@ def taiwan_cont_envelope(spans: Sequence[float], w_dc: float, w_dw: float, lanes
                                     1.25 * dc + 1.5 * dw + 1.75 * lp,
                                     1.25 * dc + 1.5 * dw + 1.75 * ln, lv.I_pos, lv.I_neg))
     return rows
+
+
+# ════════════════ 連續梁剪力影響線與包絡 ════════════════
+# 斷面 x 的剪力 V = V0（簡支，載重與斷面同跨）＋(X_{i+1} − X_i)/L_i（支承彎矩梯度）。
+# 正負號同 dM/dx（左段向上為正）。斷面處剪力影響線跳 1：side="L"／"R" 指斷面取左側或右側極限；
+# 恰在內支承時 "L" 屬左跨末端、"R" 屬右跨起點（兩者相差該支承反力）。
+# 台灣：車道集中載重（剪力）116 kN、一個；衝擊長度＝該點至所屬跨較遠支點之距離（§3.13）。
+
+def _shear_span(xs, spans, x, side):
+    n = len(spans)
+    for j in range(1, n):
+        if abs(x - xs[j]) < 1e-9:
+            return j - 1 if side == "L" else j
+    return _span_of(xs, x)
+
+
+def _V0_point(xs, spans, i, x, p, p_side=0):
+    """簡支跨 i 於斷面 x 的剪力影響值；p==x 時 p_side −1＝載重在斷面左、+1＝在右。"""
+    L = spans[i]
+    a, q = x - xs[i], p - xs[i]
+    if q < -1e-9 or q > L + 1e-9:
+        return 0.0
+    if abs(q - a) < 1e-9:
+        return -q / L if p_side < 0 else (L - q) / L
+    return -q / L if q < a else (L - q) / L
+
+
+def cont_shear_il(spans: Sequence[float], x: float, p: float, side: str = "R",
+                  p_side: int = 0, _X=None) -> float:
+    """斷面 x（side 側）的剪力影響線縱距（單位載重於 p）。"""
+    xs = _supports(spans)
+    i = _shear_span(xs, spans, x, side)
+    X = _X if _X is not None else cont_support_moments_point(spans, p)
+    in_span = xs[i] - 1e-9 <= p <= xs[i + 1] + 1e-9
+    V0 = _V0_point(xs, spans, i, x, p, p_side if p_side else (1 if side == "R" else -1)) if in_span else 0.0
+    return V0 + (X[i + 1] - X[i]) / spans[i]
+
+
+def cont_dl_shear(spans: Sequence[float], w: float, x: float, side: str = "R", flex=None,
+                  w_fn=None, X=None) -> float:
+    """均布（或分佈 w_fn）恆載於斷面 x（side 側）的剪力。"""
+    xs = _supports(spans)
+    i = _shear_span(xs, spans, x, side)
+    L, a = spans[i], x - xs[i]
+    if flex is None:
+        Xs = cont_support_moments_uniform(spans, [w] * len(spans))
+        V0 = w * (L / 2 - a)
+    else:
+        from .variable_section import gauss_integrate
+        wf = w_fn or (lambda t: w)
+        Xs = X if X is not None else flex.support_moments_dist(wf)
+        RA = gauss_integrate(lambda t: wf(t) * (L - (t - xs[i])) / L, xs[i], xs[i + 1], flex.breaks, 0.25)
+        V0 = RA - gauss_integrate(wf, xs[i], x, flex.breaks, 0.25)
+    return V0 + (Xs[i + 1] - Xs[i]) / L
+
+
+def cont_shear_impact_length(spans: Sequence[float], x: float, side: str = "R") -> float:
+    """剪力衝擊長度：該點至所屬跨較遠支點之距離。"""
+    xs = _supports(spans)
+    i = _shear_span(xs, spans, x, side)
+    a = x - xs[i]
+    return max(a, spans[i] - a)
+
+
+@dataclass
+class ContLiveShear:
+    x: float
+    side: str
+    truck_pos: float
+    truck_neg: float
+    lane_pos: float
+    lane_neg: float
+    pos: float
+    neg: float
+    I: float
+
+
+def _live_shear_at(c: "_ILCache", x: float, side: str, step: float, grid_per_span: int) -> ContLiveShear:
+    from .influence import TW_LANE_PV
+    spans, xs, tot = c.spans, c.xs, c.tot
+    i = _shear_span(xs, spans, x, side)
+
+    def eta(p, ps=0):
+        return cont_shear_il(spans, x, p, side, ps, c.X(p))
+    span_t = TW_HS20_SPACING[-1]
+    sets = ((TW_HS20_AXLES, TW_HS20_SPACING),
+            (tuple(reversed(TW_HS20_AXLES)), tuple(span_t - d for d in reversed(TW_HS20_SPACING))))
+    nstep = int(round((tot + span_t) / step))
+    tp = tn = 0.0
+    for P_set, d_set in sets:
+        for k in range(nstep + 1):
+            s = -span_t + k * step
+            for ps in (-1, 1):                          # 軸恰在斷面時左右極限都取
+                v = 0.0
+                for P, d in zip(P_set, d_set):
+                    ax = s + d
+                    if -1e-9 <= ax <= tot + 1e-9:
+                        v += P * eta(min(max(ax, 0.0), tot), ps)
+                tp, tn = max(tp, v), min(tn, v)
+    pos_area = neg_area = 0.0
+    eta_max = eta_min = 0.0
+    for j, L in enumerate(spans):
+        a0, b0 = xs[j], xs[j + 1]
+        pieces = [(a0, b0)]
+        if j == i and a0 < x < b0:
+            pieces = [(a0, x), (x, b0)]
+        for u0, v0 in pieces:
+            n = max(1, int(round(grid_per_span * (v0 - u0) / L)))
+            h = (v0 - u0) / n
+            vals = []
+            for q in range(n + 1):
+                p = u0 + q * h
+                ps = -1 if (j == i and abs(p - x) < 1e-9 and q == n) else (1 if (j == i and abs(p - x) < 1e-9) else 0)
+                vals.append(eta(p, ps))
+            for q in range(n):
+                u, v = vals[q], vals[q + 1]
+                if u >= 0 and v >= 0:
+                    pos_area += (u + v) * h / 2
+                elif u <= 0 and v <= 0:
+                    neg_area += (u + v) * h / 2
+                else:
+                    r = u / (u - v)
+                    if u > 0:
+                        pos_area += u * r * h / 2
+                        neg_area += v * (1 - r) * h / 2
+                    else:
+                        neg_area += u * r * h / 2
+                        pos_area += v * (1 - r) * h / 2
+            eta_max, eta_min = max(eta_max, max(vals)), min(eta_min, min(vals))
+    lane_pos = TW_LANE_W * pos_area + TW_LANE_PV * eta_max
+    lane_neg = TW_LANE_W * neg_area + TW_LANE_PV * eta_min
+    return ContLiveShear(x, side, tp, tn, lane_pos, lane_neg, max(tp, lane_pos), min(tn, lane_neg),
+                         taiwan_impact(cont_shear_impact_length(spans, x, side)))
+
+
+def taiwan_cont_live_shear(spans: Sequence[float], x: float, side: str = "R", step: float = 0.25,
+                           grid_per_span: int = 400, stiff=None) -> ContLiveShear:
+    """斷面 x（side 側）的台灣 HS20-44 每車道活載剪力（不含衝擊）＋衝擊係數。"""
+    return _live_shear_at(_ILCache(spans, stiff), x, side, step, grid_per_span)
+
+
+@dataclass
+class ContShearRow:
+    x: float
+    side: str
+    V_dc: float
+    V_dw: float
+    V_ll_pos: float     # 含衝擊、車道數與折減
+    V_ll_neg: float
+    Vu_pos: float       # 1.25DC + 1.50DW + 1.75LL（不含預力次剪力 V2）
+    Vu_neg: float
+    I: float
+
+
+def taiwan_cont_shear_at(spans: Sequence[float], x: float, side: str, w_dc: float, w_dw: float,
+                         lanes: int, step: float = 0.25, grid_per_span: int = 400, stiff=None,
+                         _cache=None) -> ContShearRow:
+    """連續梁斷面 x（side 側）DL＋台灣 HS20-44 活載設計剪力。stiff 同 taiwan_cont_envelope。"""
+    c = _cache or _ILCache(spans, stiff)
+    fac = lanes * taiwan_lane_reduction(lanes)
+    if c.flex is None:
+        dc = cont_dl_shear(spans, w_dc, x, side)
+        dw = cont_dl_shear(spans, w_dw, x, side)
+    else:
+        wdc_fn = lambda t: w_dc * stiff.A_rel(t)
+        dc = cont_dl_shear(spans, w_dc, x, side, c.flex, wdc_fn)
+        dw = cont_dl_shear(spans, w_dw, x, side, c.flex)
+    lv = _live_shear_at(c, x, side, step, grid_per_span)
+    lp, ln = lv.pos * (1 + lv.I) * fac, lv.neg * (1 + lv.I) * fac
+    return ContShearRow(x, side, dc, dw, lp, ln, 1.25 * dc + 1.5 * dw + 1.75 * lp,
+                        1.25 * dc + 1.5 * dw + 1.75 * ln, lv.I)
+
+
+def secondary_shear(fm, spans: Sequence[float], x: float, side: str = "R") -> float:
+    """預力次剪力 V2 = dM2/dx = (X_{i+1} − X_i)/L_i（fm：ForceMethodM2Result）。"""
+    xs = _supports(spans)
+    i = _shear_span(xs, spans, x, side)
+    return (fm.X[i + 1] - fm.X[i]) / spans[i]
+
+
+def design_shear_with_V2(Vu_pos: float, Vu_neg: float, V2: float) -> float:
+    """設計剪力（帶號）：Vu = max(|V_載重|, |V_載重 + V2|)（次剪力有利時不折減；算例_端跨 propped cantilever）。"""
+    cand = [Vu_pos, Vu_neg, Vu_pos + V2, Vu_neg + V2]
+    return max(cand, key=abs)

@@ -130,7 +130,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <tr><th>跨徑／斷面</th><td x-text="L+' m　｜　頂寬 '+topW+' × 高 '+h+' mm　｜　f\'c = '+fc+' MPa'"></td></tr>
     <tr><th>箱梁檢核結果</th><td x-text="R.npass+' / '+R.ntot+' 通過'+(R.matchGolden?'（對齊 40m 黃金範例）':'')"></td></tr>
   </table>
-  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 259 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
+  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 281 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
 </div>
 
 <!-- 送審計算書：目錄 -->
@@ -150,7 +150,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <div class="bar no-print">
   <div class="bar-row">
-    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 259 項驗證）</div></div>
+    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 281 項驗證）</div></div>
   </div>
   <div class="bar-row" style="margin-top:8px">
     <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
@@ -528,7 +528,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </table>
     <div class="hint" x-show="DS.lossBad" x-cloak style="color:var(--ng)">✗ 預力損失已達 <b x-text="fmt(DS.lossPct,1)+'%'"></b>（f<sub>pe</sub> 過低）——此配置不合理，反解結果不可用，請先加大斷面或減少鋼腱。</div>
     <div class="hint no-print" x-show="DS.cgsBot<100" x-cloak style="color:var(--ng)">⚠ 套用該垂度後 CGS 距梁底僅 <b x-text="fmt(DS.cgsBot)"></b> mm，請確認保護層與管道尺寸。</div>
-    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 53/53・JS 259/259）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
+    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 54/54・JS 281/281）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
   </div>
   <div class="card"><h2>鋼腱縱剖面（G1・拋物線）</h2>
     <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElev"></svg></div>
@@ -802,7 +802,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       墩頂服務性即以中墩斷面性質與 e<sub>local</sub>（含逐腱合力偏移 Δe）、M<sub>ext</sub>＝M<sub>DL</sub>+M<sub>LL</sub>+M₂ 的正負包絡檢核（壓 ≥ −0.45f′c、頂緣零拉）。<span x-show="!contHaunch">⚠ 目前為等斷面：M₂ 與包絡用 EI 常數稜柱模型；填入「加厚段單側長度」即改用變斷面。</span><span x-show="contHaunch" x-cloak>✓ 已啟用變斷面：底板厚自墩心 h<sub>f</sub> 線性漸變回 ① 底板厚（單側 <b x-text="contHaunch?fmt(contHaunch.lengths[0],1):''"></b> m），M₂ 以變 EI 柔度（BC.contFlex）與局部偏心 e−Δȳ(x) 計算，包絡之影響線同步改變斷面柔度、自重依斷面積 A(x) 放大。</span></div>
   </div>
 
-  <div class="card" x-show="CB" x-cloak><h2>設計效應包絡（剛度法影響線・真實多跨）</h2>
+  <div class="card" x-show="CB" x-cloak><h2>設計效應包絡（解析影響線・真實多跨）</h2>
     <div class="grid">
       <div class="metric"><div class="l">配置</div><div class="v" style="font-size:15px" x-text="contSpans+' m（'+(CB?CB.tot.toFixed(0):0)+' m 全長）'"></div></div>
       <div class="metric"><div class="l">衝擊係數 I（中墩負彎矩／跨中正彎矩）</div><div class="v" x-text="CB?((CB.pier?CB.pier.Ineg:CB.IM)*100).toFixed(1)+'／'+(CB.mid.Ipos*100).toFixed(1)+' %':''"></div></div>
@@ -847,6 +847,24 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       </tbody>
     </table>
     <div class="cite">包絡由引擎 <code>BC.taiwanContEnvelope</code> 算出（解析三彎矩法、EI 常數；Python <code>taiwan_cont_envelope</code> 同式、golden 驗證）：DL＝均布解析解；LL＝HS20-44 軸組雙向掃描與車道載重取大 ×(1+I)× 車道數 × 多車道折減（3 車道 0.90、≥4 車道 0.75）。<b>負彎矩車道載重另加一個等集中載重於他跨</b>（§3.9，共 2 個）；<b>衝擊長度</b>正彎矩取該跨、負彎矩取相鄰兩跨平均（§3.13）。每跨取 <b x-text="CB?CB.ne:''"></b> 個斷面。自重取 ① 斷面（<span x-text="R.wsw.toFixed(0)"></span> kN/m）、SDL 與車道數取 ②。</div>
+  </div>
+
+  <div class="card" x-show="contShear" x-cloak><h2>連續梁剪力檢核（各支承兩側 d<sub>v</sub> 斷面・D1）</h2>
+    <div style="overflow-x:auto"><table>
+      <thead><tr><th>斷面</th><th>x (m)</th><th>d<sub>v</sub></th><th>V<sub>DC</sub>／V<sub>DW</sub></th><th>V<sub>LL+IM</sub></th><th>V₂</th><th>設計 V<sub>u</sub>（全斷面）</th><th>每腹板 V<sub>u</sub>／V<sub>p</sub></th><th>σ₁（限 <span x-text="contShear?fmt(contShear.rows[0].sh.sigma1_limit,2):''"></span>）</th><th>φV<sub>n</sub>（現配）</th><th>需 A<sub>v</sub>/s → 最大間距</th><th style="width:40px">判定</th></tr></thead>
+      <tbody><template x-for="r in (contShear?contShear.rows:[])" :key="r.name">
+        <tr><td x-text="r.name"></td><td x-text="fmt(r.x,2)"></td><td x-text="fmt(r.dv)"></td>
+          <td x-text="fmt(r.row.V_dc)+'／'+fmt(r.row.V_dw)"></td>
+          <td x-text="fmt(r.row.V_ll_pos)+'／'+fmt(r.row.V_ll_neg)+'（I '+fmt(r.row.I*100,1)+'%）'"></td>
+          <td x-text="fmt(r.V2)"></td><td x-text="fmt(r.Vu)"></td>
+          <td x-text="fmt(r.VuW)+'／'+fmt(r.sh.Vp/1e3)"></td>
+          <td :class="r.sh.sigma1_ok?'':'mut'" x-text="fmt(r.sh.sigma1,2)+(r.sh.sigma1_ok?' ✓':' 超→靠箍筋')"></td>
+          <td :class="r.phiVn>=r.VuW?'ok':'ng'" x-text="fmt(r.phiVn)"></td>
+          <td x-text="r.AvsReq>0?(fmt(r.AvsReq,2)+' → s ≤ '+fmt(r.sMax)):'混凝土即足'"></td>
+          <td style="text-align:center" :class="r.ok?'ok':'ng'" x-text="r.ok?'✓':'✗'"></td></tr>
+      </template></tbody></table></div>
+    <div class="hint" x-show="contShear" x-text="contShear?('現配箍筋 A_v/s = '+fmt(contShear.Avs,2)+' mm²/mm（⑤ 箍筋號數×肢數÷間距）、最小 '+fmt(contShear.AvsMin,2)+'；最不利：'+contShear.worst.name+'（V_u/φV_n = '+fmt(contShear.worst.VuW/contShear.worst.phiVn,2)+'）'):''"></div>
+    <div class="cite">剪力由引擎 <code>BC.taiwanContShearAt</code>（解析影響線；斷面處剪力影響線跳 1、左右側分開）：DL＋HS20-44 卡車雙向掃描與車道載重（集中 116 kN）取大 ×(1+I)× 車道數 × 折減，衝擊長度取<b>該點至所屬跨較遠支點</b>（§3.13）。次剪力 V₂＝dM₂/dx（力法 M₂ 的支承彎矩梯度，載重因數 1.0），依 <b>V<sub>u</sub>＝max(|V<sub>載重</sub>|, |V<sub>載重</sub>+V₂|)</b>——有利時不折減（算例_端跨 propped cantilever）。d<sub>v</sub>＝max(0.9d<sub>p</sub>, 0.72h)，中墩側 d<sub>p</sub> 自底緣量至合力 CGS、端支承側自頂緣量起。V<sub>p</sub>＝Σ P·de/dx（含頂板腱；變斷面時用 e−Δȳ），僅與 V<sub>u</sub> 反向時有利（BC.shearWebAt）。主拉應力 σ₁ 與 φV<sub>n</sub>＝φ(V<sub>cw</sub>+A<sub>v</sub>/s·f<sub>y</sub>·d<sub>v</sub>) 同 ⑤ D1 公式；變斷面時 f<sub>pc</sub> 用該處斷面積。</div>
   </div>
   <div class="card"><h2>中墩負彎矩控制斷面 <span class="gold" style="background:#fef2f2;color:#dc2626">★ 簡支不會出現</span></h2>
     <table><thead><tr><th>項目</th><th>計算值</th><th>說明</th><th style="text-align:center">判定</th></tr></thead>
@@ -1836,7 +1854,16 @@ function contPrestressM2(C, PeN, eEnd, eMid, ePier, opt){
   var segs=tp.segs.map(function(g){                   // 顯示用：常數 P 的等效上揚
     return {x1:g.x1, x2:g.x2, kind:g.kind, R:g.R, w:-2*g.c*P0/1000};
   });
-  return {segs:segs, eAt:eAt, infl:tp.infl, lows:tp.lows, Rmin:tp.Rmin, hasSamp:!!opt.Pfn, X:fm.X,
+  // 任意里程：總預力、合力偏心（參考軸）、Σ P·de_loc/dx（kN；de_loc＝e−Δȳ，含頂板腱）——剪力 V_p 與 d_p 用
+  function atX(x){
+    var hd=0.01, xa=Math.max(0,x-hd), xb=Math.min(tp.total,x+hd), dx=xb-xa;
+    var P=Pfn(x), eF=eAt(x)+deFn(x), sF=((eAt(xb)+deFn(xb)-dyb(xb))-(eAt(xa)+deFn(xa)-dyb(xa)))/dx/1000;
+    var eT=topAt(x), Pt=eT==null?0:top.P, sT=0;
+    if(eT!=null){ var ea=topAt(xa), eb=topAt(xb); if(ea!=null&&eb!=null) sT=((eb-dyb(xb))-(ea-dyb(xa)))/dx/1000; }
+    var Ptot=P+Pt;
+    return {P:Ptot, eEff:Ptot>0?(P*eF+Pt*(eT||0))/Ptot:eF, Pslope:P*sF+Pt*sT, dyb:dyb(x)};
+  }
+  return {segs:segs, eAt:eAt, infl:tp.infl, lows:tp.lows, Rmin:tp.Rmin, hasSamp:!!opt.Pfn, X:fm.X, atX:atX,
     at:function(t){
       var x=C.m.nodes[t], P=Pfn(x), de=deFn(x), et=eAt(x)+de, eT=topAt(x), Pt=eT==null?0:top.P;
       var dy=dyb(x), M1=-P*(et-dy)/1000-(eT==null?0:Pt*(eT-dy)/1000), M2=fm.M2At(x), Ptot=P+Pt;
@@ -1979,6 +2006,32 @@ function calc(){
     applyTopEPier(){ var t=this.contTop; if(!t) return;
       var e=Math.min(t.chk.e_hi,Math.max(t.chk.e_lo,this.contTopEPier)); this.contTopEPier=Math.round(e===this.contTopEPier?t.chk.e_lo:e);
       this.msgIO='頂板腱墩頂偏心已套用 '+this.contTopEPier+' mm（頂板內可行範圍 '+Math.round(t.chk.e_lo)+'～'+Math.round(t.chk.e_hi)+'）'; },
+    // 連續梁剪力檢核：各支承兩側 d_v 斷面（引擎 BC.taiwanContShearAt＋BC.shearWebAt；V₂＝dM₂/dx，有利時不折減）
+    get contShear(){
+      var C=this.CB; if(!C||!C.m2) return null;
+      var B=window.BC, sp=C.spans, xs=C.m.sx, st=C.stiff, R0=B.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
+      var wDC=R0.A/1e6*24.5, nw=Math.max(1,this.nWeb|0), bw=this.webT-100, Avs=this.avAuto/this.sv, AvsMin=B.AvSminTW(this.fc,bw), out=[];
+      for(var j=0;j<xs.length;j++){
+        ['L','R'].forEach(function(side){
+          if((side==='L'&&j===0)||(side==='R'&&j===xs.length-1)) return;
+          var interior=j>0&&j<xs.length-1, dv=0.72*this.h, x, q, secX, dp;
+          for(var it=0;it<3;it++){                           // d_v 依 d_p 迭代：中墩區受壓在底緣、端支承區在頂緣
+            x=side==='L'?xs[j]-dv/1000:xs[j]+dv/1000; q=C.m2.atX(x); secX=st?st.sectionAt(x):R0;
+            var yc=R0.yb-q.eEff; dp=interior?yc:this.h-yc; dv=Math.max(0.9*dp,0.72*this.h);
+          }
+          x=side==='L'?xs[j]-dv/1000:xs[j]+dv/1000; q=C.m2.atX(x); secX=st?st.sectionAt(x):R0;
+          var row=B.taiwanContShearAt(sp,x,side,wDC,this.wDW,this.lanes,0.25,400,st);
+          var V2=B.secondaryShear(C.m2,sp,x,side), Vu=B.designShearWithV2(row.Vu_pos,row.Vu_neg,V2);
+          var sh=B.shearWebAt(q.P*1e3,secX,q.P>0?q.Pslope/q.P:0,this.fc,bw,dv,Vu/nw*1e3,nw);
+          var phiVn=B.phiVn(sh.Vcw,Avs,dv)/1e3, VuW=Math.abs(Vu)/nw;
+          out.push({name:(interior?'中墩 ':(j===0?'端支承 ':'端支承 '))+(j)+(side==='L'?' 左側':' 右側'), x:x, dv:dv, row:row, V2:V2, Vu:Vu,
+            VuW:VuW, P:q.P, sh:sh, phiVn:phiVn, AvsReq:sh.Av_s_req, sMax:sh.Av_s_req>0?this.avAuto/sh.Av_s_req:Infinity,
+            ok:phiVn>=VuW-1e-6&&Avs>=AvsMin});
+        },this);
+      }
+      return {rows:out, Avs:Avs, AvsMin:AvsMin, bw:bw, nw:nw,
+              worst:out.reduce(function(a,b){return (!a||b.VuW/b.phiVn>a.VuW/a.phiVn)?b:a},null)};
+    },
     get contMuUse(){ return this.contAuto&&this.CB ? Math.abs(this.CB.pier.MuN) : this.contMuP; },
     // ── 反解設計（design.py→engine.js 移植）：給目標算所需配置 ──
     get DS(){

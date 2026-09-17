@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 259 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 281 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -252,11 +252,15 @@
   // ── 腹板抗剪 D1 ───────────────────────────────────────
   BC.principalTensionLimitTW = function (fc) { return 0.094 * sqrt(fc); };
   BC.shearWeb = function (Pe, sec, e, fc, bw, dv, Vu, xCtrl, L, nWebs, phi, fsy) {
+    return BC.shearWebAt(Pe, sec, (4 * e / L) * (1 - 2 * xCtrl / L), fc, bw, dv, Vu, nWebs, phi, fsy);
+  };
+  // 任意斷面（連續梁墩兩側等）：slope＝de/dx（帶號）、Vu 帶號；Vp 僅當 slope 與 Vu 同號時有利，否則為負（同 shear.shear_web_at）
+  BC.shearWebAt = function (Pe, sec, slope, fc, bw, dv, Vu, nWebs, phi, fsy) {
     nWebs = nWebs || 2; phi = phi || 0.85; fsy = fsy || 420;
-    var fpc = Pe / sec.A, slope = (4 * e / L) * (1 - 2 * xCtrl / L), Vp = (Pe / nWebs) * slope;
-    var tau = Vu / (bw * dv), sigma1 = -fpc / 2 + sqrt(Math.pow(fpc / 2, 2) + tau * tau);
+    var fpc = Pe / sec.A, Va = Math.abs(Vu), Vp = (Pe / nWebs) * Math.abs(slope) * (slope * Vu >= 0 ? 1 : -1);
+    var tau = Va / (bw * dv), sigma1 = -fpc / 2 + sqrt(Math.pow(fpc / 2, 2) + tau * tau);
     var lim = BC.principalTensionLimitTW(fc), vc = 0.094 * sqrt(fc);
-    var Vcw = (vc + 0.3 * fpc) * bw * dv + Vp, Vs_req = (Vu - phi * Vcw) / phi;
+    var Vcw = (vc + 0.3 * fpc) * bw * dv + Vp, Vs_req = (Va - phi * Vcw) / phi;
     return { fpc: fpc, slope: slope, Vp: Vp, tau: tau, sigma1: sigma1, sigma1_limit: lim,
              sigma1_ok: sigma1 <= lim, Vcw: Vcw, Vs_req: Vs_req, Av_s_req: max(Vs_req, 0) / (fsy * dv) };
   };
@@ -454,7 +458,7 @@
       return [0].concat(X, [0]);
     }
     function spanOf(x) { for (var q = 0; q < n; q++) if (x <= xs[q + 1] + 1e-9) return q; return n - 1; }
-    var o = { F: F, xs: xs, spans: spans };
+    var o = { F: F, xs: xs, spans: spans, breaks: breaks };
     o.supportMomentsPoint = function (p, P) {
       P = P == null ? 1 : P;
       if (n < 2 || p < -1e-9 || p > xs[n] + 1e-9) { var z = []; for (var q = 0; q <= n; q++) z.push(0); return z; }
@@ -532,10 +536,10 @@
   };
   function contCache(spans, stiff) {
     var xs = contXs(spans), memo = {}, flex = stiff ? BC.contFlex(spans, stiff.Irel, stiff.breaks) : null;
-    return { spans: spans, xs: xs, tot: xs[xs.length - 1], flex: flex,
-      eta: function (x, p) { var key = Math.round(p * 1e6);
-        var X = memo[key] || (memo[key] = flex ? flex.supportMomentsPoint(p) : BC.contSupportMomentsPoint(spans, p));
-        return contEta(spans, xs, X, x, p); } };
+    var getX = function (p) { var key = Math.round(p * 1e6);
+      return memo[key] || (memo[key] = flex ? flex.supportMomentsPoint(p) : BC.contSupportMomentsPoint(spans, p)); };
+    return { spans: spans, xs: xs, tot: xs[xs.length - 1], flex: flex, X: getX,
+      eta: function (x, p) { return contEta(spans, xs, getX(p), x, p); } };
   }
   function contLiveAt(c, x, step, grid) {
     var spans = c.spans, xs = c.xs, tot = c.tot, A = BC.TW, P0 = A.P, D0 = A.x, sp = D0[2];
@@ -582,6 +586,95 @@
       return { x: x, M_dc: dc, M_dw: dw, M_ll_pos: lp, M_ll_neg: ln, Ms_pos: dc + dw + lp, Ms_neg: dc + dw + ln,
                Mu_pos: 1.25 * dc + 1.5 * dw + 1.75 * lp, Mu_neg: 1.25 * dc + 1.5 * dw + 1.75 * ln, I_pos: lv.I_pos, I_neg: lv.I_neg };
     });
+  };
+
+  // ── 連續梁剪力影響線與包絡（同 influence_cont.py）── V＝V0＋(X_{i+1}−X_i)/L_i；side 'L'/'R'；車道集中 116 kN；衝擊長度＝至較遠支點
+  function contShearSpan(xs, spans, x, side) {
+    for (var j = 1; j < spans.length; j++) if (Math.abs(x - xs[j]) < 1e-9) return side === 'L' ? j - 1 : j;
+    return contSpanOf(xs, x);
+  }
+  function contV0Point(xs, spans, i, x, p, ps) {
+    var L = spans[i], a = x - xs[i], q = p - xs[i];
+    if (q < -1e-9 || q > L + 1e-9) return 0;
+    if (Math.abs(q - a) < 1e-9) return ps < 0 ? -q / L : (L - q) / L;
+    return q < a ? -q / L : (L - q) / L;
+  }
+  BC.contShearIL = function (spans, x, p, side, ps, Xp) {
+    side = side || 'R'; var xs = contXs(spans), i = contShearSpan(xs, spans, x, side);
+    var X = Xp || BC.contSupportMomentsPoint(spans, p);
+    var inSpan = p >= xs[i] - 1e-9 && p <= xs[i + 1] + 1e-9;
+    var V0 = inSpan ? contV0Point(xs, spans, i, x, p, ps ? ps : (side === 'R' ? 1 : -1)) : 0;
+    return V0 + (X[i + 1] - X[i]) / spans[i];
+  };
+  BC.contDLShear = function (spans, w, x, side, flex, wFn, Xd) {
+    side = side || 'R'; var xs = contXs(spans), i = contShearSpan(xs, spans, x, side), L = spans[i], a = x - xs[i], X, V0;
+    if (!flex) { X = BC.contSupportMomentsUniform(spans, spans.map(function () { return w; })); V0 = w * (L / 2 - a); }
+    else {
+      var wf = wFn || function () { return w; };
+      X = Xd || flex.supportMomentsDist(wf);
+      var RA = BC.gaussIntegrate(function (t) { return wf(t) * (L - (t - xs[i])) / L; }, xs[i], xs[i + 1], flex.breaks || [], 0.25);
+      V0 = RA - BC.gaussIntegrate(wf, xs[i], x, flex.breaks || [], 0.25);
+    }
+    return V0 + (X[i + 1] - X[i]) / L;
+  };
+  BC.contShearImpactLength = function (spans, x, side) {
+    var xs = contXs(spans), i = contShearSpan(xs, spans, x, side || 'R'), a = x - xs[i]; return Math.max(a, spans[i] - a);
+  };
+  function contLiveShearAt(c, x, side, step, grid) {
+    var spans = c.spans, xs = c.xs, tot = c.tot, A = BC.TW, P0 = A.P, D0 = A.x, sp = D0[2], i = contShearSpan(xs, spans, x, side);
+    function eta(p, ps) { return BC.contShearIL(spans, x, p, side, ps, c.X(p)); }
+    var sets = [[P0, D0], [P0.slice().reverse(), D0.map(function (d) { return sp - d; }).reverse()]];
+    var nstep = Math.round((tot + sp) / step), tp = 0, tn = 0, si, k, j, q;
+    for (si = 0; si < 2; si++) for (k = 0; k <= nstep; k++) {
+      var s = -sp + k * step;
+      [-1, 1].forEach(function (ps) {
+        var v = 0;
+        for (j = 0; j < 3; j++) { var ax = s + sets[si][1][j];
+          if (ax >= -1e-9 && ax <= tot + 1e-9) v += sets[si][0][j] * eta(Math.min(Math.max(ax, 0), tot), ps); }
+        if (v > tp) tp = v; if (v < tn) tn = v;
+      });
+    }
+    var posA = 0, negA = 0, eMax = 0, eMin = 0;
+    for (j = 0; j < spans.length; j++) {
+      var a0 = xs[j], b0 = xs[j + 1], L = spans[j], pieces = [[a0, b0]];
+      if (j === i && x > a0 && x < b0) pieces = [[a0, x], [x, b0]];
+      pieces.forEach(function (pc) {
+        var u0 = pc[0], v0 = pc[1], n = Math.max(1, Math.round(grid * (v0 - u0) / L)), h = (v0 - u0) / n, vals = [];
+        for (q = 0; q <= n; q++) { var p = u0 + q * h, at = j === i && Math.abs(p - x) < 1e-9;
+          vals.push(eta(p, at ? (q === n ? -1 : 1) : 0)); }
+        for (q = 0; q < n; q++) { var u = vals[q], w = vals[q + 1];
+          if (u >= 0 && w >= 0) posA += (u + w) * h / 2;
+          else if (u <= 0 && w <= 0) negA += (u + w) * h / 2;
+          else { var r = u / (u - w);
+            if (u > 0) { posA += u * r * h / 2; negA += w * (1 - r) * h / 2; }
+            else { negA += u * r * h / 2; posA += w * (1 - r) * h / 2; } } }
+        vals.forEach(function (v) { if (v > eMax) eMax = v; if (v < eMin) eMin = v; });
+      });
+    }
+    var lp = A.lane * posA + A.PV * eMax, ln = A.lane * negA + A.PV * eMin;
+    return { x: x, side: side, truck_pos: tp, truck_neg: tn, lane_pos: lp, lane_neg: ln,
+             pos: Math.max(tp, lp), neg: Math.min(tn, ln), I: BC.taiwanImpact(BC.contShearImpactLength(spans, x, side)) };
+  }
+  BC.taiwanContLiveShear = function (spans, x, side, step, grid, stiff) {
+    return contLiveShearAt(contCache(spans, stiff), x, side || 'R', step || 0.25, grid || 400);
+  };
+  BC.taiwanContShearAt = function (spans, x, side, wdc, wdw, lanes, step, grid, stiff) {
+    var c = contCache(spans, stiff), fac = lanes * BC.taiwanLaneReduction(lanes), dc, dw;
+    if (!c.flex) { dc = BC.contDLShear(spans, wdc, x, side); dw = BC.contDLShear(spans, wdw, x, side); }
+    else {
+      var wf = function (t) { return wdc * stiff.Arel(t); };
+      dc = BC.contDLShear(spans, wdc, x, side, c.flex, wf); dw = BC.contDLShear(spans, wdw, x, side, c.flex);
+    }
+    var lv = contLiveShearAt(c, x, side, step || 0.25, grid || 400), lp = lv.pos * (1 + lv.I) * fac, ln = lv.neg * (1 + lv.I) * fac;
+    return { x: x, side: side, V_dc: dc, V_dw: dw, V_ll_pos: lp, V_ll_neg: ln,
+             Vu_pos: 1.25 * dc + 1.5 * dw + 1.75 * lp, Vu_neg: 1.25 * dc + 1.5 * dw + 1.75 * ln, I: lv.I };
+  };
+  BC.secondaryShear = function (fm, spans, x, side) {
+    var xs = contXs(spans), i = contShearSpan(xs, spans, x, side || 'R'); return (fm.X[i + 1] - fm.X[i]) / spans[i];
+  };
+  // Vu＝max(|V_載重|, |V_載重+V2|)（次剪力有利時不折減）
+  BC.designShearWithV2 = function (VuPos, VuNeg, V2) {
+    return [VuPos, VuNeg, VuPos + V2, VuNeg + V2].reduce(function (a, b) { return Math.abs(b) > Math.abs(a) ? b : a; });
   };
 
   // ── 連續梁鋼腱線形（分段拋物線）＋ 次彎矩 M2（力法）──────────────

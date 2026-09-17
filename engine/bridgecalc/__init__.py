@@ -9,7 +9,7 @@ from .model import Section, Tendon
 from .prestress import compute_losses, LossResult
 from .loads import combinations, lane_live_load
 from .service import stresses, Pe_min_zero_tension
-from .shear import (shear_web, ShearResult, phiVn, Av_s_min_TW,
+from .shear import (shear_web, shear_web_at, ShearResult, phiVn, Av_s_min_TW,
                     principal_tension_limit_TW)
 from .flexure import flexural_strength, FlexureResult, beta1
 from .deflection import deflection_analysis, DeflectionResult
@@ -30,7 +30,10 @@ from .expansion import expansion_joint, JointResult
 from .influence_cont import (cont_support_moments_point, cont_support_moments_uniform,
                              cont_moment_il, cont_dl_moment, cont_impact_length,
                              taiwan_lane_reduction, taiwan_cont_live_moment, ContLiveMoment,
-                             taiwan_cont_envelope, ContEnvelopeRow)
+                             taiwan_cont_envelope, ContEnvelopeRow,
+                             cont_shear_il, cont_dl_shear, cont_shear_impact_length,
+                             ContLiveShear, taiwan_cont_live_shear, ContShearRow,
+                             taiwan_cont_shear_at, secondary_shear, design_shear_with_V2)
 from .variable_section import (section_from_dims, HaunchProfile, haunch_profile,
                                ContFlex, gauss_integrate)
 from .continuous import (secondary_moment, primary_moment, flexural_strength_T,
@@ -96,6 +99,9 @@ __all__ = [
     "cont_support_moments_point", "cont_support_moments_uniform", "cont_moment_il",
     "cont_dl_moment", "cont_impact_length", "taiwan_lane_reduction", "taiwan_cont_live_moment",
     "ContLiveMoment", "taiwan_cont_envelope", "ContEnvelopeRow",
+    "cont_shear_il", "cont_dl_shear", "cont_shear_impact_length", "ContLiveShear",
+    "taiwan_cont_live_shear", "ContShearRow", "taiwan_cont_shear_at", "secondary_shear",
+    "design_shear_with_V2", "shear_web_at",
     "section_from_dims", "HaunchProfile", "haunch_profile", "ContFlex", "gauss_integrate",
     "ParabolaSeg", "parabola_seg", "ContTendonProfile", "cont_tendon_segs",
     "TendonGroup", "primary_moment_at", "group_breaks",

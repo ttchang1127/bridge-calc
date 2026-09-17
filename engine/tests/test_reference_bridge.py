@@ -39,7 +39,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         continuous_prestress, taiwan_cont_live_moment, cont_moment_il,
                         cont_dl_moment, taiwan_lane_reduction, pier_cap_tendon_segs,
                         top_slab_tendon_check, section_from_dims, haunch_profile, ContFlex,
-                        cont_support_moments_point, taiwan_cont_envelope)
+                        cont_support_moments_point, taiwan_cont_envelope, cont_shear_il,
+                        cont_dl_shear, taiwan_cont_live_shear, taiwan_lane_shear, shear_web_at)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -402,6 +403,27 @@ def test_variable_section_haunch():
     e_h = taiwan_cont_envelope([40, 40], 124.0925, 20, 2, n_per_span=20, stiff=pr)
     assert e_h[20].M_dc < cont_dl_moment([40, 40], 124.0925, 40)
     _close(golden["variable_section_haunch"]["haunch_env_pier_M_dc"], e_h[20].M_dc, 0.1)
+
+
+def test_cont_shear_taiwan():
+    """連續梁剪力：IL＝彎矩 IL 之導數、DL 閉合解、單跨退化簡支、算例墩左抗剪（D16@250 不足）。"""
+    sp, h = [40, 40], 1e-5
+    fd = (cont_moment_il(sp, 10 + h, 30) - cont_moment_il(sp, 10 - h, 30)) / (2 * h)
+    _close(cont_shear_il(sp, 10, 30, "R"), fd, 1e-6)
+    _close(cont_shear_il(sp, 40, 20, "L"), (cont_moment_il(sp, 40, 20) - cont_moment_il(sp, 40 - h, 20)) / h, 1e-5)
+    _close(cont_dl_shear(sp, 10, 40, "L"), -5 * 10 * 40 / 8, 1e-9)       # 內支承左側 −5wL/8
+    _close(cont_dl_shear(sp, 10, 0, "R"), 3 * 10 * 40 / 8, 1e-9)         # 端支承 3wL/8
+    lvS = taiwan_cont_live_shear([40], 0, "R")
+    _close(lvS.truck_pos, taiwan_truck_shear(40), 0.01)
+    _close(lvS.lane_pos, taiwan_lane_shear(40), 0.01)
+    # 反力＝左右剪力差：單位載重於 p=20 時 B 墩反力 = V(40R) − V(40L)
+    RB = cont_shear_il(sp, 40, 20, "R") - cont_shear_il(sp, 40, 20, "L")
+    _close(RB, 20 / 40 + 20 * (40 ** 2 - 20 ** 2) / (4 * 40 ** 2) * 2 / 40, 1e-9)
+    g = golden["cont_shear_taiwan"]
+    assert g["case_Vu_design"] == g["case_Vu_neg"]                        # V2 於墩左有利 → 不折減
+    assert g["case_phiVn_D16x2_s250_kN"] < abs(g["case_Vu_design"]) / 2 < g["case_phiVn_D16x2_s200_kN"]
+    assert shear_web_at(1e6, sec, -0.05, 40, 250, 1500, -1e6).Vp > 0      # 同號（墩左：腱上升、剪力負）→ 有利
+    assert shear_web_at(1e6, sec, -0.05, 40, 250, 1500, 1e6).Vp < 0       # 反號 → 不利
 
 
 def test_secondary_moments_force():

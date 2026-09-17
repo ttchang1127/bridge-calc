@@ -266,6 +266,34 @@ function chkEq(name, got, exp) {
   chk('加厚 墩頂 M_LL−', ehV[20].M_ll_neg, vs.haunch_env_pier_M_ll_neg, 0.1);
   chk('加厚 墩頂 Mu−', ehV[20].Mu_neg, vs.haunch_env_pier_Mu_neg, 0.1);
   chk('加厚 x16 Mu+', ehV[8].Mu_pos, vs.haunch_env_x16_Mu_pos, 0.1);
+  // 連續梁剪力：影響線、DL、HS20-44、次剪力、算例墩左 d_v 斷面抗剪
+  var csg = g.cont_shear_taiwan;
+  chk('剪力IL x10R p30', BC.contShearIL([40, 40], 10, 30, 'R'), csg.il_x10R_p30, 1e-8);
+  chk('剪力IL 墩左 p20', BC.contShearIL([40, 40], 40, 20, 'L'), csg.il_pierL_p20, 1e-8);
+  chk('剪力IL 墩右 p60', BC.contShearIL([40, 40], 40, 60, 'R'), csg.il_pierR_p60, 1e-8);
+  chk('DL 剪力 墩左', BC.contDLShear([40, 40], 10, 40, 'L'), csg.dl_pierL_w10, 1e-6);
+  chk('DL 剪力 端', BC.contDLShear([40, 40], 10, 0, 'R'), csg.dl_end_w10, 1e-6);
+  var lvLs = BC.taiwanContLiveShear([40, 40], 40, 'L'), lvSs = BC.taiwanContLiveShear([40], 0, 'R'), lv3s = BC.taiwanContLiveShear([30, 40, 30], 30, 'R');
+  chk('墩左 卡車剪力', lvLs.truck_neg, csg.pierL_truck_neg, 0.01);
+  chk('墩左 車道剪力', lvLs.lane_neg, csg.pierL_lane_neg, 0.01);
+  chk('單跨退化 卡車剪力', lvSs.truck_pos, csg.single_truck, 0.01);
+  chk('單跨退化 車道剪力', lvSs.lane_pos, csg.single_lane, 0.01);
+  chk('三跨 墩1右 車道剪力', lv3s.lane_pos, csg.three_pier1R_lane_pos, 0.01);
+  chk('三跨 墩1右 衝擊', lv3s.I, csg.three_pier1R_I, 1e-6);
+  var rowS = BC.taiwanContShearAt([40, 40], csg.case_x_m, 'L', 5.065 * 24.5, 20, 2);
+  chk('算例墩左 V_DC', rowS.V_dc, csg.case_V_dc, 0.01);
+  chk('算例墩左 V_LL−', rowS.V_ll_neg, csg.case_V_ll_neg, 0.01);
+  chk('算例墩左 Vu−', rowS.Vu_neg, csg.case_Vu_neg, 0.01);
+  var V2s = BC.secondaryShear(fmc, [40, 40], csg.case_x_m, 'L'), VuS = BC.designShearWithV2(rowS.Vu_pos, rowS.Vu_neg, V2s);
+  chk('算例墩左 V2', V2s, csg.case_V2, 0.01);
+  chk('算例墩左 設計Vu', VuS, csg.case_Vu_design, 0.01);
+  var shS = BC.shearWebAt(36257e3, BC.section(5.065e6, 3.287e12, 1329, 2100), csg.case_P_slope_kN / 36257, 40, 250, 1512, VuS / 2 * 1e3, 2);
+  chk('算例墩左 Vp/腹板', shS.Vp / 1e3, csg.case_Vp_per_web_kN, 0.01);
+  chk('算例墩左 σ1', shS.sigma1, csg.case_sigma1, 0.001);
+  chk('算例墩左 Vcw', shS.Vcw / 1e3, csg.case_Vcw_kN, 0.01);
+  chk('算例墩左 Av/s 需', shS.Av_s_req, csg.case_Av_s_req, 1e-4);
+  chk('算例墩左 φVn @250', BC.phiVn(shS.Vcw, 397.4 / 250, 1512) / 1e3, csg.case_phiVn_D16x2_s250_kN, 0.1);
+  chk('算例墩左 φVn @200', BC.phiVn(shS.Vcw, 397.4 / 200, 1512) / 1e3, csg.case_phiVn_D16x2_s200_kN, 0.1);
   // 分析器預設全長連續腱（分段拋物線）＋三跨
   var ctd = g.cont_tendon_force_default, tpd = BC.contTendonSegs([40, 40], 0, 1109, -600);
   var fmd = BC.continuousPrestress([40, 40], [{ P: 23724, segs: tpd.segs }]);

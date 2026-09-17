@@ -25,7 +25,7 @@ jobs:
         working-directory: engine
         run: pytest tests/ -q
 
-      - name: JS 引擎回歸（engine.js 四域合一，對 golden 259 項）
+      - name: JS 引擎回歸（engine.js 四域合一，對 golden 281 項）
         run: node engine.test.js
 
       - name: golden 新鮮度檢查（忘記重產則紅燈）

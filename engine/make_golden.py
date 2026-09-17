@@ -37,7 +37,9 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         continuous_prestress, taiwan_cont_envelope, taiwan_cont_live_moment,
                         cont_moment_il, cont_dl_moment, taiwan_lane_reduction,
                         pier_cap_tendon_segs, top_slab_tendon_check,
-                        section_from_dims, haunch_profile, ContFlex)
+                        section_from_dims, haunch_profile, ContFlex,
+                        cont_shear_il, cont_dl_shear, taiwan_cont_live_shear, taiwan_cont_shear_at,
+                        secondary_shear, design_shear_with_V2, shear_web_at)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -180,6 +182,44 @@ def _variable_section_haunch():
         "haunch_env_pier_M_dc": round(e_h[20].M_dc, 1), "haunch_env_pier_M_ll_neg": round(e_h[20].M_ll_neg, 1),
         "haunch_env_pier_Mu_neg": round(e_h[20].Mu_neg, 1), "haunch_env_x16_Mu_pos": round(e_h[8].Mu_pos, 1),
         "_note": "底板 200→400（墩心）線性加厚、單側 8 m；階梯 EI（墩兩側 8 m 內 2 倍）解析值 −2,406.349（w=10）",
+    }
+
+
+def _cont_shear_taiwan():
+    """連續梁剪力：影響線、DL、HS20-44 活載、次剪力 V2 與算例墩左側 d_v 斷面腹板抗剪。"""
+    sp = [40, 40]
+    bot, top = _cont_case_groups()
+    fm = continuous_prestress(sp, [bot, top])
+    x = 40 - 1.512                                   # d_v = max(0.9 d_p, 0.72h) = 0.72×2100（d_p=ȳb−e 較小）
+    P = Pe = Ps = 0.0
+    for g in (bot, top):
+        for sg in g.segs:
+            if sg.x1 <= x <= sg.x2:
+                P += g.P
+                Pe += g.P * sg.e(x)
+                Ps += g.P * sg.slope(x) / 1000
+                break
+    row = taiwan_cont_shear_at(sp, x, "L", sec.A / 1e6 * 24.5, 20, 2)
+    V2 = secondary_shear(fm, sp, x, "L")
+    Vu = design_shear_with_V2(row.Vu_pos, row.Vu_neg, V2)
+    sh = shear_web_at(P * 1e3, sec, Ps / P, 40, 250, 1512, Vu / 2 * 1e3, 2)
+    lvL = taiwan_cont_live_shear(sp, 40, "L")
+    lvS = taiwan_cont_live_shear([40], 0, "R")
+    lv3 = taiwan_cont_live_shear([30, 40, 30], 30, "R")
+    return {
+        "il_x10R_p30": round(cont_shear_il(sp, 10, 30, "R"), 8), "il_pierL_p20": round(cont_shear_il(sp, 40, 20, "L"), 8),
+        "il_pierR_p60": round(cont_shear_il(sp, 40, 60, "R"), 8),
+        "dl_pierL_w10": round(cont_dl_shear(sp, 10, 40, "L"), 6), "dl_end_w10": round(cont_dl_shear(sp, 10, 0, "R"), 6),
+        "pierL_truck_neg": round(lvL.truck_neg, 2), "pierL_lane_neg": round(lvL.lane_neg, 2),
+        "single_truck": round(lvS.truck_pos, 2), "single_lane": round(lvS.lane_pos, 2),
+        "three_pier1R_lane_pos": round(lv3.lane_pos, 2), "three_pier1R_I": round(lv3.I, 6),
+        "case_x_m": x, "case_V_dc": round(row.V_dc, 2), "case_V_ll_neg": round(row.V_ll_neg, 2),
+        "case_Vu_neg": round(row.Vu_neg, 2), "case_V2": round(V2, 2), "case_Vu_design": round(Vu, 2),
+        "case_P_slope_kN": round(Ps, 2), "case_Vp_per_web_kN": round(sh.Vp / 1e3, 2),
+        "case_sigma1": round(sh.sigma1, 3), "case_Vcw_kN": round(sh.Vcw / 1e3, 2), "case_Av_s_req": round(sh.Av_s_req, 4),
+        "case_phiVn_D16x2_s250_kN": round(phiVn(sh.Vcw, 397.4 / 250, 1512) / 1e3, 1),
+        "case_phiVn_D16x2_s200_kN": round(phiVn(sh.Vcw, 397.4 / 200, 1512) / 1e3, 1),
+        "_note": "算例雙系統 40+40 墩左 d_v 斷面：每腹板 Vu 2,876 kN；D16×2@250 φVn 2,766✗、@200 2,980✓；V2 +434 於墩左有利→不折減",
     }
 
 
@@ -373,6 +413,7 @@ golden = {
     "cont_envelope_taiwan": _cont_envelope_taiwan(),
     "pier_cap_tendon": _pier_cap_tendon(),
     "variable_section_haunch": _variable_section_haunch(),
+    "cont_shear_taiwan": _cont_shear_taiwan(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

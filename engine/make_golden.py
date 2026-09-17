@@ -392,7 +392,9 @@ M_LL = lane_live_load(taiwan_per_lane_moment(40), 2, 1.0)   # HS20-44 2 車道 =
 L = compute_losses(ten, sec, M_DC, M_DW)
 c = combinations(M_DC, M_DW, M_LL)
 st, sb = stresses(L.Pe, sec, ten.e, c["Service_I"])
-Vu_HS20 = 1419 + 229 + 681 * taiwan_per_lane_shear(40) / 588   # 活載剪力按 HS20/HL-93 縮放 ≈ 2,069
+# d_v 斷面設計剪力：引擎實算（DL 解析＋HS20-44 取大、衝擊長度＝至較遠支點）÷2 腹板 ≈ 2,298
+# （原為「按 HS20/HL-93 縮放 ≈ 2,069」；算例_腹板抗剪的 2,329 係等值均布活載 42.5 kN/m＋SDL 因數 1.25 之近似）
+Vu_HS20 = taiwan_cont_shear_at([40], 1.692, "R", sec.A / 1e6 * 24.5, 20, 2).Vu_pos / 2
 sh = shear_web(L.Pe, sec, ten.e, 40, 250, 1692, Vu_HS20 * 1e3, 1692, 40000)
 fx = flexural_strength(ten, sec, 40, 8000, 250, 1880, c["Strength_I"], L.Pe, ten.e)
 w_LL_HS20 = 56.7 * taiwan_per_lane_moment(40) / hl93_per_lane_moment(40)   # 撓度等效 UDL 按比例 ≈ 34.2

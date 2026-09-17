@@ -11,7 +11,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from bridgecalc import (Section, Tendon, compute_losses, combinations,
+from bridgecalc import (taiwan_cont_shear_at,Section, Tendon, compute_losses, combinations,
                         lane_live_load, stresses, Pe_min_zero_tension,
                         shear_web, phiVn, flexural_strength, deflection_analysis,
                         taiwan_per_lane_moment, taiwan_per_lane_shear,
@@ -38,7 +38,9 @@ L = compute_losses(ten, sec, M_DC, M_DW)
 c = combinations(M_DC, M_DW, M_LL)
 st, sb = stresses(L.Pe, sec, ten.e, c["Service_I"])
 pem = Pe_min_zero_tension(sec, ten.e, c["Service_I"])
-Vu_HS20 = 1419 + 229 + 681 * taiwan_per_lane_shear(40) / 588
+# d_v 斷面設計剪力：引擎實算（DL 解析＋HS20-44 取大、衝擊長度＝至較遠支點）÷2 腹板 ≈ 2,298
+# （原為「按 HS20/HL-93 縮放 ≈ 2,069」；算例_腹板抗剪的 2,329 係等值均布活載 42.5 kN/m＋SDL 因數 1.25 之近似）
+Vu_HS20 = taiwan_cont_shear_at([40], 1.692, "R", sec.A / 1e6 * 24.5, 20, 2).Vu_pos / 2
 sh = shear_web(L.Pe, sec, ten.e, 40, 250, 1692, Vu_HS20 * 1e3, 1692, 40000)
 fx = flexural_strength(ten, sec, 40, 8000, 250, 1880, c["Strength_I"], L.Pe, ten.e)
 df = deflection_analysis(40000, 29700, sec, 144, L.Pe, ten.e,

@@ -30,9 +30,9 @@
   "shear_D1": {
     "fpc_MPa": 4.68,
     "Vp_kN": 1204,
-    "sigma1_MPa": 3.08,
+    "sigma1_MPa": 3.57,
     "Vcw_kN": 2050,
-    "Vs_req_kN": 384
+    "Vs_req_kN": 653
   },
   "flexure_M1": {
     "c_mm": 185.1,

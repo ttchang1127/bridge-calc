@@ -40,7 +40,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         cont_dl_moment, taiwan_lane_reduction, pier_cap_tendon_segs,
                         top_slab_tendon_check, section_from_dims, haunch_profile, ContFlex,
                         cont_support_moments_point, taiwan_cont_envelope, cont_shear_il,
-                        cont_dl_shear, taiwan_cont_live_shear, taiwan_lane_shear, shear_web_at,
+                        cont_dl_shear, taiwan_cont_live_shear, taiwan_lane_shear, shear_web_at, taiwan_cont_shear_at,
                         taiwan_rear_spacings, max_moment_moving, anchor_slip_loss,
                         pier_cap_tendon_force, gauss_integrate, friction_at, tendon_slip_loss,
                         cont_shear_design_scan, groups_prestress_at, stirrup_max_spacing_TW,
@@ -111,27 +111,30 @@ def test_design_adequate():
 
 
 def test_shear_D1():
-    """D1 腹板抗剪：以引擎算出的 Pe 串接，重現 fpc/Vp/σ1/Vcw/Vs。"""
+    """D1 腹板抗剪：Pe 與設計剪力都由引擎串接（V_u＝d_v 斷面實算 ÷2 腹板 ≈ 2,298）。"""
     Pe = compute_losses(ten, sec, M_DC, M_DW).Pe
+    Vu = taiwan_cont_shear_at([40], 1.692, "R", sec.A / 1e6 * 24.5, 20, 2).Vu_pos / 2
+    _close(Vu, 2297.7, 0.5)
     s = shear_web(Pe, sec, ten.e, fc=40, bw_eff=250, dv=1692,
-                  Vu=2069e3, x_control=1692, L=40000)
+                  Vu=Vu * 1e3, x_control=1692, L=40000)
     _close(s.fpc, 4.68, 0.05)
     _close(s.Vp / 1e3, 1204, 10)         # kN（每腹板）
-    _close(s.sigma1, 3.08, 0.05)
+    _close(s.sigma1, 3.57, 0.05)
     _close(s.Vcw / 1e3, 2050, 10)        # kN
-    _close(s.Vs_req / 1e3, 384, 10)      # kN
+    _close(s.Vs_req / 1e3, 653, 10)      # kN
     assert not s.sigma1_ok               # 近支承主拉超限（靠箍筋）→ 設計常態
 
 
 def test_shear_D16at250_passes():
-    """D16@250 雙腳箍（Av/s=1.590）→ φVn=2,823 > Vu=2,329。"""
+    """D16@250 雙腳箍（Av/s=1.590）→ φVn=2,702 > Vu=2,298（8組×19；2 車道 8組×21 為 2,823）。"""
     Pe = compute_losses(ten, sec, M_DC, M_DW).Pe
+    Vu = taiwan_cont_shear_at([40], 1.692, "R", sec.A / 1e6 * 24.5, 20, 2).Vu_pos / 2
     s = shear_web(Pe, sec, ten.e, fc=40, bw_eff=250, dv=1692,
-                  Vu=2069e3, x_control=1692, L=40000)
+                  Vu=Vu * 1e3, x_control=1692, L=40000)
     Av_s = 397.4 / 250                   # D16 雙腳 @250mm
     cap = phiVn(s.Vcw, Av_s, dv=1692)
     _close(cap / 1e3, 2702, 15)          # kN
-    assert cap >= 2069e3                 # 通過
+    assert cap >= Vu * 1e3               # 通過
     assert Av_s >= Av_s_min_TW(40, 250)  # ≥ 最小箍筋
 
 
@@ -1007,12 +1010,14 @@ if __name__ == "__main__":
     print(f"  sigma_top      = {st:+7.2f} MPa    [-6.87]")
     print(f"  Pe_min(零拉)   = {pem/1e3:7.0f} kN     [22,311]")
     print(f"  設計足夠       = {'OK' if L.Pe>=pem else 'NG'}  (Pe {L.Pe/1e3:.0f} >= Pe_min {pem/1e3:.0f})")
+    Vu_dv = taiwan_cont_shear_at([40], 1.692, "R", sec.A / 1e6 * 24.5, 20, 2).Vu_pos / 2
     s = shear_web(L.Pe, sec, ten.e, fc=40, bw_eff=250, dv=1692,
-                  Vu=2329e3, x_control=1692, L=40000)
+                  Vu=Vu_dv * 1e3, x_control=1692, L=40000)
     cap = phiVn(s.Vcw, 397.4 / 250, dv=1692)
-    print("\n=== D1 腹板抗剪（串接引擎算的 Pe）===")
-    print(f"  fpc={s.fpc:.2f}[5.05]  Vp={s.Vp/1e3:.0f}[1,299]  sigma1={s.sigma1:.2f}[3.54] (限{s.sigma1_limit:.3f}→{'超→靠箍筋' if not s.sigma1_ok else 'OK'})")
-    print(f"  Vcw={s.Vcw/1e3:.0f}[2,191]  Vs_req={s.Vs_req/1e3:.0f}[549]  phiVn(D16@250)={cap/1e3:.0f}[2,823] > Vu 2,329 -> {'OK' if cap>=2329e3 else 'NG'}")
+    print("\n=== D1 腹板抗剪（串接引擎算的 Pe 與 V_u）===")
+    print(f"  Vu(d_v)/腹板={Vu_dv:.0f}[2,298]")
+    print(f"  fpc={s.fpc:.2f}[5.05]  Vp={s.Vp/1e3:.0f}[1,299]  sigma1={s.sigma1:.2f}[3.46] (限{s.sigma1_limit:.3f}→{'超→靠箍筋' if not s.sigma1_ok else 'OK'})")
+    print(f"  Vcw={s.Vcw/1e3:.0f}[2,192]  Vs_req={s.Vs_req/1e3:.0f}[512]  phiVn(D16@250)={cap/1e3:.0f}[2,823] > Vu -> {'OK' if cap>=Vu_dv*1e3 else 'NG'}")
 
     ten19 = Tendon(8, 19, 1109)
     L19 = compute_losses(ten19, sec, M_DC, M_DW)

@@ -24,7 +24,7 @@ function chkEq(name, got, exp) {
   var L = BC.computeLosses(t, sec, 24800, 4000);
   var c = BC.combinations(24800, 4000, M_LL);
   var s = BC.stresses(L.Pe, sec, t.e, c.Service_I);
-  var Vu = 1419 + 229 + 681 * BC.taiwanPerLaneShear(40) / 588;
+  var Vu = BC.taiwanContShearAt([40], 1.692, 'R', 5.065 * 24.5, 20, 2).Vu_pos / 2;   // d_v 斷面實算÷2 腹板 ≈ 2,298
   var sh = BC.shearWeb(L.Pe, sec, t.e, 40, 250, 1692, Vu * 1e3, 1692, 40000);
   var fx = BC.flexuralStrength(t, sec, 40, 8000, 250, 1880, c.Strength_I, L.Pe, t.e);
   var df = BC.deflection(40000, 29700, sec, 144, L.Pe, t.e, 56.7 * BC.taiwanPerLaneMoment(40) / ((1 + 0.33) * 2867 + 1860));

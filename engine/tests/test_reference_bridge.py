@@ -42,7 +42,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         cont_support_moments_point, taiwan_cont_envelope, cont_shear_il,
                         cont_dl_shear, taiwan_cont_live_shear, taiwan_lane_shear, shear_web_at,
                         taiwan_rear_spacings, max_moment_moving)
-from bridgecalc.influence import TW_HS20_AXLES, TW_HS20_SPACING
+from bridgecalc.influence import TW_HS20_AXLES, TW_HS20_SPACING, max_shear_moving
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -443,6 +443,19 @@ def test_rear_axle_scan():
     vals = [c.eta(15, k * _GRID) for k in range(int(round(30 / _GRID)) + 1)]
     fixed = _truck_extremes(vals, 30, (15, lambda p, sd: c.eta(15, p)), spacings=[4.25])
     assert lv.V_neg == 9.15 and lv.truck_neg < fixed[1] - 30      # 長軸距使兩後軸分落兩跨最負區
+
+
+def test_simple_shear_dv():
+    """簡支 d_v 斷面設計剪力：DL w(L/2−x)、車道 w(L−x)²/(2L)+P_V(L−x)/L、卡車＝max_shear_moving。"""
+    g = golden["simple_shear_dv"]
+    L, x = 40.0, 1.692
+    w_dc = sec.A / 1e6 * 24.5
+    _close(g["V_dc"], w_dc * (L / 2 - x), 1e-3)
+    _close(g["lane"], 9.4 * (L - x) ** 2 / (2 * L) + 116 * (L - x) / L, 1e-3)
+    _close(g["truck"], max_shear_moving(L, x), 0.5)            # 引擎 0.05 m 格點＋軸在斷面；簡支函式 0.1 m 步進
+    _close(g["I"], taiwan_impact(L - x), 1e-6)                    # 衝擊長度＝至較遠支點
+    ll = max(g["truck"], g["lane"]) * (1 + g["I"]) * 2
+    _close(g["Vu_total"], 1.25 * g["V_dc"] + 1.5 * g["V_dw"] + 1.75 * ll, 0.01)
 
 
 def test_secondary_moments_force():

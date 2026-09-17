@@ -294,6 +294,12 @@ function chkEq(name, got, exp) {
   chk('算例墩左 Av/s 需', shS.Av_s_req, csg.case_Av_s_req, 1e-4);
   chk('算例墩左 φVn @250', BC.phiVn(shS.Vcw, 397.4 / 250, 1512) / 1e3, csg.case_phiVn_D16x2_s250_kN, 0.1);
   chk('算例墩左 φVn @200', BC.phiVn(shS.Vcw, 397.4 / 200, 1512) / 1e3, csg.case_phiVn_D16x2_s200_kN, 0.1);
+  // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
+  var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
+  chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);
+  chk('簡支 d_v V_LL+IM', rSS.V_ll_pos, ssd.V_ll, 1e-3);
+  chk('簡支 d_v 衝擊（至較遠支點）', rSS.I, ssd.I, 1e-6);
+  chk('簡支 d_v Vu/腹板', rSS.Vu_pos / 2, ssd.Vu_per_web, 0.01);
   // HS20-44 中後軸距 4.25～9.15 掃描
   var ras = g.rear_axle_scan, rs = BC.taiwanRearSpacings(), l15 = BC.taiwanContLiveMoment([15, 15], 15), s40 = BC.taiwanContLiveMoment([40], 20);
   chkEq('軸距候選數', rs.length, ras.spacings_n);

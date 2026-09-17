@@ -241,6 +241,20 @@ def _rear_axle_scan():
     }
 
 
+def _simple_shear_dv():
+    """簡支 40 m 近支承 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）：DL 解析＋HS20-44（衝擊長度＝至較遠支點）。"""
+    L, x = 40.0, 1.692
+    w_dc = sec.A / 1e6 * 24.5
+    r = taiwan_cont_shear_at([L], x, "R", w_dc, 20, 2)
+    lv = taiwan_cont_live_shear([L], x, "R")
+    return {
+        "x_m": x, "V_dc": round(r.V_dc, 3), "V_dw": round(r.V_dw, 3), "truck": round(lv.truck_pos, 3),
+        "lane": round(lv.lane_pos, 3), "I": round(r.I, 6), "V_ll": round(r.V_ll_pos, 3),
+        "Vu_total": round(r.Vu_pos, 2), "Vu_per_web": round(r.Vu_pos / 2, 2),
+        "_note": "analyzer ⑤ Vu 自動帶入值；算例_腹板抗剪 2,329 係等值均布活載 42.5 kN/m＋SDL 因數 1.25 之近似",
+    }
+
+
 def _cont_envelope_taiwan():
     """連續梁解析影響線＋台灣 HS20-44 包絡的檢核點。"""
     sp = [40, 40]
@@ -433,6 +447,7 @@ golden = {
     "variable_section_haunch": _variable_section_haunch(),
     "cont_shear_taiwan": _cont_shear_taiwan(),
     "rear_axle_scan": _rear_axle_scan(),
+    "simple_shear_dv": _simple_shear_dv(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

@@ -292,6 +292,18 @@
     "simple40_x20_V": 4.25,
     "_note": "15+15 墩頂：兩後軸分落兩跨負區 → V=9.15 控制；簡支 40 m 仍 4.25（與 influence.py 相同）"
   },
+  "simple_shear_dv": {
+    "x_m": 1.692,
+    "V_dc": 2271.885,
+    "V_dw": 366.16,
+    "truck": 287.345,
+    "lane": 283.525,
+    "I": 0.199456,
+    "V_ll": 689.315,
+    "Vu_total": 4595.4,
+    "Vu_per_web": 2297.7,
+    "_note": "analyzer ⑤ Vu 自動帶入值；算例_腹板抗剪 2,329 係等值均布活載 42.5 kN/m＋SDL 因數 1.25 之近似"
+  },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",
     "Tu_C": 6.91,

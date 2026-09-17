@@ -131,7 +131,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <tr><th>跨徑／斷面</th><td x-text="L+' m　｜　頂寬 '+topW+' × 高 '+h+' mm　｜　f\'c = '+fc+' MPa'"></td></tr>
     <tr><th>箱梁檢核結果</th><td x-text="R.npass+' / '+R.ntot+' 通過'+(R.matchGolden?'（對齊 40m 黃金範例）':'')"></td></tr>
   </table>
-  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 287 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
+  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 291 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
 </div>
 
 <!-- 送審計算書：目錄 -->
@@ -151,7 +151,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <div class="bar no-print">
   <div class="bar-row">
-    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 287 項驗證）</div></div>
+    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 291 項驗證）</div></div>
   </div>
   <div class="bar-row" style="margin-top:8px">
     <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
@@ -529,7 +529,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </table>
     <div class="hint" x-show="DS.lossBad" x-cloak style="color:var(--ng)">✗ 預力損失已達 <b x-text="fmt(DS.lossPct,1)+'%'"></b>（f<sub>pe</sub> 過低）——此配置不合理，反解結果不可用，請先加大斷面或減少鋼腱。</div>
     <div class="hint no-print" x-show="DS.cgsBot<100" x-cloak style="color:var(--ng)">⚠ 套用該垂度後 CGS 距梁底僅 <b x-text="fmt(DS.cgsBot)"></b> mm，請確認保護層與管道尺寸。</div>
-    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 55/55・JS 287/287）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
+    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 56/56・JS 291/291）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
   </div>
   <div class="card"><h2>鋼腱縱剖面（G1・拋物線）</h2>
     <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElev"></svg></div>
@@ -659,10 +659,13 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       </select></label>
       <template x-if="stirrupBar==='custom'"><label>自訂 Av (mm²)<input type="number" x-model.number="customAv" step="1"></label></template>
       <label>箍筋間距 s (mm)<input type="number" x-model.number="sv" step="25"></label>
-      <label>控制斷面 Vu/腹板 (kN)<input type="number" x-model.number="Vu" step="10"></label>
+      <label>控制斷面 Vu/腹板 (kN)<input type="number" x-model.number="Vu" step="10" :disabled="VuAuto"></label>
     </div>
     <div class="hint">箍筋 Av = <span x-text="stirrupBar==='custom'?'自訂':stirrupBar"></span> × <span x-text="stirrupLegs"></span> 肢 = <b x-text="avAuto.toFixed(1)"></b> mm²（號數自動帶）　→　Av/s = <b x-text="(avAuto/sv).toFixed(2)"></b> mm²/mm</div>
-    <div class="hint" x-show="LD">參考：② 載重包絡推得 V<sub>u</sub>(d<sub>v</sub>)／腹板 ＝ <b x-text="LD&&fmt(LD.VuDv)"></b> kN（本頁檢核仍採上方輸入值；40m 預設 2,069 為 golden 值，源自 HL-93 參考例縮放）</div>
+    <div class="hint"><label style="display:inline-flex;gap:5px;align-items:center">
+      <input type="checkbox" x-model="VuAuto"> V<sub>u</sub> 由載重包絡自動帶入（d<sub>v</sub> 斷面，引擎實算）</label>
+      　<span x-text="'d_v = '+fmt(R.dv)+' mm 處：V_DC '+fmt(R.VuRow.V_dc)+'、V_DW '+fmt(R.VuRow.V_dw)+'、V_LL+IM '+fmt(R.VuRow.V_ll_pos)+'（I '+fmt(R.VuRow.I*100,1)+'%）→ Strength I '+fmt(R.VuRow.Vu_pos)+' kN ÷ '+nWeb+' 腹板 = '+fmt(R.VuAutoW)+' kN／腹板'"></span></div>
+    <div class="hint" x-show="!VuAuto" x-cloak style="color:var(--ng)">⚠ 目前使用手動 V<sub>u</sub> = <b x-text="fmt(Vu)"></b> kN／腹板（包絡實算 <b x-text="fmt(R.VuAutoW)"></b>）——改了跨徑、載重或斷面時手動值不會跟著變。</div>
   </div>
   <div class="card"><h2>腹板抗剪・撓度</h2>
     <template x-for="r in R.rows.filter(x=>x[4]==='⑤')" :key="r[0]">
@@ -1888,7 +1891,7 @@ var PARAM_KEYS=[
   // ③ 預力
   'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductSv','ductCover','dAgg','ductRule','jackEnd','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
-  'stirrupBar','stirrupLegs','customAv','sv','Vu',
+  'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto',
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
   // ⑦ 連續梁
@@ -2322,7 +2325,7 @@ function calc(){
     pjOwner:'', pjNo:'', pjStage:'細部設計', pjRev:'A', pjChecker:'', pjApprover:'',
     L:40, fc:40, lanes:2, wDW:20,
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
-    ntd:8, strands:19, e:1109, sv:250, Vu:2069,
+    ntd:8, strands:19, e:1109, sv:250, Vu:2069, VuAuto:true,   // VuAuto：⑤ Vu 由包絡自動帶入（手動 2,069 為 golden 參考值）
     ductOD:100, ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'alt',
     fricMu:0.25, fricK:0.003, fricX:0.5,   // 摩擦：μ、搖擺 K(/m)、控制斷面 x/L   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／骨材粒徑／淨距規則
     strandType:'15.2', customAp:140, customFpu:1860,
@@ -2517,7 +2520,10 @@ function calc(){
       var peMin=B.PeMinZeroTension(sec,eUse,comb.Service_I);
       var dp=sec.yt+eUse, dv=Math.max(0.9*dp,0.72*this.h), bwEff=this.webT-100;
       var flex=B.flexuralStrength(ten,sec,this.fc,this.topW,this.topT,dp,comb.Strength_I,loss.Pe,eUse);
-      var sh=B.shearWeb(loss.Pe,sec,this.e,this.fc,bwEff,dv,this.Vu*1e3,dv,this.L*1000,this.nWeb);
+      // ⑤ 設計剪力：預設由引擎於 d_v 斷面實算（DL 解析＋HS20-44，衝擊長度＝至較遠支點）；可切換手動
+      var VuRow=B.taiwanContShearAt([this.L],dv/1000,'R',wsw,this.wDW,this.lanes), VuAutoW=VuRow.Vu_pos/this.nWeb;
+      var VuUse=this.VuAuto?VuAutoW:this.Vu;
+      var sh=B.shearWeb(loss.Pe,sec,this.e,this.fc,bwEff,dv,VuUse*1e3,dv,this.L*1000,this.nWeb);
       var phiVn=B.phiVn(sh.Vcw,this.avAuto/this.sv,dv), AvsMin=B.AvSminTW(this.fc,bwEff);
       var compAllow=-0.60*this.fc;
       var df=B.deflection(this.L*1000,29700,sec,wsw+this.wDW,loss.Pe,this.e,perLane*0.01);
@@ -2528,7 +2534,7 @@ function calc(){
         ['C1 服務性 頂緣 σ_t',f(serv.st,2)+' MPa',' ≥ '+f(compAllow,1)+'（−0.6f\'c）',serv.st>=compAllow,'④'],
         ['M1 極限彎曲 φMn','φMn '+f(flex.phiMn)+' kN·m（CR '+f(flex.CR,2)+'）','≥ Mu '+f(comb.Strength_I)+' 且 ≥下限 '+f(flex.lower),flex.ok,'④'],
         ['D1 主拉應力 σ1',f(sh.sigma1,2)+' MPa',' ≤ '+f(sh.sigma1_limit,2)+'（近支承超→箍筋）',sh.sigma1_ok,'⑤'],
-        ['D1 設計抗剪 φVn','φVn '+f(phiVn/1e3)+' kN（Av/s '+(this.avAuto/this.sv).toFixed(2)+'）','≥ Vu '+f(this.Vu)+' kN',phiVn>=this.Vu*1e3,'⑤'],
+        ['D1 設計抗剪 φVn','φVn '+f(phiVn/1e3)+' kN（Av/s '+(this.avAuto/this.sv).toFixed(2)+'）','≥ Vu '+f(VuUse)+' kN'+(this.VuAuto?'（包絡）':'（手動）'),phiVn>=VuUse*1e3,'⑤'],
         ['D1 最小箍筋','Av/s '+(this.avAuto/this.sv).toFixed(2)+' mm²/mm','≥ '+AvsMin.toFixed(2),(this.avAuto/this.sv)>=AvsMin,'⑤'],
         ['C2/C3 活載撓度 δ_LL',f(df.d_LL,1)+' mm','≤ L/800 = '+f(this.L*1000/800)+' mm',df.d_LL_ok,'⑤'],
         ['C2/C3 建議預拱',f(df.camber)+' mm（LBR '+f(df.LBR*100,1)+'%）','—',null,'⑤']
@@ -2598,7 +2604,7 @@ function calc(){
       var ftP=B.flexuralStrengthT(this.contApsTopUse,1860,this.fc,this.contB,this.contHf,this.contBw,this.contDpUse,this.contMuUse);
       var cont={ftP:ftP,f:f};   // M₂ 已改由 ⑦ CB（引擎力法實算），不再用硬編算例值
       return {sec:sec,wsw:wsw,Mdc:Mdc,Mdw:Mdw,IM:IM,perLane:perLane,Mll:Mll,loss:loss,tenPi:ten.Pi,
-              rows:rows,npass:np,ntot:nt,matchGolden:mg,cont:cont,
+              rows:rows,npass:np,ntot:nt,matchGolden:mg,cont:cont,VuRow:VuRow,VuAutoW:VuAutoW,VuUse:VuUse,
               svgSec:svgSec,svgStr:svgStr,svgMohr:svgMohr,
               svgSecEnd:svgSecEnd,svgSecPier:svgSecPier,svgDet:svgDet,svgDetPier:svgDetPier,svgElevCut:svgElevCut,svgElev:svgElev,lay:layE,
               dv:dv,shSlope:sh.slope,weq:df.w_eq,cgsBot:cgsBot,

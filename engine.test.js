@@ -311,6 +311,22 @@ function chkEq(name, got, exp) {
   chk('簡支 d_v V_LL+IM', rSS.V_ll_pos, ssd.V_ll, 1e-3);
   chk('簡支 d_v 衝擊（至較遠支點）', rSS.I, ssd.I, 1e-6);
   chk('簡支 d_v Vu/腹板', rSS.Vu_pos / 2, ssd.Vu_per_web, 0.01);
+  // 連續梁全長剪力掃描＋箍筋分區
+  var css = g.cont_shear_scan;
+  var scan = BC.contShearDesignScan([40, 40], BC.groupsPrestressAt([gBot, gTop]), fmc, 5.065 * 24.5, 20, 2, 2100, 1329, 40, 250, 2, 397.4, 1.0,
+                                    [24.95, 25.05, 54.95, 55.05], null, BC.section(5.065e6, 3.287e12, 1329, 2100));
+  chkEq('剪力掃描 斷面數', scan.rows.length, css.n_rows);
+  var worstS = scan.rows.reduce(function (a, b) { return b.Av_s_req > a.Av_s_req ? b : a; });
+  chk('剪力掃描 最不利 x', worstS.x, css.worst_x, 1e-3);
+  chk('剪力掃描 最不利 Av/s', worstS.Av_s_req, css.worst_Av_s, 1e-4);
+  chkEq('剪力掃描 最不利間距', worstS.s_pick, css.worst_s);
+  var aL = scan.rows.find(function (r) { return Math.abs(r.x - 24.95) < 1e-6; }), aR = scan.rows.find(function (r) { return Math.abs(r.x - 25.05) < 1e-6; });
+  chk('錨碇左 Vp', aL.Vp_web, css.anchorL_Vp, 0.1); chk('錨碇右 Vp', aR.Vp_web, css.anchorR_Vp, 0.1);
+  chkEq('錨碇左 間距', aL.s_pick, css.anchorL_s); chkEq('錨碇右 間距', aR.s_pick, css.anchorR_s);
+  chkEq('分區數', scan.zones.length, css.zones.length);
+  chkEq('分區內容', JSON.stringify(scan.zones.map(function (z) { return [Math.round(z[0] * 1000) / 1000, Math.round(z[1] * 1000) / 1000, z[2]]; })), JSON.stringify(css.zones));
+  chk('§8.20.3 上限（減半）', BC.stirrupMaxSpacingTW(1e6, 40, 250, 1512, 2100)[0], css.max_spacing_halved, 1e-9);
+  chk('§8.20.3 上限（一般）', BC.stirrupMaxSpacingTW(5e5, 40, 250, 1512, 2100)[0], css.max_spacing_normal, 1e-9);
   // HS20-44 中後軸距 4.25～9.15 掃描
   var ras = g.rear_axle_scan, rs = BC.taiwanRearSpacings(), l15 = BC.taiwanContLiveMoment([15, 15], 15), s40 = BC.taiwanContLiveMoment([40], 20);
   chkEq('軸距候選數', rs.length, ras.spacings_n);

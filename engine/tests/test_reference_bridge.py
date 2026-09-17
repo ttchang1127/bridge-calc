@@ -42,7 +42,9 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         cont_support_moments_point, taiwan_cont_envelope, cont_shear_il,
                         cont_dl_shear, taiwan_cont_live_shear, taiwan_lane_shear, shear_web_at,
                         taiwan_rear_spacings, max_moment_moving, anchor_slip_loss,
-                        pier_cap_tendon_force, gauss_integrate, friction_at)
+                        pier_cap_tendon_force, gauss_integrate, friction_at,
+                        cont_shear_design_scan, groups_prestress_at, stirrup_max_spacing_TW,
+                        STD_STIRRUP_SPACINGS)
 from bridgecalc.influence import TW_HS20_AXLES, TW_HS20_SPACING, max_shear_moving
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
@@ -473,6 +475,33 @@ def test_pier_cap_tendon_losses():
     assert f(25).slip > 150 and f(40).slip == 0 and f(10).P == 0
     _close(f(40).friction, 1395 * friction_at(15, 30, [(0, 15, 2 * 946 / 225 / 1000), (15, 30, 2 * 946 / 225 / 1000)], 0.25, 0.003, "start"), 1e-6)
     assert 1.0 <= g["pier_CR"] < 1.06 and g["M2_pier_kNm"] > golden["continuous_pier"]["M2_pier_kNm"]
+
+
+def test_cont_shear_scan():
+    """全長剪力掃描：最不利＝墩側 d_v 單點檢核；分區連續涵蓋全長且對稱；間距 ≤ 允許值；錨碇前後 V_p 驟變。"""
+    g, gs = golden["cont_shear_scan"], golden["cont_shear_taiwan"]
+    _close(g["worst_Av_s"], gs["case_Av_s_req"], 1e-4)
+    z = g["zones"]
+    assert z[0][0] == 0 and z[-1][1] == 80
+    assert all(abs(z[i][1] - z[i + 1][0]) < 1e-6 for i in range(len(z) - 1))
+    for a, b in zip(z, reversed(z)):
+        assert a[2] == b[2] and abs(a[0] - (80 - b[1])) < 0.02
+    cb = -(950 + 80) / 20 ** 2
+    bot = TendonGroup(23700, [parabola_seg(0, 40, 20, 950, cb), parabola_seg(40, 80, 60, 950, cb)])
+    ct = (300 + 646) / 15 ** 2
+    top = TendonGroup(12557, [parabola_seg(25, 40, 40, -646, ct), parabola_seg(40, 55, 40, -646, ct)])
+    fm = continuous_prestress([40, 40], [bot, top])
+    rows, _ = cont_shear_design_scan([40, 40], groups_prestress_at([bot, top]), fm, sec.A / 1e6 * 24.5, 20, 2,
+                                     2100, 1329, 40, 250, 2, 397.4, step=2.0, sec=sec)
+    for r in rows:
+        assert r.s_pick is None or r.s_pick <= r.s_allow + 1e-9
+        assert r.s_pick is None or r.s_pick in STD_STIRRUP_SPACINGS
+        if r.halved:
+            assert r.s_code_max == 300
+    assert g["anchorR_Vp"] > 3 * g["anchorL_Vp"] and g["anchorL_s"] < g["anchorR_s"]
+    s_max, halved, ok = stirrup_max_spacing_TW(0.34 * 40 ** 0.5 * 250 * 1512, 40, 250, 1512, 2100)
+    assert halved and s_max == 300 and ok
+    assert not stirrup_max_spacing_TW(0.67 * 40 ** 0.5 * 250 * 1512, 40, 250, 1512, 2100)[2]
 
 
 def test_secondary_moments_force():

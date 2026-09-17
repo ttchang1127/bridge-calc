@@ -515,3 +515,94 @@ def design_shear_with_V2(Vu_pos: float, Vu_neg: float, V2: float) -> float:
     """設計剪力（帶號）：Vu = max(|V_載重|, |V_載重 + V2|)（次剪力有利時不折減；算例_端跨 propped cantilever）。"""
     cand = [Vu_pos, Vu_neg, Vu_pos + V2, Vu_neg + V2]
     return max(cand, key=abs)
+
+
+def taiwan_cont_shear_envelope(spans: Sequence[float], points, w_dc: float, w_dw: float, lanes: int,
+                               stiff=None, step: float = 0.25, grid_per_span: int = 400) -> List[ContShearRow]:
+    """多斷面剪力（共用影響線快取）。points：[(x, side), ...]。"""
+    c = _ILCache(spans, stiff)
+    return [taiwan_cont_shear_at(spans, x, sd, w_dc, w_dw, lanes, step, grid_per_span, stiff, c)
+            for x, sd in points]
+
+
+@dataclass
+class ShearScanRow:
+    x: float
+    side: str
+    dv: float
+    row: ContShearRow
+    V2: float
+    Vu: float            # 全斷面設計剪力（帶號）kN
+    Vu_web: float        # 每腹板 |Vu| kN
+    P: float             # kN
+    Vp_web: float        # kN（有利為正）
+    sigma1: float
+    Vcw_web: float       # kN
+    Av_s_req: float
+    s_code_max: float
+    halved: bool
+    crush_ok: bool
+    s_allow: float
+    s_pick: object
+
+
+def cont_shear_design_scan(spans: Sequence[float], prestress_at, fm, w_dc: float, w_dw: float,
+                           lanes: int, h: float, yb: float, fc: float, bw: float, n_webs: int,
+                           Av: float, step: float = 1.0, extra: Sequence[float] = (), stiff=None,
+                           sec=None, fsy: float = 420.0, phi: float = 0.85):
+    """連續梁全長剪力設計掃描＋箍筋間距分區。
+
+    prestress_at(x) → (P kN, e_eff mm（等斷面參考軸、形心下為正）, Σ P·de_loc/dx kN)。
+    fm：continuous_prestress 結果（V2＝dM2/dx）。sec：參考斷面（Section）；stiff 給定時 f_pc 用局部斷面。
+    取樣：各跨自兩端 d_v 斷面起、step 間距，另加 extra（錨碇點前後、變斷面分界等）。
+    d_v＝max(0.9d_p, 0.72h)：該處恆載彎矩為負（受壓在底緣）時 d_p＝ȳb−e，否則 h−(ȳb−e)，迭代 3 次。
+    每斷面：V_u＝max(|V|,|V+V2|)、shear_web_at → 需 A_v/s；允許間距＝min(強度需求、最小箍筋、§8.20.3 上限)。
+    回傳 (rows, zones)；zones 由 stirrup_zones（支承面至 d_v 斷面沿用 d_v 斷面間距）。
+    """
+    from .shear import (shear_web_at, Av_s_min_TW, stirrup_max_spacing_TW, stirrup_pick_spacing,
+                        stirrup_zones)
+    from .model import Section
+    xs = _supports(spans)
+    ref = sec if sec is not None else Section(1.0, 1.0, yb, h)
+
+    def dv_at(x, side):
+        dv = 0.72 * h
+        for _ in range(3):
+            xx = x(dv) if callable(x) else x
+            P, e, _ps = prestress_at(xx)
+            yc = yb - e
+            neg = cont_dl_moment(spans, 1.0, xx) < 0
+            dp = yc if neg else h - yc
+            dv = max(0.9 * dp, 0.72 * h)
+        return dv
+
+    pts = []
+    for k, L in enumerate(spans):
+        a, b = xs[k], xs[k + 1]
+        dva = dv_at(lambda d, a=a: a + d / 1000, "R")
+        dvb = dv_at(lambda d, b=b: b - d / 1000, "L")
+        x0, x1 = a + dva / 1000, b - dvb / 1000
+        n = max(1, int(round((x1 - x0) / step)))
+        cand = [x0 + (x1 - x0) * i / n for i in range(n + 1)]
+        cand += [e for e in extra if x0 < e < x1]
+        for x in sorted(set(round(v, 6) for v in cand)):
+            side = "R" if x - a < b - x else "L"
+            pts.append((x, side))
+    rows_env = taiwan_cont_shear_envelope(spans, pts, w_dc, w_dw, lanes, stiff)
+    Avs_min = Av_s_min_TW(fc, bw, fsy)
+    out = []
+    for (x, side), r in zip(pts, rows_env):
+        dv = dv_at(x, side)
+        P, e, Ps = prestress_at(x)
+        V2 = secondary_shear(fm, spans, x, side)
+        Vu = design_shear_with_V2(r.Vu_pos, r.Vu_neg, V2)
+        secx = stiff.section_at(x) if stiff is not None else ref
+        sh = shear_web_at(P * 1e3, secx, Ps / P if P else 0.0, fc, bw, dv, Vu / n_webs * 1e3, n_webs, phi, fsy)
+        s_code, halved, crush_ok = stirrup_max_spacing_TW(max(sh.Vs_req, 0.0), fc, bw, dv, h)
+        s_str = Av / sh.Av_s_req if sh.Av_s_req > 0 else float("inf")
+        s_allow = min(s_str, Av / Avs_min, s_code)
+        out.append(ShearScanRow(x, side, dv, r, V2, Vu, abs(Vu) / n_webs, P, sh.Vp / 1e3, sh.sigma1,
+                                sh.Vcw / 1e3, sh.Av_s_req, s_code, halved, crush_ok, s_allow,
+                                stirrup_pick_spacing(s_allow) if crush_ok else None))
+    zones = stirrup_zones([o.x for o in out], [o.s_pick for o in out], xs)
+    return out, zones

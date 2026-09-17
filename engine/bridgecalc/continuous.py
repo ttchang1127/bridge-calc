@@ -387,3 +387,25 @@ def pier_cap_tendon_segs(spans: Sequence[float], length: float, e_anchor: float,
         anchors += [xp - bl, xp + br]
     R_min = min((s.R for s in segs), default=float("inf"))
     return PierCapTendonResult(segs, lens, anchors, R_min)
+
+
+def groups_prestress_at(groups: Sequence[TendonGroup], stiff=None):
+    """回傳 prestress_at(x) → (P kN, e_eff mm, Σ P·de_loc/dx kN)，供 cont_shear_design_scan。
+
+    錨碇點取閉區間（該點計入）；斜率用該段解析導數，變斷面時扣 dΔȳ/dx（數值差分）。
+    """
+    def f(x):
+        P = Pe = Ps = 0.0
+        for g in groups:
+            sg = _group_seg(g, x)
+            if sg is None:
+                continue
+            p = g.P(x) if callable(g.P) else g.P
+            P += p
+            Pe += p * sg.e(x)
+            Ps += p * sg.slope(x) / 1000.0
+        if stiff is not None and P:
+            h = 0.01
+            Ps -= P * (stiff.dyb(x + h) - stiff.dyb(x - h)) / (2 * h) / 1000.0
+        return P, (Pe / P if P else 0.0), Ps
+    return f

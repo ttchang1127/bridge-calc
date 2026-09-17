@@ -131,7 +131,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <tr><th>跨徑／斷面</th><td x-text="L+' m　｜　頂寬 '+topW+' × 高 '+h+' mm　｜　f\'c = '+fc+' MPa'"></td></tr>
     <tr><th>箱梁檢核結果</th><td x-text="R.npass+' / '+R.ntot+' 通過'+(R.matchGolden?'（對齊 40m 黃金範例）':'')"></td></tr>
   </table>
-  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 298 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
+  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 310 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
 </div>
 
 <!-- 送審計算書：目錄 -->
@@ -151,7 +151,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <div class="bar no-print">
   <div class="bar-row">
-    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 298 項驗證）</div></div>
+    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 310 項驗證）</div></div>
   </div>
   <div class="bar-row" style="margin-top:8px">
     <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
@@ -529,7 +529,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </table>
     <div class="hint" x-show="DS.lossBad" x-cloak style="color:var(--ng)">✗ 預力損失已達 <b x-text="fmt(DS.lossPct,1)+'%'"></b>（f<sub>pe</sub> 過低）——此配置不合理，反解結果不可用，請先加大斷面或減少鋼腱。</div>
     <div class="hint no-print" x-show="DS.cgsBot<100" x-cloak style="color:var(--ng)">⚠ 套用該垂度後 CGS 距梁底僅 <b x-text="fmt(DS.cgsBot)"></b> mm，請確認保護層與管道尺寸。</div>
-    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 57/57・JS 298/298）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
+    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 58/58・JS 310/310）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
   </div>
   <div class="card"><h2>鋼腱縱剖面（G1・拋物線）</h2>
     <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElev"></svg></div>
@@ -872,7 +872,20 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           <td style="text-align:center" :class="r.ok?'ok':'ng'" x-text="r.ok?'✓':'✗'"></td></tr>
       </template></tbody></table></div>
     <div class="hint" x-show="contShear" x-text="contShear?('現配箍筋 A_v/s = '+fmt(contShear.Avs,2)+' mm²/mm（⑤ 箍筋號數×肢數÷間距）、最小 '+fmt(contShear.AvsMin,2)+'；最不利：'+contShear.worst.name+'（V_u/φV_n = '+fmt(contShear.worst.VuW/contShear.worst.phiVn,2)+'）'):''"></div>
-    <div class="cite">剪力由引擎 <code>BC.taiwanContShearAt</code>（解析影響線；斷面處剪力影響線跳 1、左右側分開）：DL＋HS20-44 卡車雙向掃描（中後軸距 4.25～9.15 m）與車道載重（集中 116 kN）取大 ×(1+I)× 車道數 × 折減，衝擊長度取<b>該點至所屬跨較遠支點</b>（§3.13）。次剪力 V₂＝dM₂/dx（力法 M₂ 的支承彎矩梯度，載重因數 1.0），依 <b>V<sub>u</sub>＝max(|V<sub>載重</sub>|, |V<sub>載重</sub>+V₂|)</b>——有利時不折減（算例_端跨 propped cantilever）。d<sub>v</sub>＝max(0.9d<sub>p</sub>, 0.72h)，中墩側 d<sub>p</sub> 自底緣量至合力 CGS、端支承側自頂緣量起。V<sub>p</sub>＝Σ P·de/dx（含頂板腱；變斷面時用 e−Δȳ），僅與 V<sub>u</sub> 反向時有利（BC.shearWebAt）。主拉應力 σ₁ 與 φV<sub>n</sub>＝φ(V<sub>cw</sub>+A<sub>v</sub>/s·f<sub>y</sub>·d<sub>v</sub>) 同 ⑤ D1 公式；變斷面時 f<sub>pc</sub> 用該處斷面積。</div>
+    <h3 style="margin:14px 0 6px;font-size:14px">全長掃描・箍筋間距分區建議</h3>
+    <div class="figbox" x-show="contStirrups" x-cloak><svg viewBox="0 0 640 140" style="width:100%;max-width:640px;height:auto" x-html="contStirrupSvg"></svg></div>
+    <div style="overflow-x:auto" x-show="contStirrups" x-cloak><table>
+      <thead><tr><th>區段 x (m)</th><th>長度 (m)</th><th>建議間距</th><th>區內最大需 A<sub>v</sub>/s</th><th>§8.20.3 上限</th><th>備註</th></tr></thead>
+      <tbody><template x-for="(z,i) in (contStirrups?contStirrups.zones:[])" :key="i">
+        <tr><td x-text="fmt(z[0],2)+' ～ '+fmt(z[1],2)"></td><td x-text="fmt(z[1]-z[0],2)"></td>
+          <td :class="z[2]==null?'ng':''" x-text="z[2]==null?'✗ 不足（改號數／肢數或加厚腹板）':('@'+z[2]+' mm')"></td>
+          <td x-text="(function(rs){ var m=rs.filter(function(r){return r.x>=z[0]-1e-6&&r.x<=z[1]+1e-6}); return m.length?fmt(Math.max.apply(null,m.map(function(r){return r.Av_s_req})),2):'—'; })(contStirrups.rows)"></td>
+          <td x-text="(function(rs){ var m=rs.filter(function(r){return r.x>=z[0]-1e-6&&r.x<=z[1]+1e-6}); return m.length?fmt(Math.min.apply(null,m.map(function(r){return r.s_code_max}))):'—'; })(contStirrups.rows)"></td>
+          <td class="mut" x-text="(function(rs){ var m=rs.filter(function(r){return r.x>=z[0]-1e-6&&r.x<=z[1]+1e-6}); var n=[]; if(m.some(function(r){return r.halved})) n.push('V_s 大 → 上限減半'); if(m.some(function(r){return !r.crush_ok})) n.push('超腹板壓碎上限'); if(m.length&&m.every(function(r){return r.Av_s_req<=0})) n.push('最小箍筋／構造控制'); return n.join('、'); })(contStirrups.rows)"></td></tr>
+      </template></tbody></table></div>
+    <div class="hint" x-show="contStirrups" x-cloak :style="contStirrups&&!contStirrups.nowOk?'color:var(--ng)':''"
+      x-text="contStirrups?('全長 '+contStirrups.rows.length+' 斷面；最不利 x = '+fmt(contStirrups.worst.x,2)+' m（需 A_v/s '+fmt(contStirrups.worst.Av_s_req,2)+' → @'+contStirrups.worst.s_pick+'）。⑤ 現配 @'+sv+' '+(contStirrups.nowOk?'全長皆滿足。':'未能全長滿足 → 依上表分區加密。')):''"></div>
+    <div class="cite">剪力由引擎 <code>BC.taiwanContShearAt</code>（解析影響線；斷面處剪力影響線跳 1、左右側分開）：DL＋HS20-44 卡車雙向掃描（中後軸距 4.25～9.15 m）與車道載重（集中 116 kN）取大 ×(1+I)× 車道數 × 折減，衝擊長度取<b>該點至所屬跨較遠支點</b>（§3.13）。次剪力 V₂＝dM₂/dx（力法 M₂ 的支承彎矩梯度，載重因數 1.0），依 <b>V<sub>u</sub>＝max(|V<sub>載重</sub>|, |V<sub>載重</sub>+V₂|)</b>——有利時不折減（算例_端跨 propped cantilever）。d<sub>v</sub>＝max(0.9d<sub>p</sub>, 0.72h)，中墩側 d<sub>p</sub> 自底緣量至合力 CGS、端支承側自頂緣量起。V<sub>p</sub>＝Σ P·de/dx（含頂板腱；變斷面時用 e−Δȳ），僅與 V<sub>u</sub> 反向時有利（BC.shearWebAt）。主拉應力 σ₁ 與 φV<sub>n</sub>＝φ(V<sub>cw</sub>+A<sub>v</sub>/s·f<sub>y</sub>·d<sub>v</sub>) 同 ⑤ D1 公式；變斷面時 f<sub>pc</sub> 用該處斷面積。<b>全長掃描</b>（BC.contShearDesignScan）每 1 m 取樣並加頂板腱錨碇前後（V<sub>p</sub> 驟變）、變斷面分界；各斷面允許間距＝min(強度需求 A<sub>v</sub>÷需 A<sub>v</sub>/s、最小箍筋、§8.20.3 上限：V<sub>s</sub>≤0.33√f′c·b·d<sub>v</sub> 時 min(0.75h, 600)，否則 min(0.375h, 300)；V<sub>s</sub>＞0.66√f′c·b·d<sub>v</sub> 為斷面不足），取標準間距；相鄰取樣點間取較密者，支承面至 d<sub>v</sub> 斷面沿用 d<sub>v</sub> 斷面間距。</div>
   </div>
   <div class="card"><h2>中墩負彎矩控制斷面 <span class="gold" style="background:#fef2f2;color:#dc2626">★ 簡支不會出現</span></h2>
     <table><thead><tr><th>項目</th><th>計算值</th><th>說明</th><th style="text-align:center">判定</th></tr></thead>
@@ -1918,7 +1931,8 @@ var PARAM_KEYS=[
 function paramsOf(d){ var o={}; PARAM_KEYS.forEach(function(k){ o[k]=d[k] }); return o; }
 function applyParams(d,o){ PARAM_KEYS.forEach(function(k){ if(o[k]!==undefined&&o[k]!==null) d[k]=o[k]; }); }
 function calc(){
-  var ldCache={key:null,pts:null}, cbCache={key:null,val:null}, DEFAULTS=null, saveTimer=null;
+  var ldCache={key:null,pts:null}, cbCache={key:null,val:null}, shCache={key:null,cb:null,val:null}, stCache={key:null,cb:null,val:null},
+      memoFn={}, DEFAULTS=null, saveTimer=null;   // memoFn：R 會被數百個綁定反覆求值（Alpine getter 不快取）→ 其內昂貴純函式依輸入記憶化
   return {
     tab:'①', open:null,
     // ── §十三 3D（只存旗標；THREE 物件放 G3 closure，不進 reactive proxy）──
@@ -2029,6 +2043,12 @@ function calc(){
     // 連續梁剪力檢核：各支承兩側 d_v 斷面（引擎 BC.taiwanContShearAt＋BC.shearWebAt；V₂＝dM₂/dx，有利時不折減）
     get contShear(){
       var C=this.CB; if(!C||!C.m2) return null;
+      // Alpine getter 不快取、表格每格都會呼叫 → 以 CB 物件＋相關參數記憶化
+      var skey=[this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h,this.wDW,this.lanes,this.fc,this.avAuto,this.sv].join('|');
+      if(shCache.cb===C&&shCache.key===skey) return shCache.val;
+      shCache.cb=C; shCache.key=skey; return (shCache.val=this.contShearCompute(C));
+    },
+    contShearCompute(C){
       var B=window.BC, sp=C.spans, xs=C.m.sx, st=C.stiff, R0=B.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
       var wDC=R0.A/1e6*24.5, nw=Math.max(1,this.nWeb|0), bw=this.webT-100, Avs=this.avAuto/this.sv, AvsMin=B.AvSminTW(this.fc,bw), out=[];
       for(var j=0;j<xs.length;j++){
@@ -2051,6 +2071,47 @@ function calc(){
       }
       return {rows:out, Avs:Avs, AvsMin:AvsMin, bw:bw, nw:nw,
               worst:out.reduce(function(a,b){return (!a||b.VuW/b.phiVn>a.VuW/a.phiVn)?b:a},null)};
+    },
+    // 連續梁全長剪力掃描＋箍筋分區（引擎 BC.contShearDesignScan；取樣 1 m＋頂板腱錨碇前後＋變斷面分界）
+    get contStirrups(){
+      var C=this.CB; if(!C||!C.m2) return null;
+      var t0=this.contTop, skey=[this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h,this.wDW,this.lanes,this.fc,this.avAuto,
+        t0?t0.pc.anchors.join(','):'-'].join('|');                  // 分區與現配間距 sv 無關 → 不入鍵，改 sv 不重跑掃描
+      if(!(stCache.cb===C&&stCache.key===skey)){ stCache.cb=C; stCache.key=skey; stCache.val=this.contStirrupsCompute(C); }
+      var res=stCache.val, sv=this.sv;
+      res.nowOk=res.rows.every(function(r){return r.crush_ok&&r.s_pick!=null&&sv<=r.s_allow+1e-9});
+      return res;
+    },
+    contStirrupsCompute(C){
+      var B=window.BC, sp=C.spans, st=C.stiff, R0=B.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
+      var extra=[], t=this.contTop;
+      if(t) t.pc.anchors.forEach(function(a){ extra.push(a-0.05, a+0.05); });
+      if(st) st.breaks.forEach(function(b){ extra.push(b-0.05, b+0.05); });
+      var m2=C.m2, pa=function(x){ var q=m2.atX(x); return [q.P, q.eEff, q.Pslope]; };
+      var res=B.contShearDesignScan(sp,pa,m2,R0.A/1e6*24.5,this.wDW,this.lanes,this.h,R0.yb,this.fc,this.webT-100,
+                                    Math.max(1,this.nWeb|0),this.avAuto,1.0,extra,st,R0);
+      var worst=res.rows.reduce(function(a,b){return b.Av_s_req>a.Av_s_req?b:a});
+      res.worst=worst; res.bad=res.zones.filter(function(z){return z[2]==null}).length;
+      return res;
+    },
+    get contStirrupSvg(){
+      var S=this.contStirrups, C=this.CB; if(!S||!C) return '';
+      var x0=40, W=580, tot=C.tot, X=function(x){return x0+x/tot*W}, rows=S.rows;
+      var am=Math.max.apply(null,rows.map(function(r){return Math.max(r.Av_s_req, this.avAuto/this.sv)},this).concat([0.1]));
+      var Y=function(v){return 96-v/am*80};
+      var col={100:'#7f1d1d',125:'#991b1b',150:'#b91c1c',200:'#dc2626',250:'#ea580c',300:'#f59e0b',350:'#eab308',400:'#84cc16',450:'#22c55e',500:'#16a34a',600:'#15803d'};
+      var g='<line x1="'+x0+'" y1="96" x2="'+(x0+W)+'" y2="96" stroke="#333"/>';
+      S.zones.forEach(function(z){ var c=z[2]==null?'#111':(col[z[2]]||'#64748b');
+        g+='<rect x="'+X(z[0]).toFixed(1)+'" y="104" width="'+Math.max(0.5,X(z[1])-X(z[0])).toFixed(1)+'" height="16" fill="'+c+'" fill-opacity="0.85"/>';
+        if(X(z[1])-X(z[0])>26) g+='<text x="'+((X(z[0])+X(z[1]))/2).toFixed(1)+'" y="116" font-size="9" fill="#fff" text-anchor="middle">@'+(z[2]==null?'✗':z[2])+'</text>'; });
+      C.m.sx.forEach(function(sx){ g+='<path d="M'+X(sx)+',96 l-5,8 h10z" fill="#64748b"/>'; });
+      g+=polyline(rows,function(r){return X(r.x)},function(r){return Y(r.Av_s_req)},'stroke="#dc2626" stroke-width="1.5"');
+      var yv=Y(this.avAuto/this.sv);
+      g+='<line x1="'+x0+'" y1="'+yv+'" x2="'+(x0+W)+'" y2="'+yv+'" stroke="#1d4ed8" stroke-dasharray="4 3"/>'+
+         '<text x="'+(x0+W)+'" y="'+(yv-3)+'" font-size="9" fill="#1d4ed8" text-anchor="end">現配 A_v/s '+fmt(this.avAuto/this.sv,2)+'</text>'+
+         '<text x="'+x0+'" y="12" font-size="9" fill="#dc2626">需 A_v/s（mm²/mm，最大 '+fmt(S.worst.Av_s_req,2)+'）</text>'+
+         '<text x="'+x0+'" y="134" font-size="9" fill="#555">箍筋間距分區（A_v '+fmt(this.avAuto)+' mm²）</text>';
+      return g;
     },
     get contMuUse(){ return this.contAuto&&this.CB ? Math.abs(this.CB.pier.MuN) : this.contMuP; },
     // ── 反解設計（design.py→engine.js 移植）：給目標算所需配置 ──
@@ -2258,6 +2319,8 @@ function calc(){
       var cs=this.contShear;
       if(cs){ var bad=cs.rows.filter(function(r){return !r.ok}), w=cs.worst;
         rows.push(['連續梁 剪力 φVn（支承兩側 d_v，'+cs.rows.length+' 斷面）', '最不利 '+w.name+'：φVn '+f(w.phiVn)+' kN', '≥ Vu/腹板 '+f(w.VuW)+' kN（含 V₂）', bad.length===0]); }
+      var zs=this.contStirrups;
+      if(zs) rows.push(['連續梁 箍筋分區（全長 '+zs.rows.length+' 斷面）', '最密 @'+(zs.worst.s_pick==null?'✗':zs.worst.s_pick)+'（x '+f(zs.worst.x,1)+' m）；現配 @'+this.sv, '§8.20.3 上限・最小箍筋・強度需求', zs.bad===0&&zs.nowOk]);
       var fits=this.DLmid.fits&&this.DLpier.fits;
       rows.push(['連續梁 鋼腱實配（跨中／墩頂）', (this.DLmid.fits?'跨中 ✓':'跨中 ✗')+'、'+(this.DLpier.fits?'墩頂 ✓':'墩頂 ✗'), '保護層／淨距／曲率', fits]);
       var t=this.contTop;
@@ -2499,7 +2562,7 @@ function calc(){
       var sec=B.sectionFromDims(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
       var ten=B.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu);
       var wsw=sec.A/1e6*24.5, Mdc=wsw*this.L*this.L/8, Mdw=this.wDW*this.L*this.L/8;
-      var IM=B.taiwanImpact(this.L), perLane=B.taiwanPerLaneMoment(this.L);
+      var IM=B.taiwanImpact(this.L), plk='PLM|'+this.L, perLane=memoFn[plk]!=null?memoFn[plk]:(memoFn[plk]=B.taiwanPerLaneMoment(this.L));
       var Mll=B.laneLiveLoad(perLane,this.lanes,1.0);
       // 摩擦損失改由線形＋張拉端配置算（B.frictionAt）——原本 α 寫死 0.111，改 e 或 L
       // 都不會跟著變；現在 α=∫|e″|dx 自張拉端累積，控制斷面位置由 fricX 指定。
@@ -2534,7 +2597,8 @@ function calc(){
       var dp=sec.yt+eUse, dv=Math.max(0.9*dp,0.72*this.h), bwEff=this.webT-100;
       var flex=B.flexuralStrength(ten,sec,this.fc,this.topW,this.topT,dp,comb.Strength_I,loss.Pe,eUse);
       // ⑤ 設計剪力：預設由引擎於 d_v 斷面實算（DL 解析＋HS20-44，衝擊長度＝至較遠支點）；可切換手動
-      var VuRow=B.taiwanContShearAt([this.L],dv/1000,'R',wsw,this.wDW,this.lanes), VuAutoW=VuRow.Vu_pos/this.nWeb;
+      var vk='V|'+[this.L,dv,wsw,this.wDW,this.lanes].join('|');
+      var VuRow=memoFn[vk]||(memoFn[vk]=B.taiwanContShearAt([this.L],dv/1000,'R',wsw,this.wDW,this.lanes)), VuAutoW=VuRow.Vu_pos/this.nWeb;
       var VuUse=this.VuAuto?VuAutoW:this.Vu;
       var sh=B.shearWeb(loss.Pe,sec,this.e,this.fc,bwEff,dv,VuUse*1e3,dv,this.L*1000,this.nWeb);
       var phiVn=B.phiVn(sh.Vcw,this.avAuto/this.sv,dv), AvsMin=B.AvSminTW(this.fc,bwEff);

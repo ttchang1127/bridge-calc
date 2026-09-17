@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 298 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 310 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -681,8 +681,8 @@
   BC.taiwanContLiveShear = function (spans, x, side, step, grid, stiff) {
     return contLiveShearAt(contCache(spans, stiff), x, side || 'R', step || 0.25, grid || 400);
   };
-  BC.taiwanContShearAt = function (spans, x, side, wdc, wdw, lanes, step, grid, stiff) {
-    var c = contCache(spans, stiff), fac = lanes * BC.taiwanLaneReduction(lanes), dc, dw;
+  BC.taiwanContShearAt = function (spans, x, side, wdc, wdw, lanes, step, grid, stiff, cache) {
+    var c = cache || contCache(spans, stiff), fac = lanes * BC.taiwanLaneReduction(lanes), dc, dw;
     if (!c.flex) { dc = BC.contDLShear(spans, wdc, x, side); dw = BC.contDLShear(spans, wdw, x, side); }
     else {
       var wf = function (t) { return wdc * stiff.Arel(t); };
@@ -691,6 +691,92 @@
     var lv = contLiveShearAt(c, x, side, step || 0.25, grid || 400), lp = lv.pos * (1 + lv.I) * fac, ln = lv.neg * (1 + lv.I) * fac;
     return { x: x, side: side, V_dc: dc, V_dw: dw, V_ll_pos: lp, V_ll_neg: ln,
              Vu_pos: 1.25 * dc + 1.5 * dw + 1.75 * lp, Vu_neg: 1.25 * dc + 1.5 * dw + 1.75 * ln, I: lv.I };
+  };
+  BC.taiwanContShearEnvelope = function (spans, points, wdc, wdw, lanes, stiff) {
+    var c = contCache(spans, stiff);
+    return points.map(function (pt) { return BC.taiwanContShearAt(spans, pt[0], pt[1], wdc, wdw, lanes, 0.25, 400, stiff, c); });
+  };
+  // 台灣 §8.20.3 箍筋最大間距（同 shear.stirrup_max_spacing_TW）→ [s_max, 減半, 斷面足夠]
+  BC.STD_STIRRUP_SPACINGS = [100, 125, 150, 200, 250, 300, 350, 400, 450, 500, 600];
+  BC.stirrupMaxSpacingTW = function (Vs, fc, bw, dv, h) {
+    var lim1 = 0.33 * Math.sqrt(fc) * bw * dv, lim2 = 0.66 * Math.sqrt(fc) * bw * dv, halved = Vs > lim1;
+    return [halved ? Math.min(0.375 * h, 300) : Math.min(0.75 * h, 600), halved, Vs <= lim2];
+  };
+  BC.stirrupPickSpacing = function (sAllow, list) {
+    var ok = (list || BC.STD_STIRRUP_SPACINGS).filter(function (v) { return v <= sAllow + 1e-9; });
+    return ok.length ? Math.max.apply(null, ok) : null;
+  };
+  BC.stirrupZones = function (xs, picks, supports) {
+    var segs = [], sup = supports || [], i;
+    for (i = 0; i < xs.length - 1; i++) {
+      if (sup.some(function (sx) { return xs[i] < sx && sx < xs[i + 1]; })) continue;
+      var a = picks[i], b = picks[i + 1];
+      segs.push([xs[i], xs[i + 1], (a == null || b == null) ? null : Math.min(a, b)]);
+    }
+    sup.forEach(function (sx) {
+      var L = -1, Rr = -1;
+      xs.forEach(function (x, j) { if (x < sx) L = j; if (x > sx && Rr < 0) Rr = j; });
+      if (Rr >= 0 && (L < 0 || xs[L] < sx)) segs.push([sx, xs[Rr], picks[Rr]]);
+      if (L >= 0 && (Rr < 0 || xs[Rr] > sx)) segs.push([xs[L], sx, picks[L]]);
+    });
+    segs.sort(function (p, q) { return p[0] - q[0] || p[1] - q[1]; });
+    var out = [];
+    segs.forEach(function (sg) {
+      if (sg[1] - sg[0] < 1e-9) return;
+      var last = out[out.length - 1];
+      if (last && Math.abs(last[1] - sg[0]) < 1e-9 && last[2] === sg[2]) last[1] = sg[1]; else out.push(sg.slice());
+    });
+    return out;
+  };
+  // TendonGroup 陣列 → prestress_at(x)＝[P kN, e_eff mm, Σ P·de_loc/dx kN]（同 continuous.groups_prestress_at）
+  BC.groupsPrestressAt = function (groups, stiff) {
+    return function (x) {
+      var P = 0, Pe = 0, Ps = 0;
+      groups.forEach(function (g) {
+        for (var k = 0; k < g.segs.length; k++) { var sg = g.segs[k];
+          if (x >= sg.x1 - 1e-9 && x <= sg.x2 + 1e-9) { var p = typeof g.P === 'function' ? g.P(x) : g.P;
+            P += p; Pe += p * BC.segE(sg, x); Ps += p * 2 * sg.c * (x - sg.xv) / 1000; return; } }
+      });
+      if (stiff && P) Ps -= P * (stiff.dyb(x + 0.01) - stiff.dyb(x - 0.01)) / 0.02 / 1000;
+      return [P, P ? Pe / P : 0, Ps];
+    };
+  };
+  // 連續梁全長剪力設計掃描＋箍筋分區（同 influence_cont.cont_shear_design_scan）
+  BC.contShearDesignScan = function (spans, prestressAt, fm, wdc, wdw, lanes, h, yb, fc, bw, nWebs, Av, step, extra, stiff, sec, fsy, phi) {
+    step = step || 1; extra = extra || []; fsy = fsy || 420; phi = phi || 0.85;
+    var xs = contXs(spans), ref = sec || BC.section(1, 1, yb, h);
+    function dvAt(xf) {
+      var dv = 0.72 * h;
+      for (var it = 0; it < 3; it++) {
+        var xx = typeof xf === 'function' ? xf(dv) : xf, q = prestressAt(xx), yc = yb - q[1];
+        var neg = BC.contDLMoment(spans, 1, xx) < 0, dp = neg ? yc : h - yc;
+        dv = Math.max(0.9 * dp, 0.72 * h);
+      }
+      return dv;
+    }
+    var pts = [];
+    spans.forEach(function (L, k) {
+      var a = xs[k], b = xs[k + 1];
+      var dva = dvAt(function (d) { return a + d / 1000; }), dvb = dvAt(function (d) { return b - d / 1000; });
+      var x0 = a + dva / 1000, x1 = b - dvb / 1000, n = Math.max(1, Math.round((x1 - x0) / step)), cand = [], seen = {};
+      for (var i = 0; i <= n; i++) cand.push(x0 + (x1 - x0) * i / n);
+      extra.forEach(function (e) { if (e > x0 && e < x1) cand.push(e); });
+      cand.map(function (v) { return Math.round(v * 1e6) / 1e6; }).sort(function (p, q) { return p - q; })
+        .forEach(function (x) { if (!seen[x]) { seen[x] = 1; pts.push([x, x - a < b - x ? 'R' : 'L']); } });
+    });
+    var env = BC.taiwanContShearEnvelope(spans, pts, wdc, wdw, lanes, stiff), AvsMin = BC.AvSminTW(fc, bw, fsy);
+    var rows = pts.map(function (pt, i) {
+      var x = pt[0], side = pt[1], r = env[i], dv = dvAt(x), q = prestressAt(x), P = q[0];
+      var V2 = BC.secondaryShear(fm, spans, x, side), Vu = BC.designShearWithV2(r.Vu_pos, r.Vu_neg, V2);
+      var secx = stiff ? stiff.sectionAt(x) : ref;
+      var sh = BC.shearWebAt(P * 1e3, secx, P ? q[2] / P : 0, fc, bw, dv, Vu / nWebs * 1e3, nWebs, phi, fsy);
+      var mc = BC.stirrupMaxSpacingTW(Math.max(sh.Vs_req, 0), fc, bw, dv, h);
+      var sStr = sh.Av_s_req > 0 ? Av / sh.Av_s_req : Infinity, sAllow = Math.min(sStr, Av / AvsMin, mc[0]);
+      return { x: x, side: side, dv: dv, row: r, V2: V2, Vu: Vu, Vu_web: Math.abs(Vu) / nWebs, P: P, Vp_web: sh.Vp / 1e3,
+               sigma1: sh.sigma1, Vcw_web: sh.Vcw / 1e3, Av_s_req: sh.Av_s_req, s_code_max: mc[0], halved: mc[1],
+               crush_ok: mc[2], s_allow: sAllow, s_pick: mc[2] ? BC.stirrupPickSpacing(sAllow) : null };
+    });
+    return { rows: rows, zones: BC.stirrupZones(rows.map(function (r) { return r.x; }), rows.map(function (r) { return r.s_pick; }), xs) };
   };
   BC.secondaryShear = function (fm, spans, x, side) {
     var xs = contXs(spans), i = contShearSpan(xs, spans, x, side || 'R'); return (fm.X[i + 1] - fm.X[i]) / spans[i];

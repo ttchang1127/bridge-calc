@@ -74,3 +74,61 @@ def phiVn(Vcw: float, Av_s_provided: float, dv: float,
 def Av_s_min_TW(fc: float, bw_eff: float, fsy: float = 420.0) -> float:
     """台灣最小箍筋 max(0.2√f'c·b/fsy, 0.35·b/fsy)（mm²/mm）。"""
     return max(0.2 * sqrt(fc) * bw_eff / fsy, 0.35 * bw_eff / fsy)
+
+
+STD_STIRRUP_SPACINGS = (100, 125, 150, 200, 250, 300, 350, 400, 450, 500, 600)
+
+
+def stirrup_max_spacing_TW(Vs: float, fc: float, bw: float, dv: float, h: float):
+    """台灣橋規 §8.20.3 箍筋最大間距與斷面上限（檢核流程_腹板抗剪 STEP 6）。
+
+    Vs 每腹板所需 N。回傳 (s_max mm, 是否減半, 斷面足夠 Vs ≤ 0.66√f'c·b·d_v)。
+    V_s ≤ 0.33√f'c·b·d_v → min(0.75h, 600)；超過 → min(0.375h, 300)。
+    """
+    lim1 = 0.33 * sqrt(fc) * bw * dv
+    lim2 = 0.66 * sqrt(fc) * bw * dv
+    halved = Vs > lim1
+    s_max = min(0.375 * h, 300.0) if halved else min(0.75 * h, 600.0)
+    return s_max, halved, Vs <= lim2
+
+
+def stirrup_pick_spacing(s_allow: float, spacings=STD_STIRRUP_SPACINGS):
+    """取不大於 s_allow 的最大標準間距；皆不滿足回傳 None（須改箍筋號數／肢數）。"""
+    ok = [s for s in spacings if s <= s_allow + 1e-9]
+    return max(ok) if ok else None
+
+
+def stirrup_zones(xs: list, picks: list, supports: list = None):
+    """由逐斷面選定間距產生分區：相鄰取樣點之間取兩端較密者，連續同間距合併。
+
+    xs 由小到大；picks 對應間距（None＝不足）；supports 為支承里程——支承面至第一個取樣點
+    沿用該取樣點間距（距支承 d_v 內以 d_v 斷面設計）。回傳 [(x1, x2, s), ...]。
+    """
+    segs = []
+    sup = list(supports or [])
+    for i in range(len(xs) - 1):
+        if any(xs[i] < sx < xs[i + 1] for sx in sup):
+            continue                                   # 跨過支承的區間改由下方支承面處理
+        a, b = picks[i], picks[i + 1]
+        s = None if (a is None or b is None) else min(a, b)
+        segs.append([xs[i], xs[i + 1], s])
+    if supports:
+        for sx in supports:
+            left = [i for i, x in enumerate(xs) if x < sx]
+            right = [i for i, x in enumerate(xs) if x > sx]
+            if right and (not left or xs[left[-1]] < sx):
+                j = right[0]
+                segs.append([sx, xs[j], picks[j]])
+            if left and (not right or xs[right[0]] > sx):
+                j = left[-1]
+                segs.append([xs[j], sx, picks[j]])
+    segs.sort(key=lambda t: (t[0], t[1]))
+    merged = []
+    for a, b, s in segs:
+        if b - a < 1e-9:
+            continue
+        if merged and abs(merged[-1][1] - a) < 1e-9 and merged[-1][2] == s:
+            merged[-1][1] = b
+        else:
+            merged.append([a, b, s])
+    return [tuple(m) for m in merged]

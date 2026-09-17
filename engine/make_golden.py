@@ -40,7 +40,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         section_from_dims, haunch_profile, ContFlex,
                         cont_shear_il, cont_dl_shear, taiwan_cont_live_shear, taiwan_cont_shear_at,
                         secondary_shear, design_shear_with_V2, shear_web_at, taiwan_rear_spacings,
-                        anchor_slip_loss, pier_cap_tendon_force)
+                        anchor_slip_loss, pier_cap_tendon_force, cont_shear_design_scan,
+                        groups_prestress_at, stirrup_max_spacing_TW)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -284,6 +285,28 @@ def _pier_cap_tendon_losses():
     }
 
 
+def _cont_shear_scan():
+    """算例雙系統 40+40 全長剪力掃描＋箍筋分區（D16×2 肢；錨碇點前後加取樣）。"""
+    bot, top = _cont_case_groups()
+    fm = continuous_prestress([40, 40], [bot, top])
+    rows, zones = cont_shear_design_scan([40, 40], groups_prestress_at([bot, top]), fm, sec.A / 1e6 * 24.5, 20, 2,
+                                         2100, 1329, 40, 250, 2, 397.4, step=1.0,
+                                         extra=[24.95, 25.05, 54.95, 55.05], sec=sec)
+    by = {round(r.x, 2): r for r in rows}
+    a_l, a_r = by[24.95], by[25.05]
+    worst = max(rows, key=lambda r: r.Av_s_req)
+    return {
+        "n_rows": len(rows), "worst_x": round(worst.x, 3), "worst_Av_s": round(worst.Av_s_req, 4),
+        "worst_s": worst.s_pick, "worst_halved": worst.halved,
+        "anchorL_Vp": round(a_l.Vp_web, 1), "anchorR_Vp": round(a_r.Vp_web, 1),
+        "anchorL_s": a_l.s_pick, "anchorR_s": a_r.s_pick,
+        "zones": [[round(z[0], 3), round(z[1], 3), z[2]] for z in zones],
+        "max_spacing_halved": stirrup_max_spacing_TW(1e6, 40, 250, 1512, 2100)[0],
+        "max_spacing_normal": stirrup_max_spacing_TW(5e5, 40, 250, 1512, 2100)[0],
+        "_note": "中墩兩側須 @200（V_s 超 0.33√f'c·b·d_v → 上限減半 300）；頂板腱錨碇左側 V_p 驟減 → 需 @400，右側 @500",
+    }
+
+
 def _cont_envelope_taiwan():
     """連續梁解析影響線＋台灣 HS20-44 包絡的檢核點。"""
     sp = [40, 40]
@@ -478,6 +501,7 @@ golden = {
     "rear_axle_scan": _rear_axle_scan(),
     "simple_shear_dv": _simple_shear_dv(),
     "pier_cap_tendon_losses": _pier_cap_tendon_losses(),
+    "cont_shear_scan": _cont_shear_scan(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

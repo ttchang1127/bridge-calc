@@ -9,7 +9,8 @@ from .model import Section, Tendon
 from .prestress import compute_losses, LossResult
 from .loads import combinations, lane_live_load
 from .service import stresses, Pe_min_zero_tension
-from .shear import (shear_web, shear_web_at, ShearResult, phiVn, Av_s_min_TW,
+from .shear import (shear_web, shear_web_at, stirrup_max_spacing_TW, stirrup_pick_spacing,
+                    stirrup_zones, STD_STIRRUP_SPACINGS, ShearResult, phiVn, Av_s_min_TW,
                     principal_tension_limit_TW)
 from .flexure import flexural_strength, FlexureResult, beta1
 from .deflection import deflection_analysis, DeflectionResult
@@ -34,7 +35,8 @@ from .influence_cont import (cont_support_moments_point, cont_support_moments_un
                              cont_shear_il, cont_dl_shear, cont_shear_impact_length,
                              ContLiveShear, taiwan_cont_live_shear, ContShearRow,
                              taiwan_cont_shear_at, secondary_shear, design_shear_with_V2,
-                             taiwan_rear_spacings)
+                             taiwan_rear_spacings, taiwan_cont_shear_envelope, ShearScanRow,
+                             cont_shear_design_scan)
 from .variable_section import (section_from_dims, HaunchProfile, haunch_profile,
                                ContFlex, gauss_integrate)
 from .continuous import (secondary_moment, primary_moment, flexural_strength_T,
@@ -42,7 +44,7 @@ from .continuous import (secondary_moment, primary_moment, flexural_strength_T,
                         ParabolaSeg, parabola_seg, ContTendonProfile, cont_tendon_segs,
                         TendonGroup, primary_moment_at, group_breaks,
                         ForceMethodM2Result, secondary_moments_force, continuous_prestress,
-                        PierCapTendonResult, pier_cap_tendon_segs)
+                        PierCapTendonResult, pier_cap_tendon_segs, groups_prestress_at)
 from .tendon_profile import (tendon_profile, TendonProfileResult, equivalent_load,
                             end_slope, radius_of_curvature, balance_ratio, friction_loss,
                             duct_layout, duct_spacing_required, DuctLayoutResult,
@@ -103,12 +105,14 @@ __all__ = [
     "ContLiveMoment", "taiwan_cont_envelope", "ContEnvelopeRow",
     "cont_shear_il", "cont_dl_shear", "cont_shear_impact_length", "ContLiveShear",
     "taiwan_cont_live_shear", "ContShearRow", "taiwan_cont_shear_at", "secondary_shear",
-    "design_shear_with_V2", "shear_web_at", "taiwan_rear_spacings",
+    "design_shear_with_V2", "shear_web_at", "taiwan_rear_spacings", "taiwan_cont_shear_envelope",
+    "ShearScanRow", "cont_shear_design_scan", "stirrup_max_spacing_TW", "stirrup_pick_spacing",
+    "stirrup_zones", "STD_STIRRUP_SPACINGS",
     "section_from_dims", "HaunchProfile", "haunch_profile", "ContFlex", "gauss_integrate",
     "ParabolaSeg", "parabola_seg", "ContTendonProfile", "cont_tendon_segs",
     "TendonGroup", "primary_moment_at", "group_breaks",
     "ForceMethodM2Result", "secondary_moments_force", "continuous_prestress",
-    "PierCapTendonResult", "pier_cap_tendon_segs", "TopSlabTendonResult", "top_slab_tendon_check",
+    "PierCapTendonResult", "pier_cap_tendon_segs", "groups_prestress_at", "TopSlabTendonResult", "top_slab_tendon_check",
     "anchor_slip_loss", "AnchorSlipResult", "pier_cap_tendon_force", "CapTendonForce",
     "tendon_profile", "TendonProfileResult", "equivalent_load", "end_slope",
     "radius_of_curvature", "balance_ratio", "friction_loss",

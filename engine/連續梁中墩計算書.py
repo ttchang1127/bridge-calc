@@ -16,7 +16,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from bridgecalc import (Section, flexural_strength_T, pier_service_stress,
                         parabola_seg, TendonGroup, primary_moment_at, continuous_prestress,
                         cont_tendon_segs, taiwan_cont_envelope, taiwan_cont_shear_at,
-                        secondary_shear, design_shear_with_V2, shear_web_at, phiVn, Av_s_min_TW)
+                        secondary_shear, design_shear_with_V2, shear_web_at, phiVn, Av_s_min_TW,
+                        cont_shear_design_scan, groups_prestress_at)
 
 # ── 40+40 兩跨連續後張箱梁（同 40m 參考斷面）──
 sec = Section(A=5.065e6, I=3.287e12, yb=1329, h=2100)
@@ -89,6 +90,8 @@ VUS = design_shear_with_V2(SROW.Vu_pos, SROW.Vu_neg, V2S)
 SH = shear_web_at(PSX * 1e3, sec, PS / PSX, 40, 250, DV, VUS / 2 * 1e3, 2)
 AV = 397.4                                       # D16 × 2 肢
 PHI250, PHI200 = phiVn(SH.Vcw, AV / 250, DV) / 1e3, phiVn(SH.Vcw, AV / 200, DV) / 1e3
+SCAN, ZONES = cont_shear_design_scan([40, 40], groups_prestress_at(G), fm, W_DC, W_DW, LANES, 2100, sec.yb, 40, 250, 2,
+                                     AV, step=1.0, extra=[24.95, 25.05, 54.95, 55.05], sec=sec)
 
 BS = "\\"
 MPa = BS + " MPa"
@@ -170,6 +173,18 @@ P_e = {PSX:,.0f} kN、ΣP·de/dx = {PS:,.0f} kN → V_p = {SH.Vp/1e3:,.0f} kN/�
 <p class="note">主拉應力 σ₁ = {SH.sigma1:.2f} MPa &gt; 台灣限值 {SH.sigma1_limit:.3f} → 靠箍筋；需 A_v/s = {SH.Av_s_req:.2f} mm²/mm（最小 {Av_s_min_TW(40, 250):.2f}）。
 <b>D16×2 @250 不足（φV_n {PHI250:,.0f} kN），須加密至 @200</b>。</p>"""
 sections.append(("五之二、中墩剪力（d_v 斷面）", sec5b))
+
+_zrows = "".join(
+    f"<tr><td>{a:.2f} ～ {b:.2f}</td><td>{b - a:.2f}</td><td>{'✗ 不足' if sp is None else '@' + str(sp)}</td>"
+    f"<td>{max([r.Av_s_req for r in SCAN if a - 1e-6 <= r.x <= b + 1e-6] or [0]):.2f}</td></tr>"
+    for a, b, sp in ZONES if a < 40 + 1e-6)
+sec5c = f"""<p>引擎 <code>cont_shear_design_scan</code>：跨 1 自 d_v 斷面起每 1 m 取樣，另加頂板腱錨碇（x=25 m）前後；各斷面允許間距 =
+min(強度需求 A_v/需 A_v/s、最小箍筋、§8.20.3 上限：V_s ≤ 0.33√f'c·b·d_v 時 min(0.75h, 600)，否則 min(0.375h, 300))，取標準間距；
+相鄰取樣點間取較密者，支承面至 d_v 斷面沿用 d_v 斷面間距。跨 2 對稱。</p>
+<table class="props"><tr><td>區段 x (m)</td><td>長度 (m)</td><td>間距（D16×2）</td><td>區內最大需 A_v/s</td></tr>{_zrows}</table>
+<p class="note">頂板腱錨碇（x=25 m）左側 V_p 驟減（{[r for r in SCAN if abs(r.x - 24.95) < 1e-6][0].Vp_web:,.0f} → {[r for r in SCAN if abs(r.x - 25.05) < 1e-6][0].Vp_web:,.0f} kN/腹板），
+錨碇前需局部加密；中墩兩側 V_s 超過 0.33√f'c·b·d_v，間距上限減半為 300 mm。</p>"""
+sections.append(("五之三、箍筋間距分區（全長掃描）", sec5c))
 
 sec6 = f"""<table class="props">
 <tr><td>① 跨中服務性</td><td>底緣最不利 {WB[0]:+.2f} MPa {'✓' if WB[0] <= 0 else '✗'}</td><td>② B 墩服務性</td><td>底緣 {sb_p:+.2f} ✓</td></tr>

@@ -273,23 +273,50 @@ class TendonForceResult:
     per: list           # 每腱 dict：no/y/x/jack/ratio/fpe/Pe
 
 
+def tendon_slip_loss(x: float, L: float, segs: list, fpj: float, jack: str = "both",
+                     mu: float = 0.25, K: float = 0.003, slip_mm: float = 6.0,
+                     Ep: float = 195000.0) -> float:
+    """單腱於里程 x 的錨具滑移損失 MPa（線形化摩擦梯度，見 anchor_slip_loss）。
+
+    jack='both' → 兩端各影響半長（L_m=L/2、d＝距最近端）；'start'/'end' → L_m=L、d 自該端量。
+    p＝該端至 L_m 的摩擦損失 ÷ L_m。slip_mm=0 即回傳 0（預設行為不變）。
+    """
+    if slip_mm <= 0 or L <= 0:
+        return 0.0
+    if jack == "both":
+        L_m, d = L / 2, min(x, L - x)
+        r = friction_at(L_m, L, segs, mu, K, "start")
+    elif jack == "end":
+        L_m, d = L, L - x
+        r = friction_at(0.0, L, segs, mu, K, "end")
+    else:
+        L_m, d = L, x
+        r = friction_at(L, L, segs, mu, K, "start")
+    p = fpj * r / L_m if L_m > 0 else 0.0
+    return anchor_slip_loss(d, L_m, p, slip_mm, Ep).dsigma
+
+
 def tendon_forces(tendons: list, x: float, L: float, segs: list, y_b: float,
                   fpj: float, Ap_each: float, other_loss: float,
-                  mu: float = 0.25, K: float = 0.003) -> TendonForceResult:
+                  mu: float = 0.25, K: float = 0.003, slip_mm: float = 0.0,
+                  Ep: float = 195000.0) -> TendonForceResult:
     """逐腱算 Pe 與合力位置。
 
     tendons：[{"no":str, "y":距梁底 mm, "x":橫向 mm, "jack":'start'|'end'|'both'}]
     x[m]：控制斷面里程；L[m]、segs：線形（見 friction_at）；y_b[mm]：斷面形心距底；
     fpj[MPa]、Ap_each[mm²]（每腱鋼腱面積）、other_loss[MPa]（非摩擦損失合計）。
+    slip_mm：錨具滑移量（預設 0＝不計，與既有結果相同）；各腱依自身張拉端計算（見 tendon_slip_loss）。
     """
     per, sP, sPe_e, sPe_x, s_ratio = [], 0.0, 0.0, 0.0, 0.0
     for t in tendons:
-        r = friction_at(x, L, segs, mu, K, t.get("jack", "both"))
-        fpe = fpj - fpj * r - other_loss
+        jk = t.get("jack", "both")
+        r = friction_at(x, L, segs, mu, K, jk)
+        sl = tendon_slip_loss(x, L, segs, fpj, jk, mu, K, slip_mm, Ep)
+        fpe = fpj - fpj * r - sl - other_loss
         Pe = fpe * Ap_each
         e_i = y_b - t["y"]
         per.append({"no": t.get("no", ""), "y": t["y"], "x": t.get("x", 0.0),
-                    "jack": t.get("jack", "both"), "ratio": r, "fpe": fpe, "Pe": Pe})
+                    "jack": jk, "ratio": r, "slip": sl, "fpe": fpe, "Pe": Pe})
         sP += Pe
         sPe_e += Pe * e_i
         sPe_x += Pe * t.get("x", 0.0)

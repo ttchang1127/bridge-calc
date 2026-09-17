@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 310 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 316 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -183,12 +183,23 @@
       (mode === 'both' || mode === 'start' || mode === 'end') ? mode : (i % 2 === 0 ? 'start' : 'end'));
     return out;
   };
-  BC.tendonForces = function (tendons, x, L, segs, yb, fpj, ApEach, otherLoss, mu, K) {
+  // 單腱錨具滑移損失 MPa（同 tendon_profile.tendon_slip_loss）：'both' 兩端各影響半長、'start'/'end' 全長
+  BC.tendonSlipLoss = function (x, L, segs, fpj, jack, mu, K, slip, Ep) {
+    if (!slip || slip <= 0 || L <= 0) return 0;
+    jack = jack || 'both';
+    var Lm, d, r;
+    if (jack === 'both') { Lm = L / 2; d = Math.min(x, L - x); r = BC.frictionAt(Lm, L, segs, mu, K, 'start'); }
+    else if (jack === 'end') { Lm = L; d = L - x; r = BC.frictionAt(0, L, segs, mu, K, 'end'); }
+    else { Lm = L; d = x; r = BC.frictionAt(L, L, segs, mu, K, 'start'); }
+    return BC.anchorSlipLoss(d, Lm, Lm > 0 ? fpj * r / Lm : 0, slip, Ep).dsigma;
+  };
+  BC.tendonForces = function (tendons, x, L, segs, yb, fpj, ApEach, otherLoss, mu, K, slip, Ep) {
     var per = [], sP = 0, sPe = 0, sPx = 0, sr = 0, i, sy = 0;
     for (i = 0; i < tendons.length; i++) {
-      var t = tendons[i], r = BC.frictionAt(x, L, segs, mu, K, t.jack || 'both');
-      var fpe = fpj - fpj * r - otherLoss, Pe = fpe * ApEach, tx = t.x || 0;
-      per.push({ no: t.no || '', y: t.y, x: tx, jack: t.jack || 'both', ratio: r, fpe: fpe, Pe: Pe });
+      var t = tendons[i], jk = t.jack || 'both', r = BC.frictionAt(x, L, segs, mu, K, jk);
+      var sl = BC.tendonSlipLoss(x, L, segs, fpj, jk, mu, K, slip, Ep);
+      var fpe = fpj - fpj * r - sl - otherLoss, Pe = fpe * ApEach, tx = t.x || 0;
+      per.push({ no: t.no || '', y: t.y, x: tx, jack: jk, ratio: r, slip: sl, fpe: fpe, Pe: Pe });
       sP += Pe; sPe += Pe * (yb - t.y); sPx += Pe * tx; sr += r; sy += t.y;
     }
     var n = tendons.length, eG = yb - sy / n, eE = sP ? sPe / sP : 0;

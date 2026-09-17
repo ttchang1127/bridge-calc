@@ -41,7 +41,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         cont_shear_il, cont_dl_shear, taiwan_cont_live_shear, taiwan_cont_shear_at,
                         secondary_shear, design_shear_with_V2, shear_web_at, taiwan_rear_spacings,
                         anchor_slip_loss, pier_cap_tendon_force, cont_shear_design_scan,
-                        groups_prestress_at, stirrup_max_spacing_TW)
+                        groups_prestress_at, stirrup_max_spacing_TW, tendon_slip_loss)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -307,6 +307,45 @@ def _cont_shear_scan():
     }
 
 
+def _tendon_slip_G1():
+    """全長腱錨具滑移（Δa 6 mm）：簡支 40 m 雙端張拉跨中不受影響（驗證 compute_losses「跨中＝0」）；
+    連續 80 m 交錯張拉端部 d_v 斷面 P 下降。"""
+    fpj = 0.75 * 1860
+    seg40 = parabolic_curv_segs(40, 1109)
+    p40 = fpj * friction_at(20, 40, seg40, 0.25, 0.003, "start") / 20
+    Ls40 = (6 * 195000 / 1000 / p40) ** 0.5
+    tp = cont_tendon_segs([40, 40], 0, 1109, -600)
+    cs = [(g.x1, g.x2, 2 * abs(g.c) / 1000) for g in tp.segs]
+    lay = duct_layout(8, 2, sec.yb - 1109, y_b=sec.yb, h=2100)
+    jk = assign_jack(lay.n_per_web, "alt")
+    ts, d = [], 0
+    for _iw in range(2):
+        d = 0
+        for (y, cnt) in lay.rows:
+            for j in range(cnt):
+                if d < lay.n_per_web:
+                    ts.append({"y": y, "x": lay.x_offsets[j], "jack": jk[d]})
+                    d += 1
+    lo = compute_losses(Tendon(8, 19, 1109), sec, 0, 0)
+    oth = lo.total - lo.friction
+    f0 = tendon_forces(ts, 1.5, 80, cs, sec.yb, fpj, 19 * 140, oth)
+    f6 = tendon_forces(ts, 1.5, 80, cs, sec.yb, fpj, 19 * 140, oth, slip_mm=6)
+    m0 = tendon_forces(ts, 40, 80, cs, sec.yb, fpj, 19 * 140, oth, slip_mm=6)
+    return {
+        "simple40_p_MPa_per_m": round(p40, 4), "simple40_L_set_m": round(Ls40, 3),
+        "simple40_mid_unaffected": Ls40 < 20,
+        "simple40_slip_anchor": round(tendon_slip_loss(0, 40, seg40, fpj, "both", slip_mm=6), 2),
+        "simple40_slip_mid": round(tendon_slip_loss(20, 40, seg40, fpj, "both", slip_mm=6), 2),
+        "cont80_slip_start_jack_x1_5": round(tendon_slip_loss(1.5, 80, cs, fpj, "start", slip_mm=6), 2),
+        "cont80_slip_end_jack_x1_5": round(tendon_slip_loss(1.5, 80, cs, fpj, "end", slip_mm=6), 2),
+        "cont80_Pe_x1_5_noslip_kN": round(f0.Pe_total / 1e3, 1), "cont80_Pe_x1_5_slip6_kN": round(f6.Pe_total / 1e3, 1),
+        "cont80_drop_pct": round((f6.Pe_total / f0.Pe_total - 1) * 100, 2),
+        "cont80_Pe_pier_slip6_kN": round(m0.Pe_total / 1e3, 1),
+        "_note": "Δa 6 mm。簡支 40 m 雙端：L_set 14.1 < 半長 20 → 跨中確實為 0（compute_losses 假設成立）；"
+                 "連續 80 m 交錯：端部 d_v 斷面 P 降 9.1%（半數腱在該端受滿滑移 153 MPa）→ V_p 同比下降",
+    }
+
+
 def _cont_envelope_taiwan():
     """連續梁解析影響線＋台灣 HS20-44 包絡的檢核點。"""
     sp = [40, 40]
@@ -502,6 +541,7 @@ golden = {
     "simple_shear_dv": _simple_shear_dv(),
     "pier_cap_tendon_losses": _pier_cap_tendon_losses(),
     "cont_shear_scan": _cont_shear_scan(),
+    "tendon_slip_G1": _tendon_slip_G1(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

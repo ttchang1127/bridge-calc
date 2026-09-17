@@ -131,7 +131,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <tr><th>跨徑／斷面</th><td x-text="L+' m　｜　頂寬 '+topW+' × 高 '+h+' mm　｜　f\'c = '+fc+' MPa'"></td></tr>
     <tr><th>箱梁檢核結果</th><td x-text="R.npass+' / '+R.ntot+' 通過'+(R.matchGolden?'（對齊 40m 黃金範例）':'')"></td></tr>
   </table>
-  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 310 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
+  <div class="cv-note">本計算書由 bridge-calc 產生；每項數值均由 <b>engine.js</b> 計算並對 <b>golden_answers.json</b>（Python 引擎黃金答案，JS 316 項）驗證。<br>頁碼請於瀏覽器列印對話框勾選「頁首及頁尾」輸出。</div>
 </div>
 
 <!-- 送審計算書：目錄 -->
@@ -151,7 +151,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
 
 <div class="bar no-print">
   <div class="bar-row">
-    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 310 項驗證）</div></div>
+    <div><h1>橋梁設計計算器平台</h1><div class="sub">單頁・分頁式・全引擎｜核心 = <code>engine.js</code>（四域合一 BC/SE/CE/RF，對 golden 316 項驗證）</div></div>
   </div>
   <div class="bar-row" style="margin-top:8px">
     <span class="pass">箱梁檢核 <b x-text="R.npass"></b>/<span x-text="R.ntot"></span> 通過</span>
@@ -529,7 +529,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </table>
     <div class="hint" x-show="DS.lossBad" x-cloak style="color:var(--ng)">✗ 預力損失已達 <b x-text="fmt(DS.lossPct,1)+'%'"></b>（f<sub>pe</sub> 過低）——此配置不合理，反解結果不可用，請先加大斷面或減少鋼腱。</div>
     <div class="hint no-print" x-show="DS.cgsBot<100" x-cloak style="color:var(--ng)">⚠ 套用該垂度後 CGS 距梁底僅 <b x-text="fmt(DS.cgsBot)"></b> mm，請確認保護層與管道尺寸。</div>
-    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 58/58・JS 310/310）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
+    <div class="cite">反解＝驗算之逆，與引擎同式：P<sub>e,min</sub>＝M·A/(S<sub>b</sub>+A·e)；n＝⌈P<sub>e</sub>/(股數·A<sub>p</sub>·f<sub>pe</sub>)⌉；a＝LBR·w<sub>DL</sub>·L²/(8P<sub>e</sub>)；S<sub>b,min</sub>＝(M−P<sub>e</sub>e)/(σ<sub>lim</sub>+P<sub>e</sub>/A)。四式皆對 <code>design_inverse</code> golden 驗證（Python 59/59・JS 316/316）。<b>套用為手動</b>，避免與下游檢核循環重算。</div>
   </div>
   <div class="card"><h2>鋼腱縱剖面（G1・拋物線）</h2>
     <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElev"></svg></div>
@@ -594,6 +594,20 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           <td colspan="2" x-text="'最大位於 x = '+fmt(FRP.x_max,1)+' m'"></td></tr>
       </tbody>
     </table>
+    <div class="grid" style="margin-top:10px">
+      <div class="metric"><div class="l">錨具滑移 Δa（③ 輸入，見 ⑦）</div><div class="v" style="font-size:15px" x-text="fmt(anchorSlip)+' mm'"></div></div>
+      <div class="metric"><div class="l">滑移影響長度 L<sub>set</sub>／可影響範圍 L<sub>m</sub></div>
+        <div class="v" style="font-size:15px" x-text="fmt(slipInfo.L_set,1)+' ／ '+fmt(slipInfo.Lm,1)+' m'+(slipInfo.capped?'（超出 → 損失圖平移）':'')"></div></div>
+      <div class="metric"><div class="l">錨具端滑移損失</div><div class="v" style="font-size:15px" x-text="fmt(slipInfo.anchor)+' MPa'"></div></div>
+      <div class="metric"><div class="l">控制斷面（x/L = <span x-text="fricX"></span>）滑移損失</div>
+        <div class="v" style="font-size:15px" :class="slipInfo.affects?'ng':'ok'"
+          x-text="fmt(slipInfo.atCtrl)+' MPa'+(slipInfo.affects?'（落在影響範圍內）':'（超出影響範圍＝0）')"></div></div>
+    </div>
+    <div class="hint" x-show="slipInfo.affects" x-cloak style="color:var(--ng)">
+      ⚠ 控制斷面距張拉端 <b x-text="fmt(slipInfo.d,1)+' m'"></b> < L<sub>set</sub> <b x-text="fmt(slipInfo.L_set,1)+' m'"></b>：
+      引擎 <code>compute_losses</code> 的「錨具滑移於控制斷面＝0」假設<b>在本案不成立</b>，③ 的損失總表會低估——
+      逐腱表與 ⑦ 的 P(x)／V_p 已計入滑移（<code>tendon_forces(slip_mm)</code>），但 ④ 服務性用的 P_e 尚未。
+    </div>
     <div class="hint" x-show="FRP.max_ratio>0.20" x-cloak style="color:var(--ng)">
       ✗ 摩擦損失最大已達 <b x-text="(FRP.max_ratio*100).toFixed(1)+' %'"></b>（＠x = <span x-text="fmt(FRP.x_max,1)"></span> m），
       超過 G1 不合格決策樹的 20% 門檻。對策依序：①<b>採雙端張拉</b>（最有效；但兩端到跨中的路徑各半，全長超過約 60 m 時跨中仍會偏高）
@@ -603,6 +617,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </div>
     <div class="cite">Δf<sub>pF</sub> ＝ f<sub>pj</sub>(1−e<sup>−(μα+Kx)</sup>)，<b>α 與 x 都自張拉端起算</b>，故張拉端配置直接決定每個斷面的損失。α(x)＝∫|e″|dx——反曲時 e″ 變號，<b>必須逐段取絕對值累加</b>（用斜率差會相消）。〔雙端〕該點取損失小者；〔交錯端〕半數腱自左、半數自右，表列為該斷面<b>兩者的平均</b>，個別腱仍是單端分佈。
       ⚠ <b>跨中在四種配置下同值</b>（左右對稱、路徑各半）——這是物理結果不是程式沒接上；差異在其餘斷面，單端張拉的遠端損失最大。
+      <b>錨具滑移</b>（Δa，⑦ 輸入）：L<sub>set</sub>＝√(Δa·E<sub>p</sub>/(1000p))、錨端損失 2p·L<sub>set</sub>（p＝摩擦損失梯度）；逐腱表與 ⑦ 的 P(x) 皆已依各腱張拉端計入，40 m 參考橋雙端張拉 L<sub>set</sub> 14.1 m < 半長 20 m，故跨中確實為 0。
       上游檢核（服務性／剪力／撓度）採<b>控制斷面 x/L＝<span x-text="fricX"></span></b> 的 Pe＝<b x-text="fmt(R.loss.Pe/1e3,0)+' kN'"></b>；改 ③ 的「摩擦控制斷面」即可換位置。
       🔧 <b>2026-09-16 修正</b>：先前 α 寫死 0.111（只對 e=1,109／L=40 正確），改 e 或 L 都不會跟著變；現由 <code>BC.frictionAt</code> 依實際線形算出。對 <code>friction_profile_G1</code> golden 驗證。</div>
     <template x-for="r in R.rows.filter(x=>x[4]==='③')" :key="r[0]">
@@ -1967,10 +1982,10 @@ function calc(){
         var cs2=tpc.segs.map(function(g){return [g.x1,g.x2,2*Math.abs(g.c)/1000]});
         var lo2=window.BC.computeLosses(ten,sec,0,0,
           {mu:this.fricMu,K:this.fricK,fricRatio:this.fricRatio});
-        var oth2=lo2.total-lo2.friction, B2=window.BC, muX=this.fricMu, KX=this.fricK;
+        var oth2=lo2.total-lo2.friction, B2=window.BC, muX=this.fricMu, KX=this.fricK, slipX=this.anchorSlip;
         var cache={};                                  // 同一 x 會被 P′/P″ 差分重複問到
         var tfAt=function(x){ var k=x.toFixed(6);
-          return cache[k]||(cache[k]=B2.tendonForces(ts2,x,tpc.total,cs2,sec.yb,ten.fpj,ApE2,oth2,muX,KX)); };
+          return cache[k]||(cache[k]=B2.tendonForces(ts2,x,tpc.total,cs2,sec.yb,ten.fpj,ApE2,oth2,muX,KX,slipX)); };
         samp={Pfn:function(x){ return tfAt(x).Pe_total/1e3 }, deFn:function(x){ return tfAt(x).de }};
       }
       var topT=this.contTop, topG=null;
@@ -1989,7 +2004,7 @@ function calc(){
               Pfn:samp&&samp.Pfn, deFn:samp&&samp.deFn, top:topG};
       var key=[sp.join('+'),this.lanes,wDC.toFixed(3),this.wDW,pt.Pe.toFixed(0),pt.eEnd,pt.eMid,pt.ePier,
                pt.kPier,pt.rEnd,this.jackEnd,this.fricMu,this.fricK,this.ductCover,this.ductSv,
-               this.ductRule,this.ductOD,this.ntd,this.nWeb,this.webT,
+               this.ductRule,this.ductOD,this.ntd,this.nWeb,this.webT,this.anchorSlip,
                topG?[this.contTopPeAuto,this.contTopPe,this.anchorSlip,this.contTopN,this.strands,this.contTopLen,this.contTopEAnc,this.contTopEPier].join(','):'-'].join('|');
       var hn=this.contHaunch; key+='|'+(hn?[this.contHf,this.contHaunchLen,this.topW,this.topT,this.botW,this.botT,this.h].join(','):'-');
       if(cbCache.key!==key){ cbCache.key=key; cbCache.val=contEnvelope(sp,wDC,this.wDW,this.lanes,pt,hn); }
@@ -2183,6 +2198,17 @@ function calc(){
     },
     get FRP(){ var q=this.fricGeom;
       return window.BC.frictionProfile(q.L,q.segs,this.fricMu,this.fricK,this.jackEnd,20); },
+    // 錨具滑移影響長度（公式卡_後張預力短期損失 §二）：L_set 與控制斷面是否落在影響範圍內
+    get slipInfo(){
+      var q=this.fricGeom, B=window.BC, fpj=B.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu).fpj;
+      var Lm=this.jackEnd==='both'?q.L/2:q.L;
+      var r=B.frictionAt(Lm,q.L,q.segs,this.fricMu,this.fricK,'start'), p=Lm>0?fpj*r/Lm:0;
+      var sl=B.anchorSlipLoss(0,Lm,p,this.anchorSlip), xc=this.fricX*q.L;
+      var d=this.jackEnd==='both'?Math.min(xc,q.L-xc):(this.jackEnd==='end'?q.L-xc:xc);
+      return {L:q.L, Lm:Lm, p:p, L_set:sl.L_set, capped:sl.capped, anchor:sl.dsigma_anchor,
+              atCtrl:B.tendonSlipLoss(xc,q.L,q.segs,fpj,this.jackEnd,this.fricMu,this.fricK,this.anchorSlip),
+              d:d, affects:d<sl.L_set-1e-9};
+    },
     get fricRatio(){ var q=this.fricGeom;
       return window.BC.frictionAt(this.fricX*q.L,q.L,q.segs,this.fricMu,this.fricK,this.jackEnd); },
     // 摩擦分佈表：各位置的損失率與該處 f_pe／Pe（非摩擦損失各項不隨位置變）
@@ -2585,7 +2611,7 @@ function calc(){
         var tenI=B.tendon(this.ntd,this.strands,eUse,this.strandAp,this.strandFpu);
         loss=B.computeLosses(tenI,sec,Mdc,Mdw,{mu:this.fricMu,K:this.fricK,fricRatio:this.fricRatio});
         tfR=B.tendonForces(tsR,this.fricX*fgR.L,fgR.L,fgR.segs,sec.yb,tenI.fpj,ApEachR,
-                           loss.total-loss.friction,this.fricMu,this.fricK);
+                           loss.total-loss.friction,this.fricMu,this.fricK,this.anchorSlip);
         eUse=eGeom+tfR.de;                       // 幾何偏心 + 合力偏移（tfR.e_geom 是實配形心）
       }
       ten=B.tendon(this.ntd,this.strands,eUse,this.strandAp,this.strandFpu);

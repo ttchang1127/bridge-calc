@@ -42,7 +42,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         cont_support_moments_point, taiwan_cont_envelope, cont_shear_il,
                         cont_dl_shear, taiwan_cont_live_shear, taiwan_lane_shear, shear_web_at,
                         taiwan_rear_spacings, max_moment_moving, anchor_slip_loss,
-                        pier_cap_tendon_force, gauss_integrate, friction_at,
+                        pier_cap_tendon_force, gauss_integrate, friction_at, tendon_slip_loss,
                         cont_shear_design_scan, groups_prestress_at, stirrup_max_spacing_TW,
                         STD_STIRRUP_SPACINGS)
 from bridgecalc.influence import TW_HS20_AXLES, TW_HS20_SPACING, max_shear_moving
@@ -502,6 +502,23 @@ def test_cont_shear_scan():
     s_max, halved, ok = stirrup_max_spacing_TW(0.34 * 40 ** 0.5 * 250 * 1512, 40, 250, 1512, 2100)
     assert halved and s_max == 300 and ok
     assert not stirrup_max_spacing_TW(0.67 * 40 ** 0.5 * 250 * 1512, 40, 250, 1512, 2100)[2]
+
+
+def test_tendon_slip_full_length():
+    """全長腱錨具滑移：slip_mm=0 與既有相同；雙端張拉對稱且跨中為 0（L_set<半長）；交錯張拉端部下降。"""
+    g = golden["tendon_slip_G1"]
+    fpj = 0.75 * 1860
+    seg40 = parabolic_curv_segs(40, 1109)
+    assert g["simple40_mid_unaffected"] and g["simple40_slip_mid"] == 0     # 驗證 compute_losses「跨中＝0」
+    _close(tendon_slip_loss(0, 40, seg40, fpj, "both", slip_mm=6),
+           tendon_slip_loss(40, 40, seg40, fpj, "both", slip_mm=6), 1e-9)   # 雙端對稱
+    assert tendon_slip_loss(20, 40, seg40, fpj, "both", slip_mm=0) == 0     # 預設不計
+    # 單端張拉：張拉端最大、遠端為 0（L_set < L）
+    assert tendon_slip_loss(0, 40, seg40, fpj, "start", slip_mm=6) > 100
+    assert tendon_slip_loss(40, 40, seg40, fpj, "start", slip_mm=6) == 0
+    _close(tendon_slip_loss(1.5, 80, [(0, 80, 0.0)], fpj, "start", slip_mm=6),
+           tendon_slip_loss(78.5, 80, [(0, 80, 0.0)], fpj, "end", slip_mm=6), 1e-9)
+    assert g["cont80_drop_pct"] < -5 and g["cont80_Pe_pier_slip6_kN"] > g["cont80_Pe_x1_5_slip6_kN"]
 
 
 def test_secondary_moments_force():

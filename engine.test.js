@@ -305,6 +305,15 @@ function chkEq(name, got, exp) {
   chk('滑移（L_set 超過半長）', BC.anchorSlipLoss(0, 15, 5, 6).dsigma, ptl.slip_capped_dsigma, 1e-3);
   var topL = { P: function (x) { return BC.pierCapTendonForce(pcL, x, 1395, 10640, ptl.other).P; }, segs: pcL.segs };
   chk('頂板腱精算 M2 墩頂', BC.continuousPrestress([40, 40], [gBot, topL]).X[1], ptl.M2_pier_kNm, 0.1);
+  // 全長腱錨具滑移
+  var tsg = g.tendon_slip_G1, fpjS = 0.75 * 1860, seg40S = BC.parabolicCurvSegs(40, 1109);
+  chk('滑移 簡支40 L_set', Math.sqrt(6 * 195000 / 1000 / (fpjS * BC.frictionAt(20, 40, seg40S, 0.25, 0.003, 'start') / 20)), tsg.simple40_L_set_m, 1e-3);
+  chk('滑移 簡支40 錨端', BC.tendonSlipLoss(0, 40, seg40S, fpjS, 'both', 0.25, 0.003, 6), tsg.simple40_slip_anchor, 0.01);
+  chk('滑移 簡支40 跨中（＝0）', BC.tendonSlipLoss(20, 40, seg40S, fpjS, 'both', 0.25, 0.003, 6), tsg.simple40_slip_mid, 1e-9);
+  var tpS = BC.contTendonSegs([40, 40], 0, 1109, -600), csS = tpS.segs.map(function (gg) { return [gg.x1, gg.x2, 2 * Math.abs(gg.c) / 1000]; });
+  chk('滑移 連續80 起端張拉 x=1.5', BC.tendonSlipLoss(1.5, 80, csS, fpjS, 'start', 0.25, 0.003, 6), tsg.cont80_slip_start_jack_x1_5, 0.01);
+  chk('滑移 連續80 終端張拉 x=1.5', BC.tendonSlipLoss(1.5, 80, csS, fpjS, 'end', 0.25, 0.003, 6), tsg.cont80_slip_end_jack_x1_5, 1e-9);
+  chk('滑移 預設 0（不計）', BC.tendonSlipLoss(1.5, 80, csS, fpjS, 'start', 0.25, 0.003, 0), 0, 1e-12);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

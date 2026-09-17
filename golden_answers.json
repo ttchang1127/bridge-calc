@@ -434,6 +434,20 @@
     "max_spacing_normal": 600.0,
     "_note": "中墩兩側須 @200（V_s 超 0.33√f'c·b·d_v → 上限減半 300）；頂板腱錨碇左側 V_p 驟減 → 需 @400，右側 @500"
   },
+  "tendon_slip_G1": {
+    "simple40_p_MPa_per_m": 5.8581,
+    "simple40_L_set_m": 14.132,
+    "simple40_mid_unaffected": true,
+    "simple40_slip_anchor": 165.58,
+    "simple40_slip_mid": 0.0,
+    "cont80_slip_start_jack_x1_5": 153.4,
+    "cont80_slip_end_jack_x1_5": 0.0,
+    "cont80_Pe_x1_5_noslip_kN": 17857.8,
+    "cont80_Pe_x1_5_slip6_kN": 16225.6,
+    "cont80_drop_pct": -9.14,
+    "cont80_Pe_pier_slip6_kN": 17286.8,
+    "_note": "Δa 6 mm。簡支 40 m 雙端：L_set 14.1 < 半長 20 → 跨中確實為 0（compute_losses 假設成立）；連續 80 m 交錯：端部 d_v 斷面 P 降 9.1%（半數腱在該端受滿滑移 153 MPa）→ V_p 同比下降"
+  },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",
     "Tu_C": 6.91,

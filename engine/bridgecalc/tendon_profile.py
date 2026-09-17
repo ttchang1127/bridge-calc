@@ -352,3 +352,72 @@ def top_slab_tendon_check(h: float, yb: float, top_t: float, e_pier: float, n: i
     s_ok = s_clear >= s_req - 1e-6
     return TopSlabTendonResult(e_hi, e_lo, y, in_slab, top_cov, bot_cov, xo,
                                s_clear, s_req, s_ok, in_slab and s_ok)
+
+
+@dataclass
+class AnchorSlipResult:
+    dsigma: float        # 該點滑移損失 MPa
+    L_set: float         # 影響長度 m（受 L_m 限制時為 L_m）
+    dsigma_anchor: float # 錨具端最大損失 MPa
+    p: float             # 摩擦損失梯度 MPa/m
+    capped: bool         # L_set 超過 L_m（損失圖整體平移）
+
+
+def anchor_slip_loss(d: float, L_m: float, p: float, slip_mm: float = 6.0,
+                     Ep: float = 195000.0) -> AnchorSlipResult:
+    """錨具滑移損失（公式卡_後張預力短期損失 §二，簡化法：摩擦損失沿長度線性）。
+
+    d：距張拉端 m；L_m：滑移可影響的最遠距離 m（單端張拉＝全長、雙端張拉＝半長，即摩擦損失最低點）；
+    p：摩擦損失梯度 MPa/m。面積條件 ∫Δσ dx = Δa·Ep（mm·MPa → 除 1000 化為 MPa·m）：
+      L_set = √(Δa·Ep/(1000·p))；Δσ(d) = 2p·(L_set − d)（d < L_set）。
+    L_set > L_m 時損失圖整體平移：Δσ(d) = 2p·(L_m − d) + c，c = (Δa·Ep/1000 − p·L_m²)/L_m。
+    """
+    A = slip_mm * Ep / 1000.0
+    if p <= 0:
+        c = A / L_m if L_m > 0 else 0.0
+        return AnchorSlipResult(c, L_m, c, p, True)
+    Ls = math.sqrt(A / p)
+    if Ls <= L_m:
+        ds = 2 * p * (Ls - d) if d < Ls else 0.0
+        return AnchorSlipResult(ds, Ls, 2 * p * Ls, p, False)
+    c = (A - p * L_m ** 2) / L_m
+    return AnchorSlipResult(2 * p * (L_m - min(d, L_m)) + c, L_m, 2 * p * L_m + c, p, True)
+
+
+@dataclass
+class CapTendonForce:
+    P: float             # 該點總預力 kN（不在腱範圍內為 0）
+    fpe: float           # MPa
+    friction: float      # 摩擦損失 MPa
+    slip: float          # 錨具滑移損失 MPa
+    other: float         # 其他（ES、潛變、乾縮、鬆弛）MPa
+    s: float             # 距左錨 m
+    L_t: float           # 該組腱全長 m
+
+
+def pier_cap_tendon_force(pc, x: float, fpj: float, Aps: float, other_loss: float,
+                          mu: float = 0.25, K: float = 0.003, slip_mm: float = 6.0,
+                          Ep: float = 195000.0) -> CapTendonForce:
+    """墩頂局部腱（雙端張拉）逐點有效預力：摩擦（依自身線形）＋錨具滑移＋其他損失。
+
+    pc：pier_cap_tendon_segs 結果（每墩兩段）；Aps：該組全部鋼腱面積 mm²。
+    摩擦由 friction_at（雙端張拉取兩端損失小者）；滑移依 anchor_slip_loss，L_m＝半長、
+    p＝半長處摩擦損失 ÷ 半長（線性化）。other_loss 通常沿用全長腱的非摩擦損失（f_cgp 差異略去）。
+    """
+    segs = pc.segs
+    for k in range(0, len(segs), 2):
+        sl, sr = segs[k], segs[k + 1]
+        xa, xb = sl.x1, sr.x2
+        if xa - 1e-9 <= x <= xb + 1e-9:
+            L_t = xb - xa
+            local = [(0.0, sl.x2 - xa, 2 * abs(sl.c) / 1000.0), (sl.x2 - xa, L_t, 2 * abs(sr.c) / 1000.0)]
+            s = min(max(x - xa, 0.0), L_t)
+            r = friction_at(s, L_t, local, mu, K, "both")
+            L_m = L_t / 2
+            r_mid = friction_at(L_m, L_t, local, mu, K, "start")
+            p = fpj * r_mid / L_m if L_m > 0 else 0.0
+            sl_ = anchor_slip_loss(min(s, L_t - s), L_m, p, slip_mm, Ep).dsigma
+            fr = fpj * r
+            fpe = fpj - fr - sl_ - other_loss
+            return CapTendonForce(fpe * Aps / 1000.0, fpe, fr, sl_, other_loss, s, L_t)
+    return CapTendonForce(0.0, 0.0, 0.0, 0.0, other_loss, 0.0, 0.0)

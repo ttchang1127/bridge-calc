@@ -39,7 +39,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         pier_cap_tendon_segs, top_slab_tendon_check,
                         section_from_dims, haunch_profile, ContFlex,
                         cont_shear_il, cont_dl_shear, taiwan_cont_live_shear, taiwan_cont_shear_at,
-                        secondary_shear, design_shear_with_V2, shear_web_at, taiwan_rear_spacings)
+                        secondary_shear, design_shear_with_V2, shear_web_at, taiwan_rear_spacings,
+                        anchor_slip_loss, pier_cap_tendon_force)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -100,8 +101,8 @@ def _continuous_pier():
     (wb0, xb0), _ = _cont_service_scan(g, rows, r, with_M2=False)
     Mu = -(pier.Mu_neg + M2p)
     Mu0 = -pier.Mu_neg
-    ft = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, Mu)
-    ft0 = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, Mu0)
+    ft = flexural_strength_T(4 * 2660, 1860, 40, 1400, 200, 700, 1975, Mu)
+    ft0 = flexural_strength_T(4 * 2660, 1860, 40, 1400, 200, 700, 1975, Mu0)
     pos = max((rw for rw in rows if rw.x <= 40), key=lambda rw: rw.Mu_pos + r.M2_at(rw.x))
     tp = cont_tendon_segs([40, 40], -80, 950, -600, 0.12, 0.40)
     ga = [TendonGroup(23700, tp.segs), top]
@@ -252,6 +253,34 @@ def _simple_shear_dv():
         "lane": round(lv.lane_pos, 3), "I": round(r.I, 6), "V_ll": round(r.V_ll_pos, 3),
         "Vu_total": round(r.Vu_pos, 2), "Vu_per_web": round(r.Vu_pos / 2, 2),
         "_note": "analyzer ⑤ Vu 自動帶入值；算例_腹板抗剪 2,329 係等值均布活載 42.5 kN/m＋SDL 因數 1.25 之近似",
+    }
+
+
+def _pier_cap_tendon_losses():
+    """頂板腱逐點損失（摩擦＋錨具滑移 6 mm＋ES＋長期）與對中墩 M2／強度的影響（算例 §3.3 對照）。"""
+    pc = pier_cap_tendon_segs([40, 40], 15, 300, -646)
+    Aps = 4 * 2660.0
+    fcgp = 36257e3 / sec.A + 36257e3 * (-276.0) * (-646.0) / sec.I - (-24819e6) * (-646.0) / sec.I
+    ES = 3 / 8 * 7.33 * fcgp
+    other = ES + 155.0
+    f40, f25, f385 = (pier_cap_tendon_force(pc, x, 1395.0, Aps, other) for x in (40, 25, 38.488))
+    bot, _ = _cont_case_groups()
+    top = TendonGroup(lambda x: pier_cap_tendon_force(pc, x, 1395.0, Aps, other).P, pc.segs)
+    r = continuous_prestress([40, 40], [bot, top])
+    rows = taiwan_cont_envelope([40, 40], sec.A / 1e6 * 24.5, 20, 2, n_per_span=40)
+    pier = next(rw for rw in rows if abs(rw.x - 40) < 1e-9)
+    Mu = -(pier.Mu_neg + r.X[1])
+    ft = flexural_strength_T(Aps, 1860, 40, 1400, 200, 700, 1975, Mu)
+    sl = anchor_slip_loss(0, 15, 5.0, 6)
+    return {
+        "fcgp_top_pier": round(fcgp, 3), "ES": round(ES, 2), "other": round(other, 2),
+        "pier_friction": round(f40.friction, 2), "pier_slip": round(f40.slip, 2), "pier_fpe": round(f40.fpe, 2),
+        "pier_P_kN": round(f40.P, 1), "anchor_slip": round(f25.slip, 2), "anchor_fpe": round(f25.fpe, 2),
+        "dv_x_slip": round(f385.slip, 3), "dv_x_P_kN": round(f385.P, 1),
+        "M2_pier_kNm": round(r.X[1], 1), "pier_Mu_kNm": round(Mu, 1), "pier_CR": round(ft.CR, 3),
+        "slip_capped_dsigma": round(sl.dsigma, 3), "slip_capped": sl.capped,
+        "_note": "算例假設 f_pe 1,180（短期 60 估）；精算墩頂 f_pe≈1,126（摩擦 103＋ES 12＋長期 155）→ P 12,558→約 11,975；"
+                 "M2 上升（頂板腱 M2 為負）、A_ps 改實際 10,640 → CR 約 1.04",
     }
 
 
@@ -448,6 +477,7 @@ golden = {
     "cont_shear_taiwan": _cont_shear_taiwan(),
     "rear_axle_scan": _rear_axle_scan(),
     "simple_shear_dv": _simple_shear_dv(),
+    "pier_cap_tendon_losses": _pier_cap_tendon_losses(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

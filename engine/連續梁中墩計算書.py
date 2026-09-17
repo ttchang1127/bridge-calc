@@ -71,8 +71,8 @@ sb_p0 = pier_service_stress(36257e3, sec, e_eff, PIER.Ms_neg)[1]
 WB, WT = scan(G, fm)
 WB0, _ = scan(G, fm, with_M2=False)
 Mu_pier = -(PIER.Mu_neg + M2_pier)               # γ_P = 1.0（AASHTO 3.4.1）
-ft = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, Mu_pier)
-ft0 = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, -PIER.Mu_neg)
+ft = flexural_strength_T(10640, 1860, 40, 1400, 200, 700, 1975, Mu_pier)
+ft0 = flexural_strength_T(10640, 1860, 40, 1400, 200, 700, 1975, -PIER.Mu_neg)
 
 # 中墩左側 d_v 斷面剪力（d_v = max(0.9 d_p, 0.72h)；中墩側 d_p 自底緣量至合力 CGS）
 DV = 0.72 * 2100

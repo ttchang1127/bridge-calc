@@ -1,7 +1,7 @@
 /* engine.js — 橋梁計算單一引擎（四域合一：箱梁 BC ＋ 耐震 SE ＋ 施工 CE ＋ 補強 RF）。
  * 由原四個 per-domain 引擎（box-girder/seismic/construction/retrofit-engine.js）收斂而成，
  * 消除「多檔各自與 Python 漂移」的面。瀏覽器掛 window.BC/SE/CE/RF（back-compat，呼叫端零改）；
- * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 291 項。
+ * node: const {BC,SE,CE,RF} = require('./engine.js')。對 golden 由 engine.test.js 一次驗 298 項。
  * 單一 closure → CE 直接用 BC.stresses（免原 global.BC 耦合）。
  */
 (function (global) {
@@ -820,6 +820,31 @@
     }
     return { segs: segs, lengths: lens, anchors: anchors,
              Rmin: segs.length ? Math.min.apply(null, segs.map(function (g) { return g.R; })) : Infinity };
+  };
+  // 錨具滑移損失（公式卡_後張預力短期損失 §二簡化法；同 tendon_profile.anchor_slip_loss）
+  // L_set＝√(Δa·Ep/(1000p))；超過 L_m（單端＝全長、雙端＝半長）時損失圖整體平移使 ∫Δσ＝Δa·Ep/1000
+  BC.anchorSlipLoss = function (d, Lm, p, slip, Ep) {
+    slip = slip == null ? 6 : slip; Ep = Ep || 195000;
+    var A = slip * Ep / 1000;
+    if (p <= 0) { var c0 = Lm > 0 ? A / Lm : 0; return { dsigma: c0, L_set: Lm, dsigma_anchor: c0, p: p, capped: true }; }
+    var Ls = Math.sqrt(A / p);
+    if (Ls <= Lm) return { dsigma: d < Ls ? 2 * p * (Ls - d) : 0, L_set: Ls, dsigma_anchor: 2 * p * Ls, p: p, capped: false };
+    var c = (A - p * Lm * Lm) / Lm;
+    return { dsigma: 2 * p * (Lm - Math.min(d, Lm)) + c, L_set: Lm, dsigma_anchor: 2 * p * Lm + c, p: p, capped: true };
+  };
+  // 墩頂局部腱（雙端張拉）逐點有效預力：摩擦（自身線形）＋滑移＋其他損失（同 tendon_profile.pier_cap_tendon_force）
+  BC.pierCapTendonForce = function (pc, x, fpj, Aps, other, mu, K, slip, Ep) {
+    for (var k = 0; k < pc.segs.length; k += 2) {
+      var sl = pc.segs[k], sr = pc.segs[k + 1], xa = sl.x1, xb = sr.x2;
+      if (x >= xa - 1e-9 && x <= xb + 1e-9) {
+        var Lt = xb - xa, local = [[0, sl.x2 - xa, 2 * Math.abs(sl.c) / 1000], [sl.x2 - xa, Lt, 2 * Math.abs(sr.c) / 1000]];
+        var s = Math.min(Math.max(x - xa, 0), Lt), r = BC.frictionAt(s, Lt, local, mu, K, 'both');
+        var Lm = Lt / 2, rMid = BC.frictionAt(Lm, Lt, local, mu, K, 'start'), p = Lm > 0 ? fpj * rMid / Lm : 0;
+        var sLoss = BC.anchorSlipLoss(Math.min(s, Lt - s), Lm, p, slip, Ep).dsigma, fr = fpj * r, fpe = fpj - fr - sLoss - other;
+        return { P: fpe * Aps / 1000, fpe: fpe, friction: fr, slip: sLoss, other: other, s: s, L_t: Lt };
+      }
+    }
+    return { P: 0, fpe: 0, friction: 0, slip: 0, other: other, s: 0, L_t: 0 };
   };
   // 頂板腱墩頂斷面構造檢核（同 tendon_profile.top_slab_tendon_check）
   BC.topSlabTendonCheck = function (h, yb, topT, ePier, n, width, od, cover, dAgg, rule) {

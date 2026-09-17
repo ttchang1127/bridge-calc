@@ -41,7 +41,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         top_slab_tendon_check, section_from_dims, haunch_profile, ContFlex,
                         cont_support_moments_point, taiwan_cont_envelope, cont_shear_il,
                         cont_dl_shear, taiwan_cont_live_shear, taiwan_lane_shear, shear_web_at,
-                        taiwan_rear_spacings, max_moment_moving)
+                        taiwan_rear_spacings, max_moment_moving, anchor_slip_loss,
+                        pier_cap_tendon_force, gauss_integrate, friction_at)
 from bridgecalc.influence import TW_HS20_AXLES, TW_HS20_SPACING, max_shear_moving
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
@@ -324,12 +325,13 @@ def test_continuous_pier():
     assert g["span_max_sigma_bot_MPa"] > g["span_max_sigma_bot_noM2_MPa"]     # M2 吃掉跨中壓應力餘裕
     Mu = g["pier_Mu_noM2_kNm"] - r.X[1]
     _close(Mu, g["pier_Mu_kNm"], 1)
-    ft = flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, Mu)
+    ft = flexural_strength_T(10640, 1860, 40, 1400, 200, 700, 1975, Mu)
     assert ft.flanged                          # NA 進腹板 → T 斷面
-    _close(ft.c, 767, 2)
-    _close(ft.Mn, 32399, 50)
-    assert ft.ok and ft.CR < 1.1               # 計入 M2 後剛好足夠（CR≈1.05）
-    assert not flexural_strength_T(11292, 1860, 40, 1400, 200, 700, 1975, g["pier_Mu_noM2_kNm"]).ok
+    _close(ft.c, 716, 2)                       # A_ps＝4 束×2,660＝10,640（原誤用 P_e/f_pe 反推 11,292）
+    _close(ft.Mn, 31081, 50)
+    assert ft.phi == 1.0                       # ε_t 0.0053 → 拉力控制
+    assert ft.ok and ft.CR < 1.1               # 計入 M2 後剛好足夠（CR≈1.03）
+    assert not flexural_strength_T(10640, 1860, 40, 1400, 200, 700, 1975, g["pier_Mu_noM2_kNm"]).ok
     # 對照：簡支跨中正彎矩同公式 → 矩形(翼板內)、CR>1
     fr = flexural_strength_T(21280, 1860, 40, 8000, 250, 700, 1880, 48965)
     assert not fr.flanged and fr.CR > 1
@@ -456,6 +458,21 @@ def test_simple_shear_dv():
     _close(g["I"], taiwan_impact(L - x), 1e-6)                    # 衝擊長度＝至較遠支點
     ll = max(g["truck"], g["lane"]) * (1 + g["I"]) * 2
     _close(g["Vu_total"], 1.25 * g["V_dc"] + 1.5 * g["V_dw"] + 1.75 * ll, 0.01)
+
+
+def test_pier_cap_tendon_losses():
+    """頂板腱逐點損失：滑移面積條件、雙端對稱、錨碇處滑移最大、墩頂不受滑移；精算後 CR 仍 ≥1。"""
+    g = golden["pier_cap_tendon_losses"]
+    for L_m, p in ((15, 5.0), (5, 5.0), (40, 2.0)):
+        r = anchor_slip_loss(0, L_m, p, 6)
+        area = gauss_integrate(lambda d: anchor_slip_loss(d, L_m, p, 6).dsigma, 0, L_m, [r.L_set], 0.01)
+        _close(area, 6 * 195000 / 1000, 0.5)                      # ∫Δσ = Δa·Ep
+    pc = pier_cap_tendon_segs([40, 40], 15, 300, -646)
+    f = lambda x: pier_cap_tendon_force(pc, x, 1395.0, 10640, g["other"])
+    _close(f(30).fpe, f(50).fpe, 1e-9)                            # 雙端張拉對稱
+    assert f(25).slip > 150 and f(40).slip == 0 and f(10).P == 0
+    _close(f(40).friction, 1395 * friction_at(15, 30, [(0, 15, 2 * 946 / 225 / 1000), (15, 30, 2 * 946 / 225 / 1000)], 0.25, 0.003, "start"), 1e-6)
+    assert 1.0 <= g["pier_CR"] < 1.06 and g["M2_pier_kNm"] > golden["continuous_pier"]["M2_pier_kNm"]
 
 
 def test_secondary_moments_force():

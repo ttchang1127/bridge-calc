@@ -193,7 +193,7 @@ function chkEq(name, got, exp) {
   chk('中墩 衝擊（相鄰兩跨平均）', pierC.I_neg, cp.pier_impact, 1e-4);
   var sbP = BC.stresses(36257e3, BC.section(5.065e6, 3.287e12, 1329, 2100), cp.e_pier_eff_mm, pierC.Ms_neg + fmc.X[1]).sb;
   chk('中墩 σb（含M2）', sbP, cp.pier_service_sigma_bot_MPa, 0.01);
-  var ft = BC.flexuralStrengthT(11292, 1860, 40, 1400, 200, 700, 1975, -(pierC.Mu_neg + fmc.X[1]));
+  var ft = BC.flexuralStrengthT(4 * 2660, 1860, 40, 1400, 200, 700, 1975, -(pierC.Mu_neg + fmc.X[1]));
   chk('中墩 Mu(含M2)', -(pierC.Mu_neg + fmc.X[1]), cp.pier_Mu_kNm, 1);
   chk('中墩 T斷面 c', ft.c, cp.pier_c_mm, 1);
   chk('中墩 fps', ft.fps, cp.pier_fps_MPa, 1);
@@ -294,6 +294,17 @@ function chkEq(name, got, exp) {
   chk('算例墩左 Av/s 需', shS.Av_s_req, csg.case_Av_s_req, 1e-4);
   chk('算例墩左 φVn @250', BC.phiVn(shS.Vcw, 397.4 / 250, 1512) / 1e3, csg.case_phiVn_D16x2_s250_kN, 0.1);
   chk('算例墩左 φVn @200', BC.phiVn(shS.Vcw, 397.4 / 200, 1512) / 1e3, csg.case_phiVn_D16x2_s200_kN, 0.1);
+  // 頂板腱逐點損失（摩擦＋滑移＋ES＋長期）
+  var ptl = g.pier_cap_tendon_losses, pcL = BC.pierCapTendonSegs([40, 40], 15, 300, -646);
+  var f40L = BC.pierCapTendonForce(pcL, 40, 1395, 10640, ptl.other), f25L = BC.pierCapTendonForce(pcL, 25, 1395, 10640, ptl.other);
+  chk('頂板腱 墩頂摩擦', f40L.friction, ptl.pier_friction, 0.01);
+  chk('頂板腱 墩頂 f_pe', f40L.fpe, ptl.pier_fpe, 0.01);
+  chk('頂板腱 墩頂 P', f40L.P, ptl.pier_P_kN, 0.1);
+  chk('頂板腱 錨碇滑移', f25L.slip, ptl.anchor_slip, 0.01);
+  chk('頂板腱 錨碇 f_pe', f25L.fpe, ptl.anchor_fpe, 0.01);
+  chk('滑移（L_set 超過半長）', BC.anchorSlipLoss(0, 15, 5, 6).dsigma, ptl.slip_capped_dsigma, 1e-3);
+  var topL = { P: function (x) { return BC.pierCapTendonForce(pcL, x, 1395, 10640, ptl.other).P; }, segs: pcL.segs };
+  chk('頂板腱精算 M2 墩頂', BC.continuousPrestress([40, 40], [gBot, topL]).X[1], ptl.M2_pier_kNm, 0.1);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

@@ -1100,6 +1100,93 @@ def test_loss_profile_worst_section_moves_to_anchor_with_slip():
 
 
 
+# ── 中間錨碇齒塊（blister）錨碇區設計 ────────────────────────────
+# 對應 算例_外置PT補強_錨固齒塊中間錨碇設計（12φ15.2、P_s 1,764 kN）。
+
+def _blister_ref():
+    from bridgecalc.blister import blister_design
+    return blister_design(Ps_kN=1764, Pu_kN=3000, Pd_kN=3000,
+                          a_plate=200, b_plate=200, L_b=400, W_b=300, D_b=250,
+                          A_bearing=60000, fci=35, f_cb=8.0, A_cb=40000,
+                          alpha_deg=5, mu=1.0, fy=420, fsd=360, straight_have=400)
+
+
+def test_blister_matches_worked_example():
+    """四類配筋＋局部承壓皆對齊算例。"""
+    d = _blister_ref()
+    _close(d.bearing.f_b, 75.0, 0.05)              # 3.1 錨板承壓
+    _close(d.bearing.f_b_allow, 25.4, 0.15)        # 算例把 √1.5 取 1.22，引擎用 1.2247
+    assert not d.bearing.ok                        # 算例結論：不配螺旋筋不通過
+    _close(d.burst.F_burst, 375.0, 0.05)           # 5.1 爆裂
+    _close(d.burst.d_burst, 200.0, 0.05)
+    _close(d.burst.As_burst, 992.0, 0.5)
+    _close(d.tie.T_req, 441.0, 0.05)               # 5.2 Tie-back
+    _close(d.tie.C_precomp, 320.0, 0.05)
+    _close(d.tie.fs_allow, 248.0, 0.05)
+    _close(d.tie.As, 488.0, 0.5)
+    _close(d.tie.As_conservative, 1778.0, 0.5)
+    _close(d.spall.F_spall, 35.3, 0.05)            # 5.3 剝裂
+    _close(d.spall.As_spall, 93.0, 0.5)
+    _close(d.face.V_int, 1757.0, 0.5)              # 5.4 介面剪力摩擦
+    _close(d.face.As_vf, 4881.0, 1.0)
+    assert d.governing == "介面剪力摩擦"            # 齒塊的配筋量由介面控制
+
+
+def test_blister_interface_area_cap_catches_undersized_blister():
+    """🔴 算例漏檢的一項：剪力摩擦有**面積上限**，配筋算得出來不代表做得到。
+
+    算例齒塊 400×250＝100,000 mm²，介面剪力 1,757 kN → τ = 17.6 MPa，
+    遠超上限 min(0.25f'c, 10.3) = 10.0 MPa。此時加多少鋼筋都沒用，只能加大齒塊。
+    """
+    d = _blister_ref()
+    _close(d.face.tau, 17.57, 0.02)
+    _close(d.face.tau_cap, 10.0, 1e-9)             # min(0.25×40, 10.3)
+    _close(d.face.V_cap, 1000.0, 0.5)
+    assert not d.face.area_ok                      # 介面面積不足
+    _close(d.face.A_req, 175729, 5)                # 需 1.76 倍
+    # 加大到 600×300 即通過（配筋量不變，變的是介面面積）
+    from bridgecalc.blister import blister_design
+    big = blister_design(Ps_kN=1764, Pu_kN=3000, Pd_kN=3000, a_plate=200, b_plate=200,
+                         L_b=600, W_b=300, D_b=300, A_bearing=60000, fci=35,
+                         f_cb=8.0, A_cb=40000, alpha_deg=5, mu=1.0, fy=420,
+                         fsd=360, fc=40, straight_have=400)
+    assert big.face.area_ok
+    _close(big.face.As_vf, d.face.As_vf, 1e-9)     # 配筋需求完全沒變
+
+
+def test_blister_physics_limits():
+    """四個退化／極限情形——不是重算算例，是檢查式子在邊界仍有物理意義。"""
+    from bridgecalc.blister import (blister_bursting, blister_interface_shear,
+                                    blister_tieback, blister_local_bearing)
+    # ① 錨板佔滿整個斷面（a=h）→ 力不擴散 → 爆裂力為 0
+    _close(blister_bursting(3000, 400, 400).F_burst, 0.0, 1e-9)
+    # ② 鋼腱與橋軸平行（α=0）→ 介面剪力＝全腱力；垂直（α=90°）→ 0
+    _close(blister_interface_shear(1764, 0.0).V_int, 1764.0, 1e-9)
+    _close(blister_interface_shear(1764, 90.0).V_int, 0.0, 1e-9)
+    # ③ 既有預壓足以承擔全部 Tie-back 時 As 夾到 0（不得為負）
+    t = blister_tieback(1764, f_cb=20.0, A_cb=40000)
+    assert t.C_precomp > t.T_req and t.As == 0.0
+    assert t.As_conservative > 0                   # 保守值不受抵扣影響
+    # ④ 承壓影響面積很大時由 1.5·f'ci 上限接手
+    b = blister_local_bearing(3000, 40000, 4e6, 35.0)
+    assert b.capped and abs(b.f_b_allow - 1.5 * 35.0) < 1e-9
+
+
+def test_blister_vs_deviator_magnitude():
+    """齒塊 vs 轉向塊：介面剪力差一個數量級——這是齒塊配筋量大的主因。
+
+    轉向塊只傳偏向力 P·sinα；錨碇齒塊傳完整 P·cosα。5° 時相差約 11 倍。
+    """
+    from bridgecalc.blister import blister_interface_shear
+    from math import sin, radians
+    Ps, al = 1764.0, 5.0
+    V_anchor = blister_interface_shear(Ps, al).V_int
+    V_deviator = Ps * sin(radians(al))
+    assert V_anchor / V_deviator > 10
+    _close(V_deviator, 153.8, 0.2)
+
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

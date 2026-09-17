@@ -43,7 +43,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         anchor_slip_loss, pier_cap_tendon_force, cont_shear_design_scan,
                         groups_prestress_at, stirrup_max_spacing_TW, tendon_slip_loss,
                         segmented_tendon_force, segmented_friction_profile,
-                        loss_profile, parabolic_e, udl_moment)
+                        loss_profile, parabolic_e, udl_moment, blister_design)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -528,6 +528,49 @@ def _loss_profile_G1():
                  "無滑移時 Pe_min 在跨中(摩擦控制)、計滑移後搬到端部——最不利斷面會搬家是單點式看不到的。"
                  "跨中滑移=0 印證 compute_losses 註解的假設(L_set 14.1m < 半長 20m)。"}
 
+
+def _blister_B1():
+    """中間錨碇齒塊錨碇區（算例_外置PT補強_錨固齒塊中間錨碇設計）：12φ15.2、P_s 1,764 kN。
+
+    齒塊與端部錨碇／轉向塊的根本差異：後方無鋼腱延伸提供回力 → Tie-back 不得省略；
+    介面剪力逼近全腱力（cos5°）而非偏向力（sin5°），相差約 11 倍。
+    """
+    d = blister_design(Ps_kN=1764, Pu_kN=3000, Pd_kN=3000,
+                       a_plate=200, b_plate=200, L_b=400, W_b=300, D_b=250,
+                       A_bearing=60000, fci=35, f_cb=8.0, A_cb=40000,
+                       alpha_deg=5, mu=1.0, fy=420, fsd=360, fc=40, straight_have=400)
+    return {
+        "config": "12φ15.2/P_s1764/P_u3000/P_d3000/錨板200x200/齒塊400x300x250/f'ci35/f_cb8",
+        "f_b_MPa": round(d.bearing.f_b, 1),
+        "f_b_allow_MPa": round(d.bearing.f_b_allow, 2),
+        "bearing_ok": d.bearing.ok,
+        "spiral_factor_req": round(d.bearing.spiral_factor_req, 2),
+        "F_burst_kN": round(d.burst.F_burst, 1),
+        "d_burst_mm": round(d.burst.d_burst, 1),
+        "As_burst_mm2": round(d.burst.As_burst, 1),
+        "T_tieback_kN": round(d.tie.T_req, 1),
+        "C_precomp_kN": round(d.tie.C_precomp, 1),
+        "fs_allow_MPa": round(d.tie.fs_allow, 1),
+        "As_tie_mm2": round(d.tie.As, 1),
+        "As_tie_conservative_mm2": round(d.tie.As_conservative, 1),
+        "F_spall_kN": round(d.spall.F_spall, 2),
+        "As_spall_mm2": round(d.spall.As_spall, 1),
+        "V_interface_kN": round(d.face.V_int, 1),
+        "As_vf_mm2": round(d.face.As_vf, 1),
+        "tau_interface_MPa": round(d.face.tau, 3),
+        "tau_cap_MPa": round(d.face.tau_cap, 2),
+        "V_cap_kN": round(d.face.V_cap, 1),
+        "interface_area_ok": d.face.area_ok,
+        "A_interface_req_mm2": round(d.face.A_req, 0),
+        "governing": d.governing,
+        "As_total_conservative_mm2": round(d.As_total_conservative, 1),
+        "geom_ok": d.geom.ok,
+        "_note": "局部承壓 75.0 > 25.5 不通過 → 必須配錨具螺旋筋(需提升2.94倍)，這是齒塊錨板面積受限的必然結果不是錯誤。"
+                 "配筋由介面剪力摩擦控制(4,881mm²)——齒塊傳 P·cos5°=1,757kN，轉向塊只傳 P·sin5°=154kN，差11倍。"
+                 "Tie-back 兩值並列：含既有預壓抵扣 488、不抵扣 1,778；補強既有橋時預壓分布難確認應取後者，引擎不替使用者選邊。"
+                 "🔴算例漏檢介面面積上限：τ=17.57 > min(0.25f'c,10.3)=10.0 MPa，400×250 的介面差1.76倍，"
+                 "加多少鋼筋都沒用只能加大齒塊(600×300 即通過，且配筋需求完全不變)。K1/K2 隨規範版次不同。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -613,6 +656,7 @@ golden = {
     "tendon_slip_G1": _tendon_slip_G1(),
     "mid_anchor_G1": _mid_anchor_G1(),
     "loss_profile_G1": _loss_profile_G1(),
+    "blister_B1": _blister_B1(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

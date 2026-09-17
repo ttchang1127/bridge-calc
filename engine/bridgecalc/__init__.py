@@ -6,6 +6,11 @@
 階段 1（本版）：sections / prestress（含非線性損失耦合）/ loads / service / allowables。
 """
 from .model import Section, Tendon
+from .blister import (blister_local_bearing, blister_bursting, blister_tieback,
+                      blister_spalling, blister_interface_shear,
+                      blister_geometry_check, blister_design, BlisterDesign,
+                      LocalBearingResult, BurstResult, TiebackResult,
+                      SpallResult, InterfaceResult, BlisterGeomResult)
 from .prestress import (compute_losses, LossResult, loss_profile,
                         LossProfileResult, LossPoint, parabolic_e, udl_moment)
 from .loads import combinations, lane_live_load
@@ -147,5 +152,9 @@ __all__ = [
     "cfrp_km1", "cfrp_allowable_strain", "xi_fb", "cfrp_moment_capacity", "CFRPResult",
     "plate_moment_capacity", "plate_dev_length", "PlateResult",
     "enlargement_moment_capacity", "EnlargeResult",
+    "blister_local_bearing", "blister_bursting", "blister_tieback",
+    "blister_spalling", "blister_interface_shear", "blister_geometry_check",
+    "blister_design", "BlisterDesign", "LocalBearingResult", "BurstResult",
+    "TiebackResult", "SpallResult", "InterfaceResult", "BlisterGeomResult",
     "allowables",
 ]

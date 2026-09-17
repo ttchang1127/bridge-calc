@@ -599,6 +599,82 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <template x-if="midAnchorOn"><span>　內部錨碇里程（m，逗號分隔；留空＝各中墩／單跨取 L/2）：
         <input type="text" x-model="midAnchors" style="width:150px;height:26px"></span></template>
       <span x-show="midAnchorOn" x-cloak x-text="anchorList?('　→ 分 '+(anchorList.length-1)+' 段：'+anchorList.map(v=>fmt(v,1)).join(' ／ ')+' m（各段雙端張拉）'):''"></span></div>
+    <!-- 中間錨碇齒塊（blister）錨碇區設計 -->
+    <template x-if="blister">
+      <div style="margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
+        <div class="hint" style="margin-bottom:6px"><b>中間錨碇齒塊（blister）錨碇區設計</b>
+          ——內部錨碇必須靠齒塊把腱力打回腹板。<b>齒塊的後方沒有鋼腱延伸提供回力</b>，
+          與端部錨碇（後方是梁端自由面）、轉向塊（只傳偏向力 P·sinα）都不同：
+          <b>Tie-back 是唯一抵抗後向分離的機制，不得省略</b>；介面剪力傳的是 P·cosα，逼近全腱力。</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;font-size:13px">
+          <label>齒塊長 L<sub>b</sub> (mm)<input type="number" x-model.number="blLb" step="50" style="width:80px"></label>
+          <label>突出寬 W<sub>b</sub><input type="number" x-model.number="blWb" step="50" style="width:80px"></label>
+          <label>深度 D<sub>b</sub><input type="number" x-model.number="blDb" step="50" style="width:80px"></label>
+          <label>錨板邊長<input type="number" x-model.number="blAp" step="10" style="width:80px"></label>
+          <label>f'<sub>ci</sub> (MPa)<input type="number" x-model.number="blFci" step="5" style="width:70px"></label>
+          <label title="鋼腱在錨碇處與橋軸的偏折角">偏折角 α (°)<input type="number" x-model.number="blAlpha" step="1" style="width:70px"></label>
+          <label title="補強既有橋時既有預壓分布難確認，應關閉（取保守值）"><input type="checkbox" x-model="blTieDeduct"> Tie-back 扣既有預壓</label>
+        </div>
+        <div class="grid">
+          <div class="metric"><div class="l">錨碇里程／齒塊數</div>
+            <div class="v" style="font-size:15px" x-text="fmt(blister.x,1)+' m ／ '+blister.nBlister+' 個'"></div></div>
+          <div class="metric"><div class="l">單腱服務力 P<sub>s</sub></div>
+            <div class="v" style="font-size:15px" x-text="fmt(blister.Ps,0)+' kN'"></div></div>
+          <div class="metric"><div class="l">局部承壓 f<sub>b</sub> ／ 容許</div>
+            <div class="v" style="font-size:15px" :class="blister.bearing.ok?'ok':'ng'"
+              x-text="fmt(blister.bearing.f_b,1)+' ／ '+fmt(blister.bearing.f_b_allow,1)+' MPa'"></div></div>
+          <div class="metric"><div class="l">控制配筋項</div>
+            <div class="v" style="font-size:15px" x-text="blister.governing"></div></div>
+        </div>
+        <table style="margin-top:8px">
+          <thead><tr><th>配筋類型</th><th>設計力 (kN)</th><th>所需 A<sub>s</sub> (mm²)</th><th>依據</th></tr></thead>
+          <tbody>
+            <tr><td>(a) 爆裂 Bursting</td><td x-text="fmt(blister.burst.F_burst,0)"></td>
+                <td x-text="fmt(blister.burst.As_burst,0)"></td>
+                <td>0.25P<sub>u</sub>(1−a/h)；配置於距錨板面 <span x-text="fmt(blister.burst.zone_from,0)+'~'+fmt(blister.burst.zone_to,0)"></span> mm</td></tr>
+            <tr :style="blister.governing==='Tie-back'?'background:#fffbeb;font-weight:600':''">
+                <td>(b) <b>Tie-back</b></td><td x-text="fmt(blister.tie.T_req,0)"></td>
+                <td x-text="fmt(blister.AsTie,0)"></td>
+                <td>0.25P<sub>s</sub>／f<sub>s</sub>（<span x-text="fmt(blister.tie.fs_allow,0)"></span> MPa）；
+                  <span x-text="blTieDeduct?('已扣既有預壓 '+fmt(blister.tie.C_precomp,0)+' kN'):'未扣既有預壓（保守）'"></span></td></tr>
+            <tr><td>(c) 剝裂 Spalling</td><td x-text="fmt(blister.spall.F_spall,1)"></td>
+                <td x-text="fmt(blister.spall.As_spall,0)"></td><td>0.02P<sub>s</sub>，配於四角隅</td></tr>
+            <tr :style="blister.governing==='介面剪力摩擦'?'background:#fffbeb;font-weight:600':''">
+                <td>(d) 介面剪力摩擦</td><td x-text="fmt(blister.face.V_int,0)"></td>
+                <td x-text="fmt(blister.face.As_vf,0)"></td>
+                <td>P<sub>s</sub>·cos α；介面 <span x-text="fmt(blister.A_interface/1000,0)"></span>×10³ mm²，
+                  τ = <span x-text="fmt(blister.face.tau,2)"></span> MPa</td></tr>
+            <tr style="border-top:1.5px solid var(--line)"><td colspan="2">四類合計（配筋量級參考）</td>
+                <td x-text="fmt(blister.As_total_conservative,0)"></td><td>—</td></tr>
+          </tbody>
+        </table>
+        <div class="hint" x-show="!blister.face.area_ok" x-cloak style="color:var(--ng);margin-top:6px">
+          ✗ <b>介面面積不足，加多少鋼筋都沒用</b>：介面剪應力 <b x-text="fmt(blister.face.tau,2)+' MPa'"></b>
+          超過上限 <b x-text="fmt(blister.face.tau_cap,2)+' MPa'"></b>（min(0.25f'<sub>c</sub>, 10.3)）。
+          該介面面積的剪力上限僅 <b x-text="fmt(blister.face.V_cap,0)+' kN'"></b> &lt; 需求 <b x-text="fmt(blister.face.V_int,0)+' kN'"></b>。
+          <b>剪力摩擦的配筋量與介面面積是兩件事</b>——A<sub>vf</sub> 算得出來不代表做得到，必須把齒塊加大到
+          介面面積 ≥ <b x-text="fmt(blister.face.A_req,0)+' mm²'"></b>（現有 <span x-text="fmt(blister.A_interface,0)"></span>，
+          需放大 <b x-text="(blister.face.A_req/blister.A_interface).toFixed(2)+' 倍'"></b>）。
+        </div>
+        <div class="hint" x-show="!blister.bearing.ok" x-cloak style="color:var(--ng);margin-top:6px">
+          ⚠ <b>局部承壓不足</b>：f<sub>b</sub> <span x-text="fmt(blister.bearing.f_b,1)"></span> &gt;
+          容許 <span x-text="fmt(blister.bearing.f_b_allow,1)"></span> MPa，需
+          <b x-text="fmt(blister.bearing.spiral_factor_req,2)+' 倍'"></b>提升。
+          <b>這通常不是錯誤而是設計訊息</b>——齒塊的錨板面積受齒塊尺寸限制，本來就常算不過：
+          配錨具螺旋筋（可提升 2～3 倍）或改用承壓板較大的錨具系統即可。
+        </div>
+        <div class="hint" x-show="!blister.geom.ok" x-cloak style="color:var(--ng);margin-top:6px">
+          ⚠ 幾何不足：
+          <span x-show="!blister.geom.straight_ok">錨具承壓面起直線段 <b x-text="fmt(blister.geom.straight_have,0)"></b> &lt; <b x-text="fmt(blister.geom.straight_req,0)"></b> mm（鋼腱不可一離開錨板就起彎，否則錨板受偏心加載）。</span>
+          <span x-show="!blister.geom.edge_ok">錨板邊距 <b x-text="fmt(blister.geom.edge_have,0)"></b> &lt; <b x-text="fmt(blister.geom.edge_req,0)"></b> mm。</span>
+          <span x-show="!blister.geom.L_ok">齒塊長 &lt; <b x-text="fmt(blister.geom.L_min,0)"></b> mm。</span>
+        </div>
+        <div class="cite">三個設計力刻意分開：<b>P<sub>s</sub></b>（服務，<span x-text="fmt(blister.Ps,0)"></span> kN）給 Tie-back／剝裂／介面——規範明文以未係數化力的 25% 為 Tie-back 下限；
+          <b>P<sub>u</sub></b>（1.7P<sub>s</sub>，<span x-text="fmt(blister.Pu,0)"></span> kN）給爆裂；
+          <b>P<sub>d</sub></b>（1.2P<sub>j</sub>，<span x-text="fmt(blister.Pd,0)"></span> kN）給局部承壓。混用是常見錯誤。
+          錨碇里程的摩擦為 0（該點是兩相鄰段的張拉端）但<b>滑移最大</b>，P<sub>s</sub> 已由 <code>segmentedTendonForce</code> 計入。</div>
+      </div>
+    </template>
     <div class="grid" style="margin-top:10px">
       <div class="metric"><div class="l">錨具滑移 Δa（③ 輸入，見 ⑦）</div><div class="v" style="font-size:15px" x-text="fmt(anchorSlip)+' mm'"></div></div>
       <div class="metric"><div class="l">滑移影響長度 L<sub>set</sub>／可影響範圍 L<sub>m</sub></div>
@@ -1974,6 +2050,7 @@ var PARAM_KEYS=[
   'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductSv','ductCover','dAgg','ductRule','jackEnd','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
+  'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct',
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
   // ⑦ 連續梁
@@ -2282,6 +2359,34 @@ function calc(){
              return (f.friction+f.slip)/fpj; }
       return B.frictionAt(x,q.L,q.segs,this.fricMu,this.fricK,this.jackEnd)
              + B.tendonSlipLoss(x,q.L,q.segs,fpj,this.jackEnd,this.fricMu,this.fricK,this.anchorSlip)/fpj; },
+    // ── 中間錨碇齒塊（blister）錨碇區設計（BC.blisterDesign）─────
+    // 只在勾選「設中間錨碇段」時有意義：內部錨碇必須靠齒塊把腱力打回腹板，
+    // 而齒塊的後方**沒有鋼腱延伸提供回力**——Tie-back 是唯一抵抗後向分離的機制。
+    get blister(){
+      if(!this.midAnchorOn) return null;
+      var a=this.anchorList;
+      if(!a||a.length<3) return null;                 // 沒有「內部」錨碇就沒有齒塊
+      var B=window.BC, R=this.R, sec=R.sec, q=this.fricGeom,
+          ten=B.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu),
+          ApEach=ten.Aps/this.ntd;                    // 一組腱錨一個齒塊
+      var other=R.loss.total-R.loss.friction;         // 非長度相關損失
+      // 取第一個內部錨碇的里程；該點摩擦為 0（是兩相鄰段的張拉端）但滑移最大
+      var xa=a[1],
+          f=B.segmentedTendonForce(xa,a,q.segs,ten.fpj,ApEach,other,
+                                   this.fricMu,this.fricK,'both',this.anchorSlip),
+          Ps=f.fpe*ApEach/1e3,                        // kN，服務狀態單腱力
+          Pj=ten.fpj*ApEach/1e3;
+      var d=B.blisterDesign(Ps, 1.7*Ps, 1.2*Pj, {
+            a_plate:this.blAp, b_plate:this.blAp, L_b:this.blLb, W_b:this.blWb, D_b:this.blDb,
+            A_bearing:1.5*this.blAp*this.blAp,        // 含錨板四周均布影響面積
+            fci:this.blFci,
+            f_cb:this.blTieDeduct?(R.loss.Pe/sec.A):0,   // 腹板平均預壓（補強既有橋時不抵扣）
+            A_cb:this.blAp*this.webT,
+            alpha_deg:this.blAlpha, mu:1.0, fy:400, fsd:360, fc:this.fc, straight_have:this.blLb});
+      d.x=xa; d.Ps=Ps; d.Pj=Pj; d.Pu=1.7*Ps; d.Pd=1.2*Pj; d.nBlister=(a.length-2)*this.ntd;
+      d.AsTie=this.blTieDeduct?d.tie.As:d.tie.As_conservative;
+      return d;
+    },
     // ── 沿長度的預力 P(x)（BC.lossProfile）──────────────────────
     // 為什麼要有這一段：③／④ 的 P_e 是**單點**算的——一個 fricRatio（控制斷面的
     // 摩擦＋滑移）代表全長。那在「控制斷面就是最不利斷面」時沒問題，但：
@@ -2532,6 +2637,8 @@ function calc(){
     L:40, fc:40, lanes:2, wDW:20,
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, sv:250, Vu:2069, VuAuto:true, midAnchorOn:false, midAnchors:'',   // VuAuto：⑤ Vu 由包絡自動帶入（手動 2,069 為 golden 參考值）
+    // 中間錨碇齒塊（blister）：尺寸與錨板；blTieDeduct＝Tie-back 是否扣既有預壓（補強既有橋時應關閉）
+    blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false,
     ductOD:100, ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'alt',
     fricMu:0.25, fricK:0.003, fricX:0.5,   // 摩擦：μ、搖擺 K(/m)、控制斷面 x/L   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／骨材粒徑／淨距規則
     strandType:'15.2', customAp:140, customFpu:1860,

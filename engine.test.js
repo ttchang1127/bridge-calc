@@ -351,6 +351,35 @@ function chkEq(name, got, exp) {
   chk('P(x) 單點式跨中 Pe（對照）', singLP.Pe / 1e3, lpg.single_point_mid_Pe_kN, 0.1);
   chk('P(x) 單點式在 x=1m 高估%',
       (singLP.Pe - lp1.at(1).Pe) / lp1.at(1).Pe * 100, lpg.single_point_overestimate_at_1m_pct, 0.01);
+  // 中間錨碇齒塊錨碇區
+  var blg = g.blister_B1, bld = BC.blisterDesign(1764, 3000, 3000,
+      { a_plate: 200, b_plate: 200, L_b: 400, W_b: 300, D_b: 250, A_bearing: 60000,
+        fci: 35, f_cb: 8, A_cb: 40000, alpha_deg: 5, mu: 1, fy: 420, fsd: 360, fc: 40,
+        straight_have: 400 });
+  chk('齒塊 錨板承壓 f_b', bld.bearing.f_b, blg.f_b_MPa, 0.05);
+  chk('齒塊 承壓容許值', bld.bearing.f_b_allow, blg.f_b_allow_MPa, 0.01);
+  chkEq('齒塊 承壓通過（需螺旋筋）', bld.bearing.ok, blg.bearing_ok);
+  chk('齒塊 螺旋筋需提升倍數', bld.bearing.spiral_factor_req, blg.spiral_factor_req, 0.01);
+  chk('齒塊 爆裂力 F_burst', bld.burst.F_burst, blg.F_burst_kN, 0.05);
+  chk('齒塊 爆裂合力位置 d_burst', bld.burst.d_burst, blg.d_burst_mm, 0.05);
+  chk('齒塊 爆裂配筋 As', bld.burst.As_burst, blg.As_burst_mm2, 0.1);
+  chk('齒塊 Tie-back 0.25Ps', bld.tie.T_req, blg.T_tieback_kN, 0.05);
+  chk('齒塊 既有預壓抵扣', bld.tie.C_precomp, blg.C_precomp_kN, 0.05);
+  chk('齒塊 Tie-back 容許應力', bld.tie.fs_allow, blg.fs_allow_MPa, 0.05);
+  chk('齒塊 Tie-back As（抵扣）', bld.tie.As, blg.As_tie_mm2, 0.1);
+  chk('齒塊 Tie-back As（保守）', bld.tie.As_conservative, blg.As_tie_conservative_mm2, 0.1);
+  chk('齒塊 剝裂力', bld.spall.F_spall, blg.F_spall_kN, 0.01);
+  chk('齒塊 剝裂配筋', bld.spall.As_spall, blg.As_spall_mm2, 0.1);
+  chk('齒塊 介面剪力 V_int', bld.face.V_int, blg.V_interface_kN, 0.05);
+  chk('齒塊 介面剪力摩擦配筋', bld.face.As_vf, blg.As_vf_mm2, 0.1);
+  chk('齒塊 介面剪應力 τ', bld.face.tau, blg.tau_interface_MPa, 0.001);
+  chk('齒塊 介面剪應力上限', bld.face.tau_cap, blg.tau_cap_MPa, 0.01);
+  chk('齒塊 介面剪力上限 V_cap', bld.face.V_cap, blg.V_cap_kN, 0.1);
+  chkEq('齒塊 介面面積足夠（🔴算例漏檢）', bld.face.area_ok, blg.interface_area_ok);
+  chk('齒塊 所需最小介面面積', bld.face.A_req, blg.A_interface_req_mm2, 1);
+  chkEq('齒塊 控制配筋項', bld.governing, blg.governing);
+  chk('齒塊 四類配筋合計', bld.As_total_conservative, blg.As_total_conservative_mm2, 0.1);
+  chkEq('齒塊 幾何檢核', bld.geom.ok, blg.geom_ok);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

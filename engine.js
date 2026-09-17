@@ -439,6 +439,81 @@
     return { Pult: Pult, margin: Pult / Pu, ok: Pult >= Pu };
   };
 
+  // ── 中間錨碇齒塊（blister）錨碇區（同 bridgecalc.blister）───────
+  // 齒塊 ≠ 端部錨碇 ≠ 轉向塊：後方無鋼腱延伸提供回力 → Tie-back 是唯一抵抗
+  // 後向分離的機制；介面剪力傳的是 P·cosα（近全腱力）而非轉向塊的 P·sinα。
+  BC.blisterLocalBearing = function (Pd, A_plate, A_bearing, fci, phiB) {
+    phiB = phiB == null ? 0.70 : phiB;
+    var fb = Pd * 1e3 / A_plate, raw = 0.85 * phiB * fci * sqrt(A_bearing / A_plate),
+        cap = 1.5 * fci, allow = min(raw, cap);
+    return { f_b: fb, f_b_allow: allow, f_b_uncapped: raw, capped: raw > cap,
+             ratio: fb / allow, ok: fb <= allow, spiral_factor_req: max(1, fb / allow) };
+  };
+  BC.blisterBursting = function (Pu, a_plate, h, e, fy, phi) {
+    e = e || 0; fy = fy || 420; phi = phi == null ? 0.9 : phi;
+    var F = 0.25 * Pu * (1 - a_plate / h), d = 0.5 * (h - 2 * abs(e));
+    return { F_burst: F, d_burst: d, As_burst: F * 1e3 / (phi * fy),
+             zone_from: 0.5 * d, zone_to: 1.5 * d };
+  };
+  BC.blisterTieback = function (Ps, f_cb, A_cb, fy, a_plate) {
+    f_cb = f_cb || 0; A_cb = A_cb || 0; fy = fy || 420; a_plate = a_plate || 200;
+    var T = 0.25 * Ps, C = f_cb * A_cb / 1e3, fs = min(0.6 * fy, 248);
+    return { T_req: T, C_precomp: C, fs_allow: fs, As: max(0, T - C) * 1e3 / fs,
+             As_conservative: T * 1e3 / fs, max_dist_from_axis: a_plate };
+  };
+  BC.blisterSpalling = function (Ps, fy, phi, ratio) {
+    fy = fy || 420; phi = phi == null ? 0.9 : phi; ratio = ratio == null ? 0.02 : ratio;
+    var F = ratio * Ps;
+    return { F_spall: F, As_spall: F * 1e3 / (phi * fy) };
+  };
+  // ⚠ 剪力摩擦有**面積上限**：As_vf 算得出來不代表做得到。介面面積不足時
+  //   加多少鋼筋都沒用，只能加大齒塊。K1/K2 隨規範版次不同。
+  BC.blisterInterfaceShear = function (Ps, alphaDeg, mu, fsd, Nd, gamma0, A_int, fc, K1, K2) {
+    alphaDeg = alphaDeg == null ? 5 : alphaDeg; mu = mu || 1.0; fsd = fsd || 360;
+    Nd = Nd || 0; gamma0 = gamma0 || 1.0; A_int = A_int || 0; fc = fc || 40;
+    K1 = K1 == null ? 0.25 : K1; K2 = K2 == null ? 10.3 : K2;
+    var V = Ps * Math.cos(alphaDeg * Math.PI / 180),
+        As = max(0, gamma0 * V * 1e3 / mu + Nd * 1e3) / fsd,
+        tauCap = min(K1 * fc, K2), Vcap = A_int ? tauCap * A_int / 1e3 : 0;
+    return { V_int: V, As_vf: As, tau: A_int ? V * 1e3 / A_int : 0,
+             tau_cap: tauCap, V_cap: Vcap, area_ok: A_int > 0 && V <= Vcap + 1e-9,
+             A_req: tauCap > 0 ? V * 1e3 / tauCap : Infinity };
+  };
+  BC.blisterGeometryCheck = function (L_b, W_b, a_plate, b_plate, straightHave, straightReq, edgeReq) {
+    straightReq = straightReq == null ? 400 : straightReq;
+    edgeReq = edgeReq == null ? 50 : edgeReq;
+    var Lmin = a_plate + 2 * edgeReq, edgeHave = (W_b - b_plate) / 2,
+        sOk = straightHave >= straightReq - 1e-9, eOk = edgeHave >= edgeReq - 1e-9,
+        lOk = L_b >= Lmin - 1e-9;
+    return { straight_req: straightReq, straight_have: straightHave, straight_ok: sOk,
+             edge_req: edgeReq, edge_have: edgeHave, edge_ok: eOk,
+             L_min: Lmin, L_ok: lOk, ok: sOk && eOk && lOk };
+  };
+  // 三個設計力刻意分開：P_s 服務(Tie-back/剝裂/介面)、P_u 係數化(爆裂)、P_d 張拉(局部承壓)
+  BC.blisterDesign = function (Ps, Pu, Pd, o) {
+    o = o || {};
+    var ap = o.a_plate == null ? 200 : o.a_plate, bp = o.b_plate == null ? 200 : o.b_plate,
+        Lb = o.L_b == null ? 400 : o.L_b, Wb = o.W_b == null ? 300 : o.W_b,
+        Db = o.D_b == null ? 250 : o.D_b, Ab = o.A_bearing == null ? 60000 : o.A_bearing,
+        fci = o.fci == null ? 35 : o.fci, fcb = o.f_cb || 0, Acb = o.A_cb || 0,
+        al = o.alpha_deg == null ? 5 : o.alpha_deg, mu = o.mu || 1.0,
+        fy = o.fy || 420, fsd = o.fsd || 360, fc = o.fc || 40,
+        sh = o.straight_have == null ? 400 : o.straight_have;
+    var Aplate = ap * bp, Aint = Lb * Db;
+    var bearing = BC.blisterLocalBearing(Pd, Aplate, Ab, fci),
+        burst = BC.blisterBursting(Pu, ap, Lb, 0, fy),
+        tie = BC.blisterTieback(Ps, fcb, Acb, fy, ap),
+        spall = BC.blisterSpalling(Ps, fy),
+        face = BC.blisterInterfaceShear(Ps, al, mu, fsd, 0, 1, Aint, fc),
+        geom = BC.blisterGeometryCheck(Lb, Wb, ap, bp, sh);
+    var items = { '爆裂': burst.As_burst, 'Tie-back': tie.As_conservative,
+                  '剝裂': spall.As_spall, '介面剪力摩擦': face.As_vf };
+    var gov = Object.keys(items).reduce(function (a, b) { return items[b] > items[a] ? b : a; });
+    var tot = Object.keys(items).reduce(function (a, k) { return a + items[k]; }, 0);
+    return { bearing: bearing, burst: burst, tie: tie, spall: spall, face: face,
+             geom: geom, As_total_conservative: tot, governing: gov, A_interface: Aint };
+  };
+
   // ── 疲勞 P1 ───────────────────────────────────────────
   BC.fatigueCheck = function (sec, Pe, e, M_perm, dM_fat, fc, EpEc, gamma) {
     EpEc = EpEc || 6.6; gamma = gamma || 1.75;

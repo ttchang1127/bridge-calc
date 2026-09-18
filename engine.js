@@ -725,6 +725,15 @@
     if (i === k) { var L = spans[i], a = x - xs[i], q = p - xs[i]; M0 = q <= a ? q * (L - a) / L : a * (L - q) / L; }
     return contMomentAt(spans, xs, X, x, M0);
   }
+  // 強度組合恆載因數依效應正負號取 max／min（AASHTO γ_p；同 influence_cont.factored）。
+  // 恆載與所求效應同號＝不利 → γ_max；反號＝有利 → γ_min。控制斷面不受影響。
+  BC.G_DC = 1.25; BC.G_DC_MIN = 0.90; BC.G_DW = 1.50; BC.G_DW_MIN = 0.65; BC.G_LL = 1.75;
+  BC.factored = function (dc, dw, ll, wantPos, gdc, gdcm, gdw, gdwm, gll) {
+    gdc = gdc == null ? BC.G_DC : gdc; gdcm = gdcm == null ? BC.G_DC_MIN : gdcm;
+    gdw = gdw == null ? BC.G_DW : gdw; gdwm = gdwm == null ? BC.G_DW_MIN : gdwm; gll = gll == null ? BC.G_LL : gll;
+    var f = function (v, gmax, gmin) { return ((v >= 0) === wantPos ? gmax : gmin) * v; };
+    return f(dc, gdc, gdcm) + f(dw, gdw, gdwm) + gll * ll;
+  };
   BC.contMomentIL = function (spans, x, p) { var xs = contXs(spans); return contEta(spans, xs, BC.contSupportMomentsPoint(spans, p), x, p); };
   BC.contDLMoment = function (spans, w, x) {
     var xs = contXs(spans), X = BC.contSupportMomentsUniform(spans, spans.map(function () { return w; }));
@@ -844,7 +853,6 @@
     var M2 = o.M2 || null, pss = !!o.psAtSimple,
         gdc = o.gDC == null ? 1.25 : o.gDC, gdw = o.gDW == null ? 1.50 : o.gDW, gll = o.gLL == null ? 1.75 : o.gLL,
         gdcm = o.gDCmin == null ? 0.90 : o.gDCmin, gdwm = o.gDWmin == null ? 0.65 : o.gDWmin;
-    var fac = function (v, gmax, gmin, wantPos) { return ((v >= 0) === wantPos ? gmax : gmin) * v; };
     return rows.map(function (r, i) {
       var mI = BC.simpleSpanDLMoment(spans, wDC, r.x), mII = r.M_dc, minf = mI + lam * (mII - mI),
           m2 = M2 ? M2[i] : 0, m2t1 = pss ? 0 : m2, m2inf = pss ? lam * m2 : m2;
@@ -852,8 +860,8 @@
       [['t1', mI, m2t1], ['inf', minf, m2inf]].forEach(function (q) {
         var dc = q[1], mm = q[2];
         st[q[0]] = [dc + r.M_dw + r.M_ll_pos + mm, dc + r.M_dw + r.M_ll_neg + mm,
-                    fac(dc, gdc, gdcm, true) + fac(r.M_dw, gdw, gdwm, true) + gll * r.M_ll_pos + mm,
-                    fac(dc, gdc, gdcm, false) + fac(r.M_dw, gdw, gdwm, false) + gll * r.M_ll_neg + mm];
+                    BC.factored(dc, r.M_dw, r.M_ll_pos, true, gdc, gdcm, gdw, gdwm, gll) + mm,
+                    BC.factored(dc, r.M_dw, r.M_ll_neg, false, gdc, gdcm, gdw, gdwm, gll) + mm];
       });
       return { x: r.x, M_dc_I: mI, M_dc_II: mII, M_dc_inf: minf, M_dw: r.M_dw,
                M_ll_pos: r.M_ll_pos, M_ll_neg: r.M_ll_neg, M2_t1: m2t1, M2_inf: m2inf,
@@ -960,7 +968,7 @@
       var lv = contLiveAt(c, x, step, grid);
       var lp = lv.pos * (1 + lv.I_pos) * fac, ln = lv.neg * (1 + lv.I_neg) * fac;
       return { x: x, M_dc: dc, M_dw: dw, M_ll_pos: lp, M_ll_neg: ln, Ms_pos: dc + dw + lp, Ms_neg: dc + dw + ln,
-               Mu_pos: 1.25 * dc + 1.5 * dw + 1.75 * lp, Mu_neg: 1.25 * dc + 1.5 * dw + 1.75 * ln, I_pos: lv.I_pos, I_neg: lv.I_neg };
+               Mu_pos: BC.factored(dc, dw, lp, true), Mu_neg: BC.factored(dc, dw, ln, false), I_pos: lv.I_pos, I_neg: lv.I_neg };
     });
   };
 
@@ -1035,7 +1043,7 @@
     }
     var lv = contLiveShearAt(c, x, side, step || 0.25, grid || 400), lp = lv.pos * (1 + lv.I) * fac, ln = lv.neg * (1 + lv.I) * fac;
     return { x: x, side: side, V_dc: dc, V_dw: dw, V_ll_pos: lp, V_ll_neg: ln,
-             Vu_pos: 1.25 * dc + 1.5 * dw + 1.75 * lp, Vu_neg: 1.25 * dc + 1.5 * dw + 1.75 * ln, I: lv.I };
+             Vu_pos: BC.factored(dc, dw, lp, true), Vu_neg: BC.factored(dc, dw, ln, false), I: lv.I };
   };
   BC.taiwanContShearEnvelope = function (spans, points, wdc, wdw, lanes, stiff) {
     var c = contCache(spans, stiff);

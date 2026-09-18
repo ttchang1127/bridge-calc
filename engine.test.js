@@ -444,6 +444,13 @@ function chkEq(name, got, exp) {
   chk('套管 面積比 φ90', dsB.ratio, dsg.ratio_id90, 1e-4);
   chkEq('套管 φ90 PTI 拉入法 2.5 倍', dsB.area_ok, dsg.area_ok_id90_pti_pull);
   chkEq('套管 φ105 超表8.3', BC.ductSizeCheck(19, 105).id_ok, dsg.id_ok_id105);
+  // 包絡恆載因數依有利／不利取 max／min
+  var gmg = g.cont_envelope_gamma_min, envG = BC.taiwanContEnvelope([40, 40], 5.065 * 24.5, 20, 2, 20, 0.25, 400, null),
+      atG = function (x) { return envG.reduce(function (a, b) { return Math.abs(b.x - x) < Math.abs(a.x - x) ? b : a; }); };
+  chk('γ_min x=28 Mu⁻（負彎矩區延伸）', atG(28).Mu_neg, gmg.x28_Mu_neg_kNm, 0.1);
+  chk('γ_min x=32 Mu⁺（墩旁正彎矩）', atG(32).Mu_pos, gmg.x32_Mu_pos_kNm, 0.1);
+  chk('γ_min 墩頂 Mu⁺', atG(40).Mu_pos, gmg.pier_Mu_pos_kNm, 0.1);
+  chk('γ_min 跨中 Mu⁻', atG(20).Mu_neg, gmg.x20_Mu_neg_kNm, 0.1);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

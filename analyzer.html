@@ -2950,7 +2950,7 @@ function calc(){
         var x=p.x, mm=x*(L-x)/2, vv=L/2-x, Mll=p.M*fac, Vlp=p.Vp*fac, Vln=p.Vn*fac;
         return {x:x, Mdl:(wc+ww)*mm, Ms:(wc+ww)*mm+Mll, Mu:1.25*wc*mm+1.5*ww*mm+1.75*Mll,
                 Vdl:(wc+ww)*vv, VsP:(wc+ww)*vv+Vlp, VsN:(wc+ww)*vv+Vln,
-                VuP:1.25*wc*vv+1.5*ww*vv+1.75*Vlp, VuN:1.25*wc*vv+1.5*ww*vv+1.75*Vln};
+                VuP:B.factored(wc*vv,ww*vv,Vlp,true), VuN:B.factored(wc*vv,ww*vv,Vln,false)};   // 恆載有利取 γ_min
       });
       var pk=function(k){ return rows.reduce(function(a,r){return r[k]>a[k]?r:a}); };
       var pMu=pk('Mu'), pMs=pk('Ms');

@@ -328,9 +328,7 @@ def staged_envelope(spans: Sequence[float], rows, w_dc: float, lam: float,
     AASHTO 5.14.1.4.2「束制彎矩有利時不得計入任何組合」由 t₁（無束制）與 ∞（有束制）
     兩狀態取不利**自動滿足**。
     """
-    def fac(v, gmax, gmin, want_pos):
-        # 恆載效應與所求彎矩同號＝不利 → γ_max；反號＝有利 → γ_min
-        return (gmax if (v >= 0) == want_pos else gmin) * v
+    from .influence_cont import factored   # 與基礎包絡同一套因數規則（避免兩份漂移）
     out = []
     for i, r in enumerate(rows):
         mI = simple_span_dl_moment(spans, w_dc, r.x)
@@ -341,10 +339,8 @@ def staged_envelope(spans: Sequence[float], rows, w_dc: float, lam: float,
         st = {}
         for tag, dc, mm2 in (("t1", mI, m2_t1), ("inf", minf, m2_inf)):
             st[tag] = (dc + r.M_dw + r.M_ll_pos + mm2, dc + r.M_dw + r.M_ll_neg + mm2,
-                       fac(dc, g_dc, g_dc_min, True) + fac(r.M_dw, g_dw, g_dw_min, True)
-                       + g_ll * r.M_ll_pos + mm2,
-                       fac(dc, g_dc, g_dc_min, False) + fac(r.M_dw, g_dw, g_dw_min, False)
-                       + g_ll * r.M_ll_neg + mm2)
+                       factored(dc, r.M_dw, r.M_ll_pos, True, g_dc, g_dc_min, g_dw, g_dw_min, g_ll) + mm2,
+                       factored(dc, r.M_dw, r.M_ll_neg, False, g_dc, g_dc_min, g_dw, g_dw_min, g_ll) + mm2)
         gp = "t1" if st["t1"][2] >= st["inf"][2] else "inf"
         gn = "t1" if st["t1"][3] <= st["inf"][3] else "inf"
         out.append(StagedEnvRow(

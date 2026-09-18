@@ -304,10 +304,25 @@ class ContEnvelopeRow:
     M_ll_neg: float
     Ms_pos: float       # Service I = DC + DW + LL
     Ms_neg: float
-    Mu_pos: float       # Strength I = 1.25DC + 1.50DW + 1.75LL
+    Mu_pos: float       # Strength I = γDC·DC + γDW·DW + 1.75LL（γ 依有利／不利取 max／min，見 factored）
     Mu_neg: float
     I_pos: float        # 正彎矩衝擊（該跨跨徑）
     I_neg: float        # 負彎矩衝擊（相鄰兩載重跨平均）
+
+
+# 強度組合的恆載因數依效應正負號取 max／min（AASHTO LRFD Table 3.4.1-2 的 γ_p）。
+# 恆載效應與所求彎矩同號＝不利 → γ_max；反號＝有利 → γ_min。
+# 🔴 2026-09-19 以前一律 1.25／1.50：恆載有利處（反曲點附近的反向彎矩、墩頂正彎矩）
+#   會低估需求。控制斷面（跨中正、墩頂負）恆載皆不利，故其值不變。
+G_DC, G_DC_MIN, G_DW, G_DW_MIN, G_LL = 1.25, 0.90, 1.50, 0.65, 1.75
+
+
+def factored(dc: float, dw: float, ll: float, want_pos: bool,
+             g_dc: float = G_DC, g_dc_min: float = G_DC_MIN,
+             g_dw: float = G_DW, g_dw_min: float = G_DW_MIN, g_ll: float = G_LL) -> float:
+    """Strength I：γ_DC·DC + γ_DW·DW + 1.75·LL，γ 依恆載效應對所求彎矩有利或不利取 max／min。"""
+    f = lambda v, gmax, gmin: (gmax if (v >= 0) == want_pos else gmin) * v
+    return f(dc, g_dc, g_dc_min) + f(dw, g_dw, g_dw_min) + g_ll * ll
 
 
 def taiwan_cont_envelope(spans: Sequence[float], w_dc: float, w_dw: float, lanes: int,
@@ -339,8 +354,8 @@ def taiwan_cont_envelope(spans: Sequence[float], w_dc: float, w_dw: float, lanes
         lv = _live_at(c, x, step, grid_per_span)
         lp, ln = lv.pos * (1 + lv.I_pos) * fac_l, lv.neg * (1 + lv.I_neg) * fac_l
         rows.append(ContEnvelopeRow(x, dc, dw, lp, ln, dc + dw + lp, dc + dw + ln,
-                                    1.25 * dc + 1.5 * dw + 1.75 * lp,
-                                    1.25 * dc + 1.5 * dw + 1.75 * ln, lv.I_pos, lv.I_neg))
+                                    factored(dc, dw, lp, True),
+                                    factored(dc, dw, ln, False), lv.I_pos, lv.I_neg))
     return rows
 
 
@@ -500,8 +515,8 @@ def taiwan_cont_shear_at(spans: Sequence[float], x: float, side: str, w_dc: floa
         dw = cont_dl_shear(spans, w_dw, x, side, c.flex)
     lv = _live_shear_at(c, x, side, step, grid_per_span)
     lp, ln = lv.pos * (1 + lv.I) * fac, lv.neg * (1 + lv.I) * fac
-    return ContShearRow(x, side, dc, dw, lp, ln, 1.25 * dc + 1.5 * dw + 1.75 * lp,
-                        1.25 * dc + 1.5 * dw + 1.75 * ln, lv.I)
+    return ContShearRow(x, side, dc, dw, lp, ln, factored(dc, dw, lp, True),
+                        factored(dc, dw, ln, False), lv.I)
 
 
 def secondary_shear(fm, spans: Sequence[float], x: float, side: str = "R") -> float:

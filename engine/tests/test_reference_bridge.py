@@ -1347,6 +1347,21 @@ def test_duct_size_check_area_ratio_and_table83():
     assert w.od_gt_id and abs(w.wall - 5.0) < 1e-9
 
 
+def test_cont_envelope_gamma_min_where_dead_load_favorable():
+    """恆載有利處取 γ_min：控制斷面不變，但反曲點附近正負彎矩反轉範圍擴大。"""
+    from bridgecalc.influence_cont import taiwan_cont_envelope, factored
+    rows = taiwan_cont_envelope([40.0, 40.0], _W_SBS, 20.0, 2, 20)
+    at = lambda x: min(rows, key=lambda r: abs(r.x - x))
+    p, m = at(40.0), at(20.0)
+    _close(p.Mu_neg, 1.25 * p.M_dc + 1.5 * p.M_dw + 1.75 * p.M_ll_neg, 1e-6)   # 墩頂負：恆載不利
+    _close(m.Mu_pos, 1.25 * m.M_dc + 1.5 * m.M_dw + 1.75 * m.M_ll_pos, 1e-6)   # 跨中正：恆載不利
+    r28, r32 = at(28.0), at(32.0)
+    assert r28.Mu_neg < 0 < 1.25 * r28.M_dc + 1.5 * r28.M_dw + 1.75 * r28.M_ll_neg  # 負彎矩區往跨內延伸
+    assert r32.Mu_pos > 0 > 1.25 * r32.M_dc + 1.5 * r32.M_dw + 1.75 * r32.M_ll_pos  # 墩旁可能正彎矩
+    _close(factored(-100.0, 0.0, 0.0, True), -90.0, 1e-12)
+    _close(factored(-100.0, 0.0, 0.0, False), -125.0, 1e-12)
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

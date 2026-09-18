@@ -672,6 +672,16 @@ def _duct_size_T83():
         "_note": "表 8.3 與 PTI Table 4.4 列的都是**內徑**，外徑依廠商(PTI §4.4.5)；排列用外徑、面積比用內徑。"
                  "參考橋 φ100 是內徑，排列檢核把它當外徑用→偏不保守，須輸入廠商外徑。"}
 
+
+def _cont_envelope_gamma_min():
+    """連續梁包絡恆載因數依有利／不利取 max／min（AASHTO γ_p）：反曲點附近的反轉範圍。"""
+    rows = taiwan_cont_envelope([40.0, 40.0], 5.065 * 24.5, 20.0, 2, 20)
+    at = lambda x: min(rows, key=lambda r: abs(r.x - x))
+    return {"x28_Mu_neg_kNm": round(at(28.0).Mu_neg, 1), "x32_Mu_pos_kNm": round(at(32.0).Mu_pos, 1),
+            "pier_Mu_pos_kNm": round(at(40.0).Mu_pos, 1), "x20_Mu_neg_kNm": round(at(20.0).Mu_neg, 1),
+            "_note": "2026-09-19 前恆載一律 1.25/1.50：x=28 Mu⁻ +1,529（判無負彎矩）→ −163；x=32 Mu⁺ −1,591 → +343；"
+                     "墩頂 Mu⁺ −37,023 → −24,937。控制斷面（跨中正、墩頂負）不變，golden 既有項零變動。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -761,6 +771,7 @@ golden = {
     "staging_redist_S1": _staging_redist_S1(),
     "staged_envelope_S2": _staged_envelope_S2(),
     "duct_size_T83": _duct_size_T83(),
+    "cont_envelope_gamma_min": _cont_envelope_gamma_min(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

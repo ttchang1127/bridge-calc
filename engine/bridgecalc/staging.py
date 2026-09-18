@@ -38,7 +38,7 @@ class RedistFactor:
 
 
 def redistribution_factor(dphi: float, chi: float = 0.8,
-                          method: str = "trost") -> RedistFactor:
+                          method: str = "trost", phi_restraint: float = None) -> RedistFactor:
     """體系轉換的潛變重分配係數。
 
     method="trost"（預設，AAEM 老化係數法，較準）：
@@ -57,13 +57,21 @@ def redistribution_factor(dphi: float, chi: float = 0.8,
 
     ⚠ Trost 式在 Δφ > 1/(1−χ)（χ=0.8 時為 5.0）會給出 λ>1，即「超過最終體系的值」，
       那已超出模型適用範圍——此時 `valid=False`，應改用數值逐步積分法。
+
+    phi_restraint（嚴格 AAEM）：相容條件的分子與分母其實是**兩個不同的潛變係數**——
+        分子：自重在 t0 加載、t1 之後剩餘的潛變 Δφ = φ(∞,t0) − φ(t1,t0)
+        分母：束制彎矩自 t1 起逐漸施加，其潛變為 φ(∞,t1)
+        λ = Δφ / (1 + χ·φ(∞,t1))
+      不給時以 Δφ 代 φ(∞,t1)（即上式常用的單一 Δφ 近似）。一般 φ(∞,t1) ≥ Δφ，故近似的 λ
+      **偏大**——墩頂負彎矩與正束制彎矩偏保守（跨中由 t₁ 狀態控制，不受影響）。
     """
     if dphi < 0:
         raise ValueError("Δφ 不可為負（連續後尚未發生的潛變量）")
     if method == "dischinger":
         lam = 1 - math.exp(-dphi)
     elif method == "trost":
-        lam = dphi / (1 + chi * dphi) if (1 + chi * dphi) != 0 else 0.0
+        pr = dphi if phi_restraint is None else phi_restraint
+        lam = dphi / (1 + chi * pr) if (1 + chi * pr) != 0 else 0.0
     else:
         raise ValueError("method 須為 'trost' 或 'dischinger'")
     valid = 0.0 <= lam <= 1.0 + 1e-12
@@ -113,14 +121,15 @@ class StagingResult:
 
 def creep_redistribution(xs: Sequence[float], M_I: Sequence[float],
                          M_II: Sequence[float], dphi: float,
-                         chi: float = 0.8, method: str = "trost") -> StagingResult:
+                         chi: float = 0.8, method: str = "trost",
+                         phi_restraint: float = None) -> StagingResult:
     """對已知的 M_I／M_II 彎矩圖做潛變重分配。
 
     xs/M_I/M_II 同長度；M_I 為施工體系解、M_II 為最終體系解（同一組載重）。
     """
     if not (len(xs) == len(M_I) == len(M_II)):
         raise ValueError("xs / M_I / M_II 長度須相同")
-    f = redistribution_factor(dphi, chi, method)
+    f = redistribution_factor(dphi, chi, method, phi_restraint)
     pts = []
     for x, m1, m2 in zip(xs, M_I, M_II):
         d = f.lam * (m2 - m1)
@@ -217,7 +226,8 @@ class M2RedistResult:
 
 def prestress_M2_redistribution(spans: Sequence[float], xs: Sequence[float],
                                 M2_cont: Sequence[float], dphi: float,
-                                chi: float = 0.8, method: str = "trost") -> M2RedistResult:
+                                chi: float = 0.8, method: str = "trost",
+                                phi_restraint: float = None) -> M2RedistResult:
     """先簡支張拉、後建立連續時的次彎矩 M₂(∞)。
 
     🔴 **這件事很容易被漏掉**：在簡支體系張拉時結構是**靜定**的，次彎矩恆為 0——
@@ -229,7 +239,7 @@ def prestress_M2_redistribution(spans: Sequence[float], xs: Sequence[float],
     ⚠ M₂ 與恆載重分配的方向常相反（M₂ 在墩頂多為正、恆載為負），
       故**不可只算其中一個**——兩者要各自重分配後再疊加。
     """
-    f = redistribution_factor(dphi, chi, method)
+    f = redistribution_factor(dphi, chi, method, phi_restraint)
     inf = [f.lam * m for m in M2_cont]
     ip = min(range(len(xs)), key=lambda i: abs(xs[i] - spans[0]))
     return M2RedistResult(factor=f, xs=list(xs), M2_cont=list(M2_cont), M2_inf=inf,
@@ -420,3 +430,101 @@ def positive_moment_connection(Mu_pos: float, I_g: float, y_t: float, fc_diaph: 
     As = M_req * 1e6 / (phi * fy * 0.9 * d) if d else None
     return PosMomentConnResult(fr=f_r, Mcr=Mcr, Mu_pos=Mu_pos, simplified=simp,
                                M_req=M_req, governs=gov, As_est=As)
+
+
+# ── 潛變係數 φ(t, t_i)：AASHTO LRFD 5.4.2.3.2（NLM 7839c56d 核對，p.5-15～5-16）──────
+# 台灣公路橋梁設計規範**沒有** φ(t) 模式（潛變只以 §8.16.2 經驗式 12f_cir − 7f_cds 處理，
+# NLM 7d947294 確認），故體系轉換需要 φ 時採 AASHTO。
+@dataclass
+class CreepAASHTO:
+    ks: float
+    khc: float
+    kf: float
+    ktd: float
+    psi: float
+
+
+def aashto_creep(t: float, ti: float, H: float = 75.0, VS: float = 150.0,
+                 fci: float = 32.0) -> CreepAASHTO:
+    """AASHTO LRFD Eq. 5.4.2.3.2-1～5（SI）。
+
+        ψ(t,t_i) = 1.9·k_s·k_hc·k_f·k_td·t_i^−0.118
+        k_s = 1.45 − 0.0051(V/S) ≥ 1.0    （V/S mm；C5.4.2.3.2：建式時最大 V/S 150 mm）
+        k_hc = 1.56 − 0.008H               （H 年平均相對濕度 %）
+        k_f = 35/(7 + f'ci)                （f'ci MPa；未知時可取 0.80 f'c）
+        k_td = t/(61 − 0.58 f'ci + t)       （t＝**載重後經過**天數；t=∞ → 1）
+
+    t_i：載重時材齡（天）。適用 f'c ≤ 105 MPa（5.4.2.3.1）。
+    """
+    ks = max(1.0, 1.45 - 0.0051 * VS)
+    khc = 1.56 - 0.008 * H
+    kf = 35.0 / (7.0 + fci)
+    ktd = 1.0 if t == math.inf else t / (61.0 - 0.58 * fci + t)
+    return CreepAASHTO(ks=ks, khc=khc, kf=kf, ktd=ktd,
+                       psi=1.9 * ks * khc * kf * ktd * ti ** -0.118)
+
+
+@dataclass
+class StagingPhi:
+    t0: float           # 載重（自重作用／脫模）材齡 天
+    t1: float           # 建立連續材齡 天
+    phi_inf: float      # ψ(∞, t0)
+    phi_t1: float       # ψ(t1 − t0, t0)：連續前已發生
+    dphi_sub: float     # 做法②：全量相減 ψ(∞,t0) − ψ(t1−t0,t0)（Mattock 式）
+    phi_load_t1: float  # 做法①：以 t1 為載重材齡 ψ(∞, t1)（便覽 Dischinger 式）
+
+
+def staging_phi(t0: float, t1: float, H: float = 75.0, VS: float = 150.0,
+                fci: float = 32.0) -> StagingPhi:
+    """體系轉換用的剩餘潛變 Δφ（AASHTO ψ）。兩種取法並列、不替使用者選邊（見 H7 §七）：
+
+    ② 全量相減：自重在 t0 作用於簡支體系，連續時已發生 ψ(t1−t0, t0)，剩餘＝ψ(∞,t0)−ψ(t1−t0,t0)。
+    ① 以轉換材齡查：ψ(∞, t1)——便覽 §17.2.3 以「90 日轉連續取 φ=1.7」即此法。
+    兩者差在老化效應；② 對「早加載、晚連續」較貼近實際載重歷程。
+    """
+    if t1 < t0:
+        raise ValueError("連續材齡 t1 不可早於載重材齡 t0")
+    inf0 = aashto_creep(math.inf, t0, H, VS, fci).psi
+    at1 = aashto_creep(t1 - t0, t0, H, VS, fci).psi if t1 > t0 else 0.0
+    return StagingPhi(t0=t0, t1=t1, phi_inf=inf0, phi_t1=at1, dphi_sub=inf0 - at1,
+                      phi_load_t1=aashto_creep(math.inf, t1, H, VS, fci).psi)
+
+
+
+# ── 箱梁體積表面積比（AASHTO C5.4.2.3.2）──────────────────────────
+def box_volume_surface(top_w: float, top_t: float, bot_w: float, bot_t: float,
+                       web_t: float, n_web: int, h: float, inner_factor: float = 0.5) -> float:
+    """V/S（mm）。C5.4.2.3.2：表面積只計暴露於大氣乾燥者；「For poorly ventilated enclosed
+    cells, only 50 percent of the interior perimeter should be used」。
+    與 section_from_dims 同一三矩形理想化：腹板垂直、立於底板兩緣。
+    """
+    hw = h - top_t - bot_t
+    A = top_w * top_t + bot_w * bot_t + n_web * web_t * hw
+    p_out = top_w + (top_w - bot_w) + 2 * top_t + 2 * hw + 2 * bot_t + bot_w
+    p_in = 2 * (bot_w - n_web * web_t) + 2 * max(0, n_web - 1) * hw
+    return A / (p_out + inner_factor * p_in)
+
+
+@dataclass
+class TimingRowAASHTO:
+    t1: float
+    dphi: float          # φ(∞,t0) − φ(t1−t0,t0)
+    phi_r: float         # φ(∞,t1)
+    lam_exact: float     # Δφ/(1+χ·φ_r)
+    lam_approx: float    # Δφ/(1+χ·Δφ)
+    M_pier: float        # 以 lam_exact
+
+
+def timing_sensitivity_aashto(t0: float, t1_list, M_I_pier: float, M_II_pier: float,
+                              H: float = 75.0, VS: float = 150.0, fci: float = 32.0,
+                              chi: float = 0.8) -> list:
+    """以 AASHTO ψ 模式算合龍時機敏感度（取代手填 φ 的示範表）。"""
+    out = []
+    for t1 in t1_list:
+        sp = staging_phi(t0, t1, H, VS, fci)
+        ex = redistribution_factor(sp.dphi_sub, chi, "trost", sp.phi_load_t1).lam
+        ap = redistribution_factor(sp.dphi_sub, chi, "trost").lam
+        out.append(TimingRowAASHTO(t1=t1, dphi=sp.dphi_sub, phi_r=sp.phi_load_t1,
+                                   lam_exact=ex, lam_approx=ap,
+                                   M_pier=M_I_pier + ex * (M_II_pier - M_I_pier)))
+    return out

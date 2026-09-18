@@ -48,7 +48,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         span_by_span_dead_load, redistribution_is_linear,
                         prestress_M2_redistribution, timing_sensitivity,
                         simple_span_tendon_segs, staged_envelope, duct_size_check,
-                        positive_moment_connection, durability_cover)
+                        positive_moment_connection, durability_cover,
+                        aashto_creep, staging_phi, box_volume_surface, timing_sensitivity_aashto)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -733,6 +734,24 @@ def _duct_side_margin():
             "m30_ncol": r[30].n_col, "m30_e_max": round(r[30].e_max, 1), "m30_fits": r[30].fits,
             "_note": "預設排列把剩餘寬度全給列距，最外側管側向保護層恰 40(餘裕 0)；兩列配置只容 15 mm 額外餘裕，30 mm 退單列 e_max 1,029 < 1,109 排不下。"}
 
+
+def _creep_aashto_A1():
+    """AASHTO 5.4.2.3.2 潛變係數＋嚴格 AAEM λ（40 m 參考箱梁：V/S 箱內周長計 50%、H 75%、f'ci 32、t0 7 天）。"""
+    import math
+    vs = box_volume_surface(11000, 250, 5800, 200, 350, 2, 2100)
+    c = aashto_creep(math.inf, 7, 75, vs, 32)
+    rows = timing_sensitivity_aashto(7, [28, 90, 180], 0.0, -5.065 * 24.5 * 1600 / 8, 75, vs, 32)
+    r28, r90 = rows[0], rows[1]
+    return {"VS_mm": round(vs, 2), "psi_inf_t0_7": round(c.psi, 4),
+            "t28_dphi": round(r28.dphi, 4), "t28_phi_r": round(r28.phi_r, 4),
+            "t28_lam_exact": round(r28.lam_exact, 4), "t28_lam_approx": round(r28.lam_approx, 4),
+            "t28_M_pier_kNm": round(r28.M_pier, 1),
+            "t90_lam_exact": round(r90.lam_exact, 4), "t90_M_pier_kNm": round(r90.M_pier, 1),
+            "t180_lam_exact": round(rows[2].lam_exact, 4),
+            "_note": "台灣規範無 φ(t) 模式→採 AASHTO。嚴格 AAEM：分子 Δφ＝ψ(∞,t0)−ψ(t1−t0,t0)、分母 1+χψ(∞,t1)；"
+                     "單一 Δφ 近似使 λ 偏大(28 天 0.513 vs 0.462)，對墩頂負彎矩與正束制偏保守。"
+                     "ψ(∞,7)=1.30 遠小於 H7 示範的 φ∞=2.0。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -827,6 +846,7 @@ golden = {
     "pos_moment_conn_S4": _pos_moment_conn_S4(),
     "durability_cover_T12": _durability_cover_T12(),
     "duct_side_margin": _duct_side_margin(),
+    "creep_aashto_A1": _creep_aashto_A1(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

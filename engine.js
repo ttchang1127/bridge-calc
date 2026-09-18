@@ -770,17 +770,19 @@
   // 載重在施工時作用於體系 I（逐跨施工＝各跨簡支），連續後潛變使內力朝
   // 「一開始就作用在體系 II」的解漂移：M(∞) = M_I + λ(M_II − M_I)。
   // ⚠ 決定 λ 的是**剩餘**潛變 Δφ = φ(∞) − φ(t₁)，故越早合龍重分配越多。
-  BC.redistributionFactor = function (dphi, chi, method) {
+  // phiR（嚴格 AAEM）：分母用束制彎矩自身的潛變 φ(∞,t1)；不給時以 Δφ 近似（λ 偏大、偏保守）
+  BC.redistributionFactor = function (dphi, chi, method, phiR) {
     chi = chi == null ? 0.8 : chi; method = method || 'trost';
     if (dphi < 0) throw new Error('Δφ 不可為負');
-    var lam = method === 'dischinger' ? 1 - exp(-dphi) : dphi / (1 + chi * dphi);
+    var pr = phiR == null ? dphi : phiR;
+    var lam = method === 'dischinger' ? 1 - exp(-dphi) : dphi / (1 + chi * pr);
     var valid = lam >= 0 && lam <= 1 + 1e-12;
     return { lam: lam, dphi: dphi, chi: chi, method: method, valid: valid,
              note: valid ? '' : 'λ=' + lam.toFixed(3) + ' 超出 [0,1]，Δφ 過大已逸出模型適用範圍' };
   };
-  BC.creepRedistribution = function (xs, M_I, M_II, dphi, chi, method) {
+  BC.creepRedistribution = function (xs, M_I, M_II, dphi, chi, method, phiR) {
     if (!(xs.length === M_I.length && xs.length === M_II.length)) throw new Error('長度須相同');
-    var f = BC.redistributionFactor(dphi, chi, method), pts = [];
+    var f = BC.redistributionFactor(dphi, chi, method, phiR), pts = [];
     for (var i = 0; i < xs.length; i++) {
       var d = f.lam * (M_II[i] - M_I[i]);
       pts.push({ x: xs[i], M_I: M_I[i], M_II: M_II[i], dM: d, M_inf: M_I[i] + d });
@@ -855,8 +857,8 @@
     return true;
   };
   // 先簡支張拉後連續：張拉當下 M₂≡0（靜定），連續後由潛變生成 λ·M₂,cont
-  BC.prestressM2Redistribution = function (spans, xs, M2cont, dphi, chi, method) {
-    var f = BC.redistributionFactor(dphi, chi, method),
+  BC.prestressM2Redistribution = function (spans, xs, M2cont, dphi, chi, method, phiR) {
+    var f = BC.redistributionFactor(dphi, chi, method, phiR),
         inf = M2cont.map(function (m) { return f.lam * m; }), ip = 0;
     for (var i = 1; i < xs.length; i++) if (abs(xs[i] - spans[0]) < abs(xs[ip] - spans[0])) ip = i;
     return { factor: f, xs: xs, M2_cont: M2cont, M2_inf: inf,
@@ -921,6 +923,38 @@
     else if (MuPos > 0.6 * Mcr) { Mreq = MuPos; gov = 'Mu+'; } else { Mreq = 0.6 * Mcr; gov = '0.6Mcr'; }
     return { fr: fr, Mcr: Mcr, Mu_pos: MuPos, simplified: simp, M_req: Mreq, governs: gov,
              As_est: d ? Mreq * 1e6 / (phi * fy * 0.9 * d) : null };
+  };
+  // AASHTO LRFD 5.4.2.3.2 潛變係數（台灣規範無 φ(t) 模式；同 staging.aashto_creep）
+  BC.aashtoCreep = function (t, ti, H, VS, fci) {
+    H = H == null ? 75 : H; VS = VS == null ? 150 : VS; fci = fci == null ? 32 : fci;
+    var ks = max(1, 1.45 - 0.0051 * VS), khc = 1.56 - 0.008 * H, kf = 35 / (7 + fci),
+        ktd = t === Infinity ? 1 : t / (61 - 0.58 * fci + t);
+    return { ks: ks, khc: khc, kf: kf, ktd: ktd, psi: 1.9 * ks * khc * kf * ktd * Math.pow(ti, -0.118) };
+  };
+  BC.stagingPhi = function (t0, t1, H, VS, fci) {
+    if (t1 < t0) throw new Error('連續材齡不可早於載重材齡');
+    var inf0 = BC.aashtoCreep(Infinity, t0, H, VS, fci).psi,
+        at1 = t1 > t0 ? BC.aashtoCreep(t1 - t0, t0, H, VS, fci).psi : 0;
+    return { t0: t0, t1: t1, phi_inf: inf0, phi_t1: at1, dphi_sub: inf0 - at1,
+             phi_load_t1: BC.aashtoCreep(Infinity, t1, H, VS, fci).psi };
+  };
+  // 箱梁 V/S：C5.4.2.3.2 封閉箱室內周長只計 50%
+  BC.boxVolumeSurface = function (topW, topT, botW, botT, webT, nWeb, h, innerFactor) {
+    innerFactor = innerFactor == null ? 0.5 : innerFactor;
+    var hw = h - topT - botT, A = topW * topT + botW * botT + nWeb * webT * hw,
+        pOut = topW + (topW - botW) + 2 * topT + 2 * hw + 2 * botT + botW,
+        pIn = 2 * (botW - nWeb * webT) + 2 * max(0, nWeb - 1) * hw;
+    return A / (pOut + innerFactor * pIn);
+  };
+  BC.timingSensitivityAashto = function (t0, t1List, M_I_pier, M_II_pier, H, VS, fci, chi) {
+    chi = chi == null ? 0.8 : chi;
+    return t1List.map(function (t1) {
+      var sp = BC.stagingPhi(t0, t1, H, VS, fci),
+          ex = BC.redistributionFactor(sp.dphi_sub, chi, 'trost', sp.phi_load_t1).lam,
+          ap = BC.redistributionFactor(sp.dphi_sub, chi, 'trost').lam;
+      return { t1: t1, dphi: sp.dphi_sub, phi_r: sp.phi_load_t1, lam_exact: ex, lam_approx: ap,
+               M_pier: M_I_pier + ex * (M_II_pier - M_I_pier) };
+    });
   };
   BC.timingSensitivity = function (phiInf, rows, M_I_pier, M_II_pier, chi, method) {
     return rows.map(function (r) {

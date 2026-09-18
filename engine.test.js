@@ -480,6 +480,19 @@ function chkEq(name, got, exp) {
   chkEq('側向餘裕30 列數（退單列）', dlo(30).nCol, dsm.m30_ncol);
   chk('側向餘裕30 e_max', dlo(30).eMax, dsm.m30_e_max, 0.1);
   chkEq('側向餘裕30 排得下', dlo(30).fits, dsm.m30_fits);
+  // AASHTO 潛變係數＋嚴格 AAEM
+  var cag = g.creep_aashto_A1, vsA = BC.boxVolumeSurface(11000, 250, 5800, 200, 350, 2, 2100),
+      tsA = BC.timingSensitivityAashto(7, [28, 90, 180], 0, -5.065 * 24.5 * 1600 / 8, 75, vsA, 32);
+  chk('AASHTO V/S（箱內周長 50%）', vsA, cag.VS_mm, 0.01);
+  chk('AASHTO ψ(∞,7)', BC.aashtoCreep(Infinity, 7, 75, vsA, 32).psi, cag.psi_inf_t0_7, 1e-4);
+  chk('28天合龍 Δφ', tsA[0].dphi, cag.t28_dphi, 1e-4);
+  chk('28天合龍 φ(∞,t1)', tsA[0].phi_r, cag.t28_phi_r, 1e-4);
+  chk('28天合龍 λ 嚴格', tsA[0].lam_exact, cag.t28_lam_exact, 1e-4);
+  chk('28天合龍 λ 近似', tsA[0].lam_approx, cag.t28_lam_approx, 1e-4);
+  chk('28天合龍 墩頂 M', tsA[0].M_pier, cag.t28_M_pier_kNm, 0.1);
+  chk('90天合龍 λ 嚴格', tsA[1].lam_exact, cag.t90_lam_exact, 1e-4);
+  chk('90天合龍 墩頂 M', tsA[1].M_pier, cag.t90_M_pier_kNm, 0.1);
+  chk('180天合龍 λ 嚴格', tsA[2].lam_exact, cag.t180_lam_exact, 1e-4);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

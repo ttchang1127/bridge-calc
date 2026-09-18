@@ -1228,8 +1228,14 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <template x-if="staging">
       <div>
         <div class="grid no-print" style="margin-bottom:8px">
-          <label title="終極潛變係數 φ(∞,t₀)，依採用之規範模式取值">φ(∞,t₀)<input type="number" x-model.number="stgPhiInf" step="0.1"></label>
-          <label title="建立連續性當下已發生的潛變 φ(t₁,t₀)">φ(t₁,t₀) 合龍時<input type="number" x-model.number="stgPhiT1" step="0.05"></label>
+          <label title="台灣公路橋梁設計規範無 φ(t) 模式（潛變只以 §8.16.2 經驗式處理），故預設採 AASHTO">潛變係數來源
+            <select x-model="stgPhiSrc" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px">
+              <option value="aashto">AASHTO 5.4.2.3.2 計算</option><option value="manual">手動輸入 φ</option></select></label>
+          <template x-if="stgPhiSrc==='aashto'"><label title="自重作用於簡支體系的材齡（脫模／張拉）">載重材齡 t₀ (天)<input type="number" x-model.number="stgT0" step="1" min="1"></label></template>
+          <template x-if="stgPhiSrc==='aashto'"><label title="年平均相對濕度">相對濕度 H (%)<input type="number" x-model.number="stgH" step="5"></label></template>
+          <template x-if="stgPhiSrc==='aashto'"><label title="載重時混凝土強度；未知可取 0.80 f'c（C5.4.2.3.2）">f'ci (MPa)<input type="number" x-model.number="stgFci" step="1"></label></template>
+          <template x-if="stgPhiSrc==='manual'"><label title="終極潛變係數 φ(∞,t₀)，依採用之規範模式取值">φ(∞,t₀)<input type="number" x-model.number="stgPhiInf" step="0.1"></label></template>
+          <template x-if="stgPhiSrc==='manual'"><label title="建立連續性當下已發生的潛變 φ(t₁,t₀)">φ(t₁,t₀) 合龍時<input type="number" x-model.number="stgPhiT1" step="0.05"></label></template>
           <label title="老化係數，長期典型 0.8">老化係數 χ<input type="number" x-model.number="stgChi" step="0.05"></label>
           <label>方法<select x-model="stgMethod" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px">
             <option value="trost">Trost（AAEM，較準）</option><option value="dischinger">Dischinger（rate-of-creep）</option></select></label>
@@ -1237,6 +1243,10 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <div class="grid">
           <div class="metric"><div class="l">剩餘潛變 Δφ ＝ φ(∞) − φ(t₁)</div>
             <div class="v" x-text="fmt(staging.dphi,2)"></div></div>
+          <template x-if="staging.pinfo&&staging.pinfo.src==='aashto'">
+            <div class="metric"><div class="l">AASHTO：ψ(∞,t₀)／ψ(t₁−t₀,t₀)／ψ(∞,t₁)（V/S <span x-text="fmt(staging.pinfo.vs,0)"></span> mm，t₁＝合龍梁齡 <span x-text="staging.pinfo.t1"></span> 天）</div>
+              <div class="v" style="font-size:15px" x-text="staging.pinfo.phiInf.toFixed(3)+'／'+staging.pinfo.phiT1.toFixed(3)+'／'+staging.pinfo.phiR.toFixed(3)"></div></div>
+          </template>
           <div class="metric"><div class="l">重分配係數 λ</div>
             <div class="v" :class="staging.factor.valid?'ok':'ng'" x-text="fmt(staging.factor.lam,3)"></div></div>
         </div>
@@ -1321,19 +1331,23 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         </div>
         <div class="hint" style="margin-top:8px"><b>合龍時機的影響</b>（墩頂恆載彎矩）</div>
         <table>
-          <thead><tr><th>合龍時機</th><th>φ(t₁)</th><th>Δφ</th><th>λ</th><th>墩頂 M (kN·m)</th></tr></thead>
+          <thead><tr><th>合龍時機</th><th x-text="staging.pinfo&&staging.pinfo.src==='aashto'?'ψ(∞,t₁)':'φ(t₁)'"></th><th>Δφ</th><th>λ</th>
+            <th x-show="staging.pinfo&&staging.pinfo.src==='aashto'">λ（單一 Δφ 近似）</th><th>墩頂 M (kN·m)</th></tr></thead>
           <tbody><template x-for="t in staging.timing" :key="t.t1_label">
             <tr><td x-text="t.t1_label"></td><td x-text="fmt(t.phi_t1,2)"></td>
                 <td x-text="fmt(t.dphi,2)"></td><td x-text="fmt(t.lam,3)"></td>
+                <td x-show="staging.pinfo&&staging.pinfo.src==='aashto'" x-text="t.lamApprox!=null?fmt(t.lamApprox,3):''"></td>
                 <td x-text="fmt(t.M_pier,0)"></td></tr>
           </template></tbody>
         </table>
         <div class="hint" style="margin-top:6px;color:var(--ng)">
           🔴 <b>與直覺相反</b>：決定 λ 的是<b>剩餘</b>潛變 Δφ = φ(∞) − φ(t₁)，不是 φ(∞)。
           <b>越早合龍、剩餘潛變越多、墩頂負彎矩越大</b>——趕工早合龍不會讓結構比較輕鬆。
-          本案 7 天合龍 <b x-text="fmt(staging.timing[0].M_pier,0)"></b> vs 180 天
-          <b x-text="fmt(staging.timing[3].M_pier,0)"></b> kN·m，差
-          <b x-text="(Math.abs(staging.timing[0].M_pier/staging.timing[3].M_pier-1)*100).toFixed(0)+' %'"></b>。
+          本案 <span x-text="staging.timing[0].t1_label"></span>合龍 <b x-text="fmt(staging.timing[0].M_pier,0)"></b> vs 180 天
+          <b x-text="fmt(staging.t180.M_pier,0)"></b> kN·m，差
+          <b x-text="(Math.abs(staging.timing[0].M_pier/staging.t180.M_pier-1)*100).toFixed(0)+' %'"></b>。
+          <span x-show="staging.pinfo&&staging.pinfo.src==='aashto'">λ 採<b>嚴格 AAEM</b>：分子為自重的剩餘潛變 ψ(∞,t₀)−ψ(t₁−t₀,t₀)，分母為束制彎矩自身的 1+χψ(∞,t₁)；
+          以單一 Δφ 同時代入兩處的近似式 λ 偏大（對墩頂負彎矩、正束制偏保守）。</span>
         </div>
         <div class="cite">
           λ＝<span x-text="stgMethod==='trost'?'Δφ/(1+χΔφ)（Trost，AAEM 老化係數法）':'1−e^(−Δφ)（Dischinger，rate-of-creep）'"></span>。
@@ -2253,7 +2267,7 @@ var PARAM_KEYS=[
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
   'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct',
-  'stgOn','stgScheme','stgPhiInf','stgPhiT1','stgChi','stgMethod','stgAge','stgFcD',
+  'stgOn','stgScheme','stgPhiInf','stgPhiT1','stgChi','stgMethod','stgAge','stgFcD','stgPhiSrc','stgT0','stgH','stgFci',
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
   // ⑦ 連續梁
@@ -2338,8 +2352,7 @@ function calc(){
                topG?[this.contTopPeAuto,this.contTopPe,this.anchorSlip,this.contTopN,this.strands,this.contTopLen,this.contTopEAnc,this.contTopEPier].join(','):'-'].join('|');
       var hn=this.contHaunch; key+='|'+(hn?[this.contHf,this.contHaunchLen,this.topW,this.topT,this.botW,this.botT,this.h].join(','):'-');
       var stgL=null;
-      if(this.stgOn){ var dph=Math.max(0,this.stgPhiInf-this.stgPhiT1);
-        stgL={lam:window.BC.redistributionFactor(dph,this.stgChi,this.stgMethod).lam, dphi:dph}; }
+      if(this.stgOn){ var pinf=this.stgPhiInfo; stgL={lam:pinf.lam, dphi:pinf.dphi}; }
       key+='|STG:'+(stgL?[stgL.lam.toFixed(6)].join(','):'-');
       if(cbCache.key!==key){ cbCache.key=key; cbCache.val=contEnvelope(sp,wDC,this.wDW,this.lanes,pt,hn,stgL); }
       return cbCache.val;
@@ -2575,6 +2588,19 @@ function calc(){
       return window.BC.ductSizeCheck(this.strands,this.ductID,this.ductOD,
         this.strandType==='12.7'?12.7:15.2,this.strandAp,this.ductAreaRule);
     },
+    // 體系轉換的潛變參數（⑦ 包絡與 ⑧ H7 共用同一個 λ）
+    get stgPhiInfo(){
+      var B=window.BC;
+      if(this.stgPhiSrc==='aashto'){
+        var vs=B.boxVolumeSurface(this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h);
+        var t1=Math.max(this.stgT0,this.stgAge), sp=B.stagingPhi(this.stgT0,t1,this.stgH,vs,this.stgFci);
+        var f=B.redistributionFactor(sp.dphi_sub,this.stgChi,this.stgMethod,sp.phi_load_t1);
+        return {src:'aashto', dphi:sp.dphi_sub, phiR:sp.phi_load_t1, phiInf:sp.phi_inf, phiT1:sp.phi_t1, vs:vs, t1:t1,
+                lam:f.lam, lamApprox:B.redistributionFactor(sp.dphi_sub,this.stgChi,this.stgMethod).lam, factor:f};
+      }
+      var d=Math.max(0,this.stgPhiInf-this.stgPhiT1), f2=B.redistributionFactor(d,this.stgChi,this.stgMethod);
+      return {src:'manual', dphi:d, phiR:null, phiInf:this.stgPhiInf, phiT1:this.stgPhiT1, lam:f2.lam, factor:f2};
+    },
     // ── 施工階段體系轉換的潛變重分配（BC.creepRedistribution）─────
     // ⑦ 的連續梁恆載一律以**連續體系**計算，那只有整座橋一次澆築成形時才對。
     // 逐跨施工（先簡支後連續）時恆載作用在簡支體系，連續後潛變才使內力漂移。
@@ -2583,14 +2609,15 @@ function calc(){
       var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0})
               .filter(function(v){return v>0});
       if(sp.length<2) return null;
-      var B=window.BC, sec=this.R.sec, w=sec.A/1e6*24.5,
-          dphi=Math.max(0,this.stgPhiInf-this.stgPhiT1);
-      var key=['STG',sp.join('+'),w.toFixed(4),dphi,this.stgChi,this.stgMethod,
+      var B=window.BC, sec=this.R.sec, w=sec.A/1e6*24.5, pinfo=this.stgPhiInfo,
+          dphi=pinfo.dphi, phiR=pinfo.phiR;
+      var key=['STG',sp.join('+'),w.toFixed(4),dphi,phiR,this.stgChi,this.stgMethod,this.stgPhiSrc,this.stgT0,this.stgH,this.stgFci,
+               this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,
                this.contEEnd,this.contEMid,this.contEPier,this.R.loss.Pe.toFixed(0),
                this.stgAge,this.stgFcD,this.wDW,this.lanes,this.h,sec.I,sec.yb].join('|');
       if(memoFn[key]) return memoFn[key];
       var d=B.spanBySpanDeadLoad(sp,w,40),
-          r=B.creepRedistribution(d.xs,d.M_I,d.M_II,dphi,this.stgChi,this.stgMethod);
+          r=B.creepRedistribution(d.xs,d.M_I,d.M_II,dphi,this.stgChi,this.stgMethod,phiR);
       r.linear=B.redistributionIsLinear(r,sp);      // 自我驗證：束制彎矩支承間必線性
       r.spans=sp; r.w=w; r.dphi=dphi;
       // 預力 M₂：簡支張拉時 M₂≡0（靜定），連續後由潛變生成 λ·M₂,cont
@@ -2601,12 +2628,22 @@ function calc(){
         var xp=[], tot=sp.reduce(function(a,b){return a+b},0);
         for(var i=0;i<=80;i++) xp.push(tot*i/80);
         r.m2=B.prestressM2Redistribution(sp,xp,xp.map(function(x){return cp.M2At(x)}),
-                                         dphi,this.stgChi,this.stgMethod);
+                                         dphi,this.stgChi,this.stgMethod,phiR);
       }catch(e){ r.m2=null; }
       // 時序敏感度：決定 λ 的是**剩餘**潛變，故越早合龍墩頂越不利
-      r.timing=B.timingSensitivity(this.stgPhiInf,
-        [['7 天（趕工早合龍）',0.25],['28 天（常規）',0.55],['90 天',1.05],['180 天（延後合龍）',1.35]],
-        0, -w*sp[0]*sp[0]/8, this.stgChi, this.stgMethod);
+      if(pinfo.src==='aashto'){
+        var lab={7:'7 天（趕工早合龍）',28:'28 天（常規）',90:'90 天（AASHTO 簡化門檻）',180:'180 天（延後合龍）'};
+        r.timing=B.timingSensitivityAashto(this.stgT0,[7,14,28,60,90,180,365].filter(function(t){return t>=this.stgT0},this),
+                   0,-w*sp[0]*sp[0]/8,this.stgH,pinfo.vs,this.stgFci,this.stgChi).map(function(q){
+          return {t1_label:lab[q.t1]||(q.t1+' 天'), phi_t1:q.phi_r, dphi:q.dphi, lam:q.lam_exact, lamApprox:q.lam_approx, M_pier:q.M_pier};
+        });
+      } else {
+        r.timing=B.timingSensitivity(this.stgPhiInf,
+          [['7 天（趕工早合龍）',0.25],['28 天（常規）',0.55],['90 天',1.05],['180 天（延後合龍）',1.35]],
+          0, -w*sp[0]*sp[0]/8, this.stgChi, this.stgMethod);
+      }
+      r.pinfo=pinfo;
+      r.t180=r.timing.find(function(q){return /^180/.test(q.t1_label)})||r.timing[r.timing.length-1];
       r.xPier=sp[0];
       r.xMid=sp[0]/2;
       // 連續橫隔梁正彎矩接頭（AASHTO 5.14.1.4.9）：簡支時張拉情境的中墩 Mu⁺（兩狀態取不利、γ 依正負號）
@@ -2899,7 +2936,7 @@ function calc(){
     // 中間錨碇齒塊（blister）：尺寸與錨板；blTieDeduct＝Tie-back 是否扣既有預壓（補強既有橋時應關閉）
     blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false,
     // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
-    stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost', stgAge:28, stgFcD:35,   // stgAge＝合龍時梁齡(天)；stgFcD＝連續橫隔梁 f'c
+    stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost', stgAge:28, stgFcD:35, stgPhiSrc:'aashto', stgT0:7, stgH:75, stgFci:32,   // stgPhiSrc：φ 由 AASHTO 5.4.2.3.2 算（台灣規範無 φ(t) 模式）或手填   // stgAge＝合龍時梁齡(天)；stgFcD＝連續橫隔梁 f'c
     ductOD:100, ductID:100, ductAreaRule:'tw', ductSideMargin:0, envType:'general', envLife:50, envWC:0.45, envZone:'中度', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams
     fricMu:0.25, fricK:0.003, fricX:0.5,   // 摩擦：μ、搖擺 K(/m)、控制斷面 x/L   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／骨材粒徑／淨距規則
     strandType:'15.2', customAp:140, customFpu:1860,

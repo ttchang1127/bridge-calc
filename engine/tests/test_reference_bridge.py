@@ -1416,6 +1416,34 @@ def test_duct_layout_side_margin():
     assert c.n_col == 1 and c.e_max < 1109             # 退成單列 → 排不下
 
 
+def test_aashto_creep_and_exact_aaem():
+    """AASHTO 5.4.2.3.2 ψ 各因數；嚴格 AAEM λ＝Δφ/(1+χφ(∞,t1))，不給 φ_r 時＝原近似。"""
+    import math
+    from bridgecalc.staging import (aashto_creep, staging_phi, redistribution_factor,
+                                    box_volume_surface, timing_sensitivity_aashto)
+    c = aashto_creep(math.inf, 7, 75, 150, 32)
+    _close(c.ks, 1.0, 1e-12)                              # 1.45−0.0051·150＝0.685 → 下限 1.0
+    _close(c.khc, 1.56 - 0.008 * 75, 1e-12)
+    _close(c.kf, 35 / 39, 1e-12)
+    _close(c.ktd, 1.0, 1e-12)
+    _close(c.psi, 1.9 * 0.96 * 35 / 39 * 7 ** -0.118, 1e-12)
+    _close(aashto_creep(28, 7, 75, 50, 32).ks, 1.45 - 0.0051 * 50, 1e-12)
+    _close(aashto_creep(28, 7, 75, 150, 32).ktd, 28 / (61 - 0.58 * 32 + 28), 1e-12)
+    # 不給 φ_r ＝ 原近似（golden 不變）
+    _close(redistribution_factor(1.7).lam, redistribution_factor(1.7, phi_restraint=None).lam, 0)
+    # t1＝t0：Δφ＝φ(∞,t1) → 嚴格＝近似
+    sp = staging_phi(7, 7)
+    _close(redistribution_factor(sp.dphi_sub, phi_restraint=sp.phi_load_t1).lam,
+           redistribution_factor(sp.dphi_sub).lam, 1e-12)
+    # 晚合龍：φ(∞,t1) > Δφ → 嚴格 λ 較小
+    rows = timing_sensitivity_aashto(7, [28, 90], 0.0, -24818.5)
+    assert all(r.phi_r > r.dphi and r.lam_exact < r.lam_approx for r in rows)
+    assert rows[0].lam_exact > rows[1].lam_exact            # 越晚合龍 λ 越小
+    # 箱內周長計 50% 使 V/S 變大
+    assert box_volume_surface(11000, 250, 5800, 200, 350, 2, 2100) > \
+        box_volume_surface(11000, 250, 5800, 200, 350, 2, 2100, 1.0)
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

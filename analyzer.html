@@ -1257,6 +1257,33 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           C5.14.1.4.5：「especially when continuity is established at an early girder age, continuing upward cambering … may cause cracking at the bottom of the continuity diaphragm」。
           合龍時梁齡 ≥ 90 天可依 5.14.1.4.4 簡化（正束制彎矩取 0、接頭 φM<sub>n</sub> ≥ 1.2M<sub>cr</sub>）。
         </div>
+        <template x-if="staging.pmc">
+          <div style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px">
+            <div class="hint" style="margin-bottom:6px"><b>連續橫隔梁正彎矩接頭</b>（AASHTO 5.14.1.4.9；5.14.1.4.5：<b>所有</b>連續橫隔梁皆須設正、負彎矩接頭，不論連續程度）</div>
+            <div class="grid no-print" style="margin-bottom:8px">
+              <label title="5.14.1.4.4：梁齡 ≥ 90 天（業主同意、契約規定）可取正束制為 0、接頭 ≥ 1.2Mcr">合龍時梁齡 (天)<input type="number" x-model.number="stgAge" step="1"></label>
+              <label title="Mcr 用橫隔梁混凝土的破裂模數（5.14.1.4.9a）">連續橫隔梁 f'c (MPa)<input type="number" x-model.number="stgFcD" step="1"></label>
+            </div>
+            <div class="grid">
+              <div class="metric"><div class="l">中墩係數化正束制 Mu⁺（簡支時張拉）</div>
+                <div class="v" style="font-size:15px" :class="staging.pierMuPos>0?'ng':''" x-text="fmt(staging.pierMuPos,0)+' kN·m'"></div></div>
+              <div class="metric"><div class="l">M<sub>cr</sub>＝f<sub>r</sub>I<sub>g</sub>/y<sub>b</sub>（不計預力）</div>
+                <div class="v" style="font-size:15px" x-text="fmt(staging.pmc.Mcr,0)+' kN·m（f_r '+staging.pmc.fr.toFixed(2)+' MPa）'"></div></div>
+              <div class="metric"><div class="l">接頭需求（<span x-text="staging.pmc.governs"></span> 控制）</div>
+                <div class="v" style="font-size:15px" x-text="fmt(staging.pmc.M_req,0)+' kN·m'"></div></div>
+              <div class="metric"><div class="l">鋼筋估算 A<sub>s</sub>（φ0.9、f<sub>y</sub>420、jd＝0.9d）</div>
+                <div class="v" style="font-size:15px" x-text="fmt(staging.pmc.As_est,0)+' mm²'"></div></div>
+            </div>
+            <div class="cite">
+              <span x-show="!staging.pmc.simplified">5.14.1.4.9a：取 max(係數化正束制彎矩, 0.6M<sub>cr</sub>)。</span>
+              <span x-show="staging.pmc.simplified" x-cloak>5.14.1.4.4 簡化（梁齡 ≥ 90 天）：正束制取 0、接頭 ≥ 1.2M<sub>cr</sub>——
+                <b>簡化省的是計算不是鋼筋</b>：實際正束制小時，1.2M<sub>cr</sub> 反而是一般做法 0.6M<sub>cr</sub> 的兩倍。</span>
+              M<sub>cr</sub> 依 5.14.1.4.9a 以<b>總毛斷面</b>、<b>橫隔梁混凝土</b>的破裂模數（f<sub>r</sub>＝0.63√f'c，5.4.2.6 基本值；0.97√f'c 為最小鋼筋專用）計算，
+              <b>不計預力</b>（C5.14.1.4.9a：橫隔梁非預力斷面）。C5.14.1.4.2：「the later continuity is formed, the lower the predicted values of positive restraint moment」。
+              鋼筋量為估算，實際須依 5.14.1.4.9b 檢核錨定與配置。
+            </div>
+          </div>
+        </template>
         <div class="cite">⑦ 的連續梁包絡在勾選本區時<b>同步改為兩狀態取不利</b>（t₁ 合龍當下：自重＝簡支；∞：重分配後），
           恆載有利時取 γ<sub>min</sub>（DC 0.90、DW 0.65）；⑦ 的腱為全長連續腱（合龍後張拉），故該處 M₂ 為全量、不重分配。
           AASHTO 5.14.1.4.2「束制彎矩有利時不得計入任何組合」由兩狀態取不利自動滿足。</div>
@@ -2205,7 +2232,7 @@ var PARAM_KEYS=[
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
   'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct',
-  'stgOn','stgScheme','stgPhiInf','stgPhiT1','stgChi','stgMethod',
+  'stgOn','stgScheme','stgPhiInf','stgPhiT1','stgChi','stgMethod','stgAge','stgFcD',
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
   // ⑦ 連續梁
@@ -2534,7 +2561,8 @@ function calc(){
       var B=window.BC, sec=this.R.sec, w=sec.A/1e6*24.5,
           dphi=Math.max(0,this.stgPhiInf-this.stgPhiT1);
       var key=['STG',sp.join('+'),w.toFixed(4),dphi,this.stgChi,this.stgMethod,
-               this.contEEnd,this.contEMid,this.contEPier,this.R.loss.Pe.toFixed(0)].join('|');
+               this.contEEnd,this.contEMid,this.contEPier,this.R.loss.Pe.toFixed(0),
+               this.stgAge,this.stgFcD,this.wDW,this.lanes,this.h,sec.I,sec.yb].join('|');
       if(memoFn[key]) return memoFn[key];
       var d=B.spanBySpanDeadLoad(sp,w,40),
           r=B.creepRedistribution(d.xs,d.M_I,d.M_II,dphi,this.stgChi,this.stgMethod);
@@ -2556,6 +2584,16 @@ function calc(){
         0, -w*sp[0]*sp[0]/8, this.stgChi, this.stgMethod);
       r.xPier=sp[0];
       r.xMid=sp[0]/2;
+      // 連續橫隔梁正彎矩接頭（AASHTO 5.14.1.4.9）：簡支時張拉情境的中墩 Mu⁺（兩狀態取不利、γ 依正負號）
+      try{
+        var ek='STGENV|'+sp.join('+')+'|'+w.toFixed(4)+'|'+this.wDW+'|'+this.lanes;
+        var env=memoFn[ek]||(memoFn[ek]=B.taiwanContEnvelope(sp,w,this.wDW,this.lanes,Math.max(12,Math.round(100/sp.length)),0.25,400,null));
+        var M2e=r.m2?env.map(function(q){ return cp.M2At(q.x); }):null;
+        var se=B.stagedEnvelope(sp,env,w,r.factor.lam,{M2:M2e,psAtSimple:true});
+        var ipe=0; env.forEach(function(q,i){ if(Math.abs(q.x-sp[0])<Math.abs(env[ipe].x-sp[0])) ipe=i; });
+        r.pierMuPos=se[ipe].Mu_pos;
+        r.pmc=B.positiveMomentConnection(Math.max(0,r.pierMuPos),sec.I,sec.yb,this.stgFcD,this.stgAge,null,this.h-80);
+      }catch(e){ r.pmc=null; }
       memoFn[key]=r;
       return r;
     },
@@ -2836,7 +2874,7 @@ function calc(){
     // 中間錨碇齒塊（blister）：尺寸與錨板；blTieDeduct＝Tie-back 是否扣既有預壓（補強既有橋時應關閉）
     blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false,
     // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
-    stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost',
+    stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost', stgAge:28, stgFcD:35,   // stgAge＝合龍時梁齡(天)；stgFcD＝連續橫隔梁 f'c
     ductOD:100, ductID:100, ductAreaRule:'tw', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams
     fricMu:0.25, fricK:0.003, fricX:0.5,   // 摩擦：μ、搖擺 K(/m)、控制斷面 x/L   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／骨材粒徑／淨距規則
     strandType:'15.2', customAp:140, customFpu:1860,

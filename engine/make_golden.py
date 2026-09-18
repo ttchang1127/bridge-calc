@@ -47,7 +47,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         redistribution_factor, creep_redistribution,
                         span_by_span_dead_load, redistribution_is_linear,
                         prestress_M2_redistribution, timing_sensitivity,
-                        simple_span_tendon_segs, staged_envelope, duct_size_check)
+                        simple_span_tendon_segs, staged_envelope, duct_size_check,
+                        positive_moment_connection)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -700,6 +701,16 @@ def _staged_shear_S3():
         "_note": "逐跨施工剛合龍時自重剪力為簡支 wL/2(>連續 3wL/8)，端支承 d_v Vu/腹板 2,053→2,441(+19%)，"
                  "端部 0–4.5 m 箍筋 @450→@250。束制剪力 λ(V_II−V_I) 每跨常數(束制彎矩線性)。"}
 
+
+def _pos_moment_conn_S4():
+    """連續橫隔梁正彎矩接頭（AASHTO 5.14.1.4.9a／.4）：40+40 簡支張拉中墩 Mu⁺ 263（staged_envelope_S2）。"""
+    a = positive_moment_connection(262.9, sec.I, sec.yb, 40.0, d=sec.h - 80)
+    b = positive_moment_connection(262.9, sec.I, sec.yb, 40.0, age_days=90, d=sec.h - 80)
+    return {"fr_MPa": round(a.fr, 4), "Mcr_kNm": round(a.Mcr, 1), "gov": a.governs, "M_req_kNm": round(a.M_req, 1),
+            "As_est_mm2": round(a.As_est, 0), "gov_90d": b.governs, "M_req_90d_kNm": round(b.M_req, 1),
+            "_note": "M_cr＝f_r·I_g/y_t：總毛斷面、橫隔梁混凝土 f_r 0.63√f'c、不計預力(C5.14.1.4.9a)。"
+                     "實際正束制 263 ≪ 0.6M_cr 5,913 → 最小量控制；90 天簡化要 1.2M_cr 11,826——省計算不省鋼筋。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -791,6 +802,7 @@ golden = {
     "duct_size_T83": _duct_size_T83(),
     "cont_envelope_gamma_min": _cont_envelope_gamma_min(),
     "staged_shear_S3": _staged_shear_S3(),
+    "pos_moment_conn_S4": _pos_moment_conn_S4(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

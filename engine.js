@@ -886,6 +886,16 @@
              Vu_pos: p[2], Vu_neg: n[3], I: r.I, V_dc_I: vI, V_dc_II: r.V_dc, V_dc_inf: vinf,
              gov_pos: p[0], gov_neg: n[0] };
   };
+  // 連續橫隔梁正彎矩接頭（AASHTO 5.14.1.4.9a／.4）：max(Mu⁺, 0.6Mcr)；梁齡 ≥ 90 天簡化 1.2Mcr。
+  // Mcr＝f_r·I_g/y_t：總毛斷面、橫隔梁混凝土 f_r 0.63√f'c（5.4.2.6 基本值）、不計預力。
+  BC.positiveMomentConnection = function (MuPos, Ig, yt, fcD, ageDays, fr, d, fy, phi) {
+    fr = fr == null ? 0.63 * sqrt(fcD) : fr; fy = fy || 420; phi = phi == null ? 0.9 : phi;
+    var Mcr = fr * Ig / yt / 1e6, simp = ageDays != null && ageDays >= 90, Mreq, gov;
+    if (simp) { Mreq = 1.2 * Mcr; gov = '1.2Mcr'; }
+    else if (MuPos > 0.6 * Mcr) { Mreq = MuPos; gov = 'Mu+'; } else { Mreq = 0.6 * Mcr; gov = '0.6Mcr'; }
+    return { fr: fr, Mcr: Mcr, Mu_pos: MuPos, simplified: simp, M_req: Mreq, governs: gov,
+             As_est: d ? Mreq * 1e6 / (phi * fy * 0.9 * d) : null };
+  };
   BC.timingSensitivity = function (phiInf, rows, M_I_pier, M_II_pier, chi, method) {
     return rows.map(function (r) {
       var d = max(0, phiInf - r[1]), f = BC.redistributionFactor(d, chi, method);

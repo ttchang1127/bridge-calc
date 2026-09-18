@@ -383,3 +383,40 @@ def staged_shear_row(spans: Sequence[float], row, w_dc: float, lam: float):
     out.V_dc_I, out.V_dc_II, out.V_dc_inf = vI, row.V_dc, vinf
     out.gov_pos, out.gov_neg = p[0], n[0]
     return out
+
+
+# ── 連續橫隔梁正彎矩接頭（AASHTO 5.14.1.4.9，NLM 7839c56d 核對）───────
+@dataclass
+class PosMomentConnResult:
+    fr: float           # 破裂模數 MPa（橫隔梁混凝土）
+    Mcr: float          # kN·m
+    Mu_pos: float       # 係數化正束制彎矩 kN·m（≤0 表示無）
+    simplified: bool    # 合龍時梁齡 ≥ 90 天 → 5.14.1.4.4 簡化
+    M_req: float        # 接頭需求彎矩 kN·m
+    governs: str        # "Mu+"／"0.6Mcr"／"1.2Mcr"
+    As_est: float       # mm²，估算（φ=0.9、jd=0.9d）；d 未給則為 None
+
+
+def positive_moment_connection(Mu_pos: float, I_g: float, y_t: float, fc_diaph: float,
+                               age_days: float = None, fr: float = None,
+                               d: float = None, fy: float = 420.0, phi: float = 0.9):
+    """連續橫隔梁正彎矩接頭需求（簡支預鑄梁連續化／逐跨施工先簡支後連續）。
+
+    - 5.14.1.4.5：**所有**連續橫隔梁皆須設正、負彎矩接頭，不論連續程度。
+    - 5.14.1.4.9a：鋼筋取 max(係數化正束制彎矩, 0.6 M_cr)。
+    - 5.14.1.4.4：合龍時梁齡 ≥ 90 天（業主同意、契約規定）→ 正束制可取 0，接頭 ≥ 1.2 M_cr。
+    - M_cr＝f_r·I_g/y_t（Eq. 5.7.3.6.2-2）：**總毛複合斷面**、**橫隔梁混凝土**的破裂模數、
+      **不計預力**（C5.14.1.4.9a：橫隔梁非預力斷面）。f_r 預設 0.63√f'c（5.4.2.6 基本值；
+      0.97√f'c 是最小鋼筋專用，不適用此處）。
+    I_g mm⁴、y_t mm（中性軸至受拉緣＝底緣）、fc MPa；As_est 以 M_req/(φ·f_y·0.9d) 估算。
+    """
+    f_r = 0.63 * math.sqrt(fc_diaph) if fr is None else fr
+    Mcr = f_r * I_g / y_t / 1e6
+    simp = age_days is not None and age_days >= 90
+    if simp:
+        M_req, gov = 1.2 * Mcr, "1.2Mcr"
+    else:
+        M_req, gov = (Mu_pos, "Mu+") if Mu_pos > 0.6 * Mcr else (0.6 * Mcr, "0.6Mcr")
+    As = M_req * 1e6 / (phi * fy * 0.9 * d) if d else None
+    return PosMomentConnResult(fr=f_r, Mcr=Mcr, Mu_pos=Mu_pos, simplified=simp,
+                               M_req=M_req, governs=gov, As_est=As)

@@ -451,6 +451,16 @@ function chkEq(name, got, exp) {
   chk('γ_min x=32 Mu⁺（墩旁正彎矩）', atG(32).Mu_pos, gmg.x32_Mu_pos_kNm, 0.1);
   chk('γ_min 墩頂 Mu⁺', atG(40).Mu_pos, gmg.pier_Mu_pos_kNm, 0.1);
   chk('γ_min 跨中 Mu⁻', atG(20).Mu_neg, gmg.x20_Mu_neg_kNm, 0.1);
+  // 連續橫隔梁正彎矩接頭
+  var pmg = g.pos_moment_conn_S4, pmA = BC.positiveMomentConnection(262.9, 3.287e12, 1329, 40, null, null, 2100 - 80),
+      pmB = BC.positiveMomentConnection(262.9, 3.287e12, 1329, 40, 90, null, 2100 - 80);
+  chk('正彎矩接頭 f_r', pmA.fr, pmg.fr_MPa, 1e-4);
+  chk('正彎矩接頭 M_cr', pmA.Mcr, pmg.Mcr_kNm, 0.1);
+  chkEq('正彎矩接頭 控制', pmA.governs, pmg.gov);
+  chk('正彎矩接頭 需求', pmA.M_req, pmg.M_req_kNm, 0.1);
+  chk('正彎矩接頭 As 估算', pmA.As_est, pmg.As_est_mm2, 1);
+  chkEq('正彎矩接頭 90 天簡化 控制', pmB.governs, pmg.gov_90d);
+  chk('正彎矩接頭 90 天簡化 需求', pmB.M_req, pmg.M_req_90d_kNm, 0.1);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

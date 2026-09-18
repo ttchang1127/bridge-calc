@@ -1377,6 +1377,20 @@ def test_staged_shear_restraint_constant_and_end_support_governs():
     assert s.gov_pos == "t1" and s.Vu_pos > r.Vu_pos
 
 
+def test_positive_moment_connection():
+    """AASHTO 5.14.1.4.9a／.4：max(Mu⁺, 0.6Mcr)；梁齡 ≥ 90 天簡化取 1.2Mcr；Mcr 不計預力、f_r 0.63√f'c。"""
+    from bridgecalc.staging import positive_moment_connection as pm
+    import math
+    r = pm(263.0, 3.287e12, 1329.0, 40.0, d=2020.0)
+    _close(r.fr, 0.63 * math.sqrt(40), 1e-12)
+    _close(r.Mcr, 0.63 * math.sqrt(40) * 3.287e12 / 1329 / 1e6, 1e-6)
+    assert r.governs == "0.6Mcr" and abs(r.M_req - 0.6 * r.Mcr) < 1e-9
+    s90 = pm(263.0, 3.287e12, 1329.0, 40.0, age_days=90)
+    assert s90.governs == "1.2Mcr" and s90.M_req > r.M_req      # 簡化省計算不省鋼筋
+    assert pm(8000.0, 3.287e12, 1329.0, 40.0).governs == "Mu+"
+    assert pm(8000.0, 3.287e12, 1329.0, 40.0, age_days=89.9).governs == "Mu+"   # 門檻 90 天
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

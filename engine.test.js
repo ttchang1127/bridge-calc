@@ -380,6 +380,41 @@ function chkEq(name, got, exp) {
   chkEq('齒塊 控制配筋項', bld.governing, blg.governing);
   chk('齒塊 四類配筋合計', bld.As_total_conservative, blg.As_total_conservative_mm2, 0.1);
   chkEq('齒塊 幾何檢核', bld.geom.ok, blg.geom_ok);
+  // 施工階段體系轉換的潛變重分配
+  var stg = g.staging_redist_S1, spSt = [40, 40], wSt = 5.065 * 24.5, dphiSt = 1.7;
+  var dSt = BC.spanBySpanDeadLoad(spSt, wSt, 40);
+  var rSt = BC.creepRedistribution(dSt.xs, dSt.M_I, dSt.M_II, dphiSt, 0.8, 'trost');
+  var rStD = BC.creepRedistribution(dSt.xs, dSt.M_I, dSt.M_II, dphiSt, 0.8, 'dischinger');
+  var midSt = rSt.at(20), pierSt = rSt.at(40);
+  chk('重分配 λ Trost', rSt.factor.lam, stg.lam_trost, 1e-4);
+  chk('重分配 λ Dischinger', rStD.factor.lam, stg.lam_dischinger, 1e-4);
+  chkEq('重分配 Trost Δφ=10 逸出範圍', !BC.redistributionFactor(10, 0.8, 'trost').valid,
+        stg.lam_trost_invalid_at_dphi10);
+  chk('逐跨 跨中 M_I（簡支）', midSt.M_I, stg.mid_M_I_kNm, 0.1);
+  chk('逐跨 跨中 M_II（連續）', midSt.M_II, stg.mid_M_II_kNm, 0.1);
+  chk('逐跨 跨中 M(∞)', midSt.M_inf, stg.mid_M_inf_kNm, 0.1);
+  chk('逐跨 跨中／連續比', midSt.M_inf / midSt.M_II, stg.mid_ratio_to_cont, 1e-3);
+  chk('逐跨 墩頂 M_I（＝0）', pierSt.M_I, stg.pier_M_I_kNm, 1e-6);
+  chk('逐跨 墩頂 M_II（連續）', pierSt.M_II, stg.pier_M_II_kNm, 0.1);
+  chk('逐跨 墩頂 M(∞)', pierSt.M_inf, stg.pier_M_inf_kNm, 0.1);
+  chk('逐跨 墩頂／連續比', pierSt.M_inf / pierSt.M_II, stg.pier_ratio_to_cont, 1e-3);
+  chkEq('🔑 束制彎矩支承間線性', BC.redistributionIsLinear(rSt, spSt), stg.restraint_linear);
+  var tpSt = BC.contTendonSegs(spSt, 0, 1109, -600),
+      cpSt = BC.continuousPrestress(spSt, [{ P: 23725, segs: tpSt.segs }]),
+      xpSt = [], iSt;
+  for (iSt = 0; iSt <= 80; iSt++) xpSt.push(iSt);
+  var m2cSt = xpSt.map(function (x) { return cpSt.M2At(x); });
+  var rmSt = BC.prestressM2Redistribution(spSt, xpSt, m2cSt, dphiSt);
+  chk('M₂ 墩頂（連續體系張拉）', rmSt.M2_pier_cont, stg.M2_pier_cont_kNm, 0.1);
+  chk('M₂ 墩頂（先簡支後連續）', rmSt.M2_pier_inf, stg.M2_pier_inf_kNm, 0.1);
+  chk('墩頂合計 一次成形', pierSt.M_II + rmSt.M2_pier_cont, stg.pier_total_cont_kNm, 0.1);
+  chk('墩頂合計 逐跨施工', pierSt.M_inf + rmSt.M2_pier_inf, stg.pier_total_sbs_kNm, 0.1);
+  var timSt = BC.timingSensitivity(2.0, [['7d', 0.25], ['28d', 0.55], ['180d', 1.35]],
+                                   0, -wSt * 1600 / 8);
+  chk('時序 λ(7天合龍)', timSt[0].lam, stg.lam_7d, 1e-4);
+  chk('時序 λ(180天合龍)', timSt[2].lam, stg.lam_180d, 1e-4);
+  chk('時序 墩頂 M(7天)', timSt[0].M_pier, stg.M_pier_7d_kNm, 0.1);
+  chk('時序 墩頂 M(180天)', timSt[2].M_pier, stg.M_pier_180d_kNm, 0.1);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

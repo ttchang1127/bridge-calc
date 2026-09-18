@@ -717,6 +717,109 @@
     var i = contSpanOf(xs, x), a = x - xs[i];
     return contMomentAt(spans, xs, X, x, w * a * (spans[i] - a) / 2);
   };
+  // ── 施工階段體系轉換的潛變重分配（同 bridgecalc.staging）──────
+  // 載重在施工時作用於體系 I（逐跨施工＝各跨簡支），連續後潛變使內力朝
+  // 「一開始就作用在體系 II」的解漂移：M(∞) = M_I + λ(M_II − M_I)。
+  // ⚠ 決定 λ 的是**剩餘**潛變 Δφ = φ(∞) − φ(t₁)，故越早合龍重分配越多。
+  BC.redistributionFactor = function (dphi, chi, method) {
+    chi = chi == null ? 0.8 : chi; method = method || 'trost';
+    if (dphi < 0) throw new Error('Δφ 不可為負');
+    var lam = method === 'dischinger' ? 1 - exp(-dphi) : dphi / (1 + chi * dphi);
+    var valid = lam >= 0 && lam <= 1 + 1e-12;
+    return { lam: lam, dphi: dphi, chi: chi, method: method, valid: valid,
+             note: valid ? '' : 'λ=' + lam.toFixed(3) + ' 超出 [0,1]，Δφ 過大已逸出模型適用範圍' };
+  };
+  BC.creepRedistribution = function (xs, M_I, M_II, dphi, chi, method) {
+    if (!(xs.length === M_I.length && xs.length === M_II.length)) throw new Error('長度須相同');
+    var f = BC.redistributionFactor(dphi, chi, method), pts = [];
+    for (var i = 0; i < xs.length; i++) {
+      var d = f.lam * (M_II[i] - M_I[i]);
+      pts.push({ x: xs[i], M_I: M_I[i], M_II: M_II[i], dM: d, M_inf: M_I[i] + d });
+    }
+    var hi = pts[0], lo = pts[0];
+    pts.forEach(function (p) { if (p.M_inf > hi.M_inf) hi = p; if (p.M_inf < lo.M_inf) lo = p; });
+    return { factor: f, pts: pts,
+      M_I_max: max.apply(null, M_I), M_II_max: max.apply(null, M_II),
+      M_inf_max: hi.M_inf, x_inf_max: hi.x,
+      M_I_min: min.apply(null, M_I), M_II_min: min.apply(null, M_II),
+      M_inf_min: lo.M_inf, x_inf_min: lo.x,
+      at: function (x) {
+        var best = pts[0];
+        pts.forEach(function (p) { if (abs(p.x - x) < abs(best.x - x)) best = p; });
+        return best;
+      },
+      envelope: function (x) {
+        var p = this.at(x);
+        return [min(p.M_I, min(p.M_II, p.M_inf)), max(p.M_I, max(p.M_II, p.M_inf))];
+      } };
+  };
+  BC.simpleSpanDLMoment = function (spans, w, x) {
+    var acc = 0;
+    for (var i = 0; i < spans.length; i++) {
+      if (x <= acc + spans[i] + 1e-9) {
+        var xp = min(max(x - acc, 0), spans[i]);
+        return w * xp * (spans[i] - xp) / 2;
+      }
+      acc += spans[i];
+    }
+    return 0;
+  };
+  BC.spanBySpanDeadLoad = function (spans, w, nPerSpan) {
+    nPerSpan = nPerSpan || 20;
+    var total = spans.reduce(function (a, b) { return a + b; }, 0),
+        n = nPerSpan * spans.length, xs = [], m1 = [], m2 = [], brk = [], acc = 0, i;
+    spans.forEach(function (L) { acc += L; brk.push(acc); });
+    for (i = 0; i <= n; i++) {
+      var x = total * i / n;
+      xs.push(x); m1.push(BC.simpleSpanDLMoment(spans, w, x)); m2.push(BC.contDLMoment(spans, w, x));
+    }
+    // 支承處補點：束制彎矩的折點都在支承，漏掉會讓線性檢查與極值失真
+    brk.slice(0, -1).forEach(function (b) {
+      if (xs.every(function (v) { return abs(b - v) > 1e-9; })) {
+        xs.push(b); m1.push(BC.simpleSpanDLMoment(spans, w, b)); m2.push(BC.contDLMoment(spans, w, b));
+      }
+    });
+    var ord = xs.map(function (v, k) { return k; }).sort(function (a, b) { return xs[a] - xs[b]; });
+    return { xs: ord.map(function (k) { return xs[k]; }),
+             M_I: ord.map(function (k) { return m1[k]; }),
+             M_II: ord.map(function (k) { return m2[k]; }) };
+  };
+  // 自我驗證：束制彎矩 ΔM 不對應外載 → 支承間必為線性（任一側算錯即掛）
+  BC.redistributionIsLinear = function (res, spans, tol) {
+    tol = tol == null ? 1e-6 : tol;
+    var edges = [0], acc = 0, scale = 0;
+    spans.forEach(function (L) { acc += L; edges.push(acc); });
+    res.pts.forEach(function (p) { scale = max(scale, abs(p.dM)); });
+    scale = scale || 1;
+    for (var k = 0; k < edges.length - 1; k++) {
+      var a = edges[k], b = edges[k + 1];
+      var seg = res.pts.filter(function (p) { return p.x >= a - 1e-9 && p.x <= b + 1e-9; });
+      if (seg.length < 3) continue;
+      var x0 = seg[0].x, y0 = seg[0].dM, x1 = seg[seg.length - 1].x, y1 = seg[seg.length - 1].dM;
+      if (x1 - x0 <= 0) continue;
+      for (var j = 0; j < seg.length; j++) {
+        var lin = y0 + (y1 - y0) * (seg[j].x - x0) / (x1 - x0);
+        if (abs(seg[j].dM - lin) > tol * scale) return false;
+      }
+    }
+    return true;
+  };
+  // 先簡支張拉後連續：張拉當下 M₂≡0（靜定），連續後由潛變生成 λ·M₂,cont
+  BC.prestressM2Redistribution = function (spans, xs, M2cont, dphi, chi, method) {
+    var f = BC.redistributionFactor(dphi, chi, method),
+        inf = M2cont.map(function (m) { return f.lam * m; }), ip = 0;
+    for (var i = 1; i < xs.length; i++) if (abs(xs[i] - spans[0]) < abs(xs[ip] - spans[0])) ip = i;
+    return { factor: f, xs: xs, M2_cont: M2cont, M2_inf: inf,
+             M2_pier_cont: M2cont[ip], M2_pier_inf: inf[ip] };
+  };
+  BC.timingSensitivity = function (phiInf, rows, M_I_pier, M_II_pier, chi, method) {
+    return rows.map(function (r) {
+      var d = max(0, phiInf - r[1]), f = BC.redistributionFactor(d, chi, method);
+      return { t1_label: r[0], phi_t1: r[1], dphi: d, lam: f.lam,
+               M_pier: M_I_pier + f.lam * (M_II_pier - M_I_pier) };
+    });
+  };
+
   BC.taiwanLaneReduction = function (lanes) { return lanes <= 2 ? 1.0 : (lanes === 3 ? 0.90 : 0.75); };
   BC.contImpactLength = function (spans, x, sign) {
     var xs = contXs(spans), n = spans.length, i = contSpanOf(xs, x), j;

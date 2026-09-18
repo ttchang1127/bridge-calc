@@ -1155,6 +1155,98 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     </tbody></table>
     <div class="cite">節塊工廠配對澆置→現場拼裝；接縫無握裹鋼筋過縫，剪力由剪力鍵承擔（道示 V_fuk·ξ₁ξ₂Φ），接縫全程受壓（拼裝期≥0.21 MPa）；節段橋內置黏結 PT≥30%。</div>
   </div>
+
+  <!-- H7 施工階段體系轉換（潛變重分配） -->
+  <div class="card"><h2>H7 施工階段體系轉換（潛變重分配）<span class="gold" style="background:#fef3c7;color:#92400e">★串接 ⑦</span></h2>
+    <div class="hint" style="margin-bottom:8px">
+      ⑦ 的連續梁恆載一律以<b>連續體系</b>計算——那只有<b>整座橋一次澆築成形</b>時才對。
+      逐跨施工（先簡支後連續）時恆載作用在<b>簡支</b>體系，建立連續後潛變才使內力朝連續解漂移：
+      <b>M(∞) = M<sub>I</sub> + λ(M<sub>II</sub> − M<sub>I</sub>)</b>。
+      <label style="display:inline-flex;gap:5px;align-items:center;margin-left:8px">
+        <input type="checkbox" x-model="stgOn"> <b>計入體系轉換</b></label>
+      <span x-show="stgOn&&!contLine" x-cloak style="color:var(--ng)">　⚠ 需先在 ③ 勾「連續梁」並指定跨長</span>
+    </div>
+    <template x-if="staging">
+      <div>
+        <div class="grid no-print" style="margin-bottom:8px">
+          <label title="終極潛變係數 φ(∞,t₀)，依採用之規範模式取值">φ(∞,t₀)<input type="number" x-model.number="stgPhiInf" step="0.1"></label>
+          <label title="建立連續性當下已發生的潛變 φ(t₁,t₀)">φ(t₁,t₀) 合龍時<input type="number" x-model.number="stgPhiT1" step="0.05"></label>
+          <label title="老化係數，長期典型 0.8">老化係數 χ<input type="number" x-model.number="stgChi" step="0.05"></label>
+          <label>方法<select x-model="stgMethod" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px">
+            <option value="trost">Trost（AAEM，較準）</option><option value="dischinger">Dischinger（rate-of-creep）</option></select></label>
+        </div>
+        <div class="grid">
+          <div class="metric"><div class="l">剩餘潛變 Δφ ＝ φ(∞) − φ(t₁)</div>
+            <div class="v" x-text="fmt(staging.dphi,2)"></div></div>
+          <div class="metric"><div class="l">重分配係數 λ</div>
+            <div class="v" :class="staging.factor.valid?'ok':'ng'" x-text="fmt(staging.factor.lam,3)"></div></div>
+        </div>
+        <table style="margin-top:8px">
+          <thead><tr><th>斷面</th><th>M<sub>I</sub> 施工體系（簡支）</th><th>M<sub>II</sub> 最終體系（連續）</th><th>M(∞) 實際</th><th>佔連續值</th></tr></thead>
+          <tbody>
+            <tr><td>第一跨中</td>
+              <td x-text="fmt(staging.at(staging.xMid).M_I,0)"></td>
+              <td x-text="fmt(staging.at(staging.xMid).M_II,0)"></td>
+              <td style="font-weight:600" x-text="fmt(staging.at(staging.xMid).M_inf,0)"></td>
+              <td :class="Math.abs(staging.at(staging.xMid).M_inf)>Math.abs(staging.at(staging.xMid).M_II)?'ng':'ok'"
+                  x-text="(staging.at(staging.xMid).M_inf/staging.at(staging.xMid).M_II*100).toFixed(0)+' %'"></td></tr>
+            <tr><td>中墩頂</td>
+              <td x-text="fmt(staging.at(staging.xPier).M_I,0)"></td>
+              <td x-text="fmt(staging.at(staging.xPier).M_II,0)"></td>
+              <td style="font-weight:600" x-text="fmt(staging.at(staging.xPier).M_inf,0)"></td>
+              <td x-text="(staging.at(staging.xPier).M_inf/staging.at(staging.xPier).M_II*100).toFixed(0)+' %'"></td></tr>
+            <template x-if="staging.m2">
+              <tr><td>中墩頂 預力 M₂</td><td>0（簡支張拉時靜定）</td>
+                <td x-text="fmt(staging.m2.M2_pier_cont,0)"></td>
+                <td style="font-weight:600" x-text="fmt(staging.m2.M2_pier_inf,0)"></td>
+                <td x-text="(staging.factor.lam*100).toFixed(0)+' %'"></td></tr>
+            </template>
+            <template x-if="staging.m2">
+              <tr style="border-top:1.5px solid var(--line)"><td><b>中墩頂 合計</b></td><td>—</td>
+                <td x-text="fmt(staging.at(staging.xPier).M_II+staging.m2.M2_pier_cont,0)"></td>
+                <td style="font-weight:600" x-text="fmt(staging.at(staging.xPier).M_inf+staging.m2.M2_pier_inf,0)"></td>
+                <td>—</td></tr>
+            </template>
+          </tbody>
+        </table>
+        <div class="hint" style="margin-top:6px;color:var(--ng)"
+             x-show="Math.abs(staging.at(staging.xMid).M_inf)>Math.abs(staging.at(staging.xMid).M_II)" x-cloak>
+          ⚠ <b>逐跨施工把不利處從墩頂搬到跨中</b>：跨中 M(∞) 是連續值的
+          <b x-text="(staging.at(staging.xMid).M_inf/staging.at(staging.xMid).M_II*100).toFixed(0)+' %'"></b>（保留部分簡支正彎矩），
+          墩頂則只有連續值的 <b x-text="(staging.at(staging.xPier).M_inf/staging.at(staging.xPier).M_II*100).toFixed(0)+' %'"></b>。
+          <b>這座橋既不是簡支也不是連續，兩頭都要設計</b>——⑦ 只用連續體系算會低估跨中。
+        </div>
+        <div class="hint" style="margin-top:6px" x-show="!staging.factor.valid" x-cloak>
+          <span style="color:var(--ng)">✗ λ = <b x-text="fmt(staging.factor.lam,3)"></b> 超出 [0,1]，Δφ 過大已逸出本模型適用範圍</span>
+          （Trost 式在 Δφ &gt; 1/(1−χ) 時失效），應改用數值逐步積分法。
+        </div>
+        <div class="hint" style="margin-top:8px"><b>合龍時機的影響</b>（墩頂恆載彎矩）</div>
+        <table>
+          <thead><tr><th>合龍時機</th><th>φ(t₁)</th><th>Δφ</th><th>λ</th><th>墩頂 M (kN·m)</th></tr></thead>
+          <tbody><template x-for="t in staging.timing" :key="t.t1_label">
+            <tr><td x-text="t.t1_label"></td><td x-text="fmt(t.phi_t1,2)"></td>
+                <td x-text="fmt(t.dphi,2)"></td><td x-text="fmt(t.lam,3)"></td>
+                <td x-text="fmt(t.M_pier,0)"></td></tr>
+          </template></tbody>
+        </table>
+        <div class="hint" style="margin-top:6px;color:var(--ng)">
+          🔴 <b>與直覺相反</b>：決定 λ 的是<b>剩餘</b>潛變 Δφ = φ(∞) − φ(t₁)，不是 φ(∞)。
+          <b>越早合龍、剩餘潛變越多、墩頂負彎矩越大</b>——趕工早合龍不會讓結構比較輕鬆。
+          本案 7 天合龍 <b x-text="fmt(staging.timing[0].M_pier,0)"></b> vs 180 天
+          <b x-text="fmt(staging.timing[3].M_pier,0)"></b> kN·m，差
+          <b x-text="(Math.abs(staging.timing[0].M_pier/staging.timing[3].M_pier-1)*100).toFixed(0)+' %'"></b>。
+        </div>
+        <div class="cite">
+          λ＝<span x-text="stgMethod==='trost'?'Δφ/(1+χΔφ)（Trost，AAEM 老化係數法）':'1−e^(−Δφ)（Dischinger，rate-of-creep）'"></span>。
+          兩式為同一物理的不同近似，小 Δφ 時一階一致，實務範圍（Δφ≤3）相差約 0.07，Dischinger 偏大。
+          <b>自我驗證</b>：束制彎矩 ΔM ＝ λ(M<sub>II</sub>−M<sub>I</sub>) 不對應任何外載，故沿梁<b>支承間必為線性</b>——
+          本案檢查結果 <b :class="staging.linear?'ok':'ng'" x-text="staging.linear?'✓ 通過':'✗ 不通過（M_I 或 M_II 有誤）'"></b>。
+          ⚠ 預力 M₂ 與恆載的重分配<b>方向相反</b>（M₂ 墩頂為正、恆載為負），部分互相抵銷，<b>只算其中一項會得到錯的答案</b>。
+          φ 值請依採用之規範模式取得，本頁不內建 φ(t) 模式。
+        </div>
+      </div>
+    </template>
+  </div>
 </div>
 
 <!-- ⑨ 耐震 -->
@@ -2051,6 +2143,7 @@ var PARAM_KEYS=[
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
   'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct',
+  'stgOn','stgScheme','stgPhiInf','stgPhiT1','stgChi','stgMethod',
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
   // ⑦ 連續梁
@@ -2359,6 +2452,42 @@ function calc(){
              return (f.friction+f.slip)/fpj; }
       return B.frictionAt(x,q.L,q.segs,this.fricMu,this.fricK,this.jackEnd)
              + B.tendonSlipLoss(x,q.L,q.segs,fpj,this.jackEnd,this.fricMu,this.fricK,this.anchorSlip)/fpj; },
+    // ── 施工階段體系轉換的潛變重分配（BC.creepRedistribution）─────
+    // ⑦ 的連續梁恆載一律以**連續體系**計算，那只有整座橋一次澆築成形時才對。
+    // 逐跨施工（先簡支後連續）時恆載作用在簡支體系，連續後潛變才使內力漂移。
+    get staging(){
+      if(!this.stgOn||!this.contLine) return null;
+      var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0})
+              .filter(function(v){return v>0});
+      if(sp.length<2) return null;
+      var B=window.BC, sec=this.R.sec, w=sec.A/1e6*24.5,
+          dphi=Math.max(0,this.stgPhiInf-this.stgPhiT1);
+      var key=['STG',sp.join('+'),w.toFixed(4),dphi,this.stgChi,this.stgMethod,
+               this.contEEnd,this.contEMid,this.contEPier,this.R.loss.Pe.toFixed(0)].join('|');
+      if(memoFn[key]) return memoFn[key];
+      var d=B.spanBySpanDeadLoad(sp,w,40),
+          r=B.creepRedistribution(d.xs,d.M_I,d.M_II,dphi,this.stgChi,this.stgMethod);
+      r.linear=B.redistributionIsLinear(r,sp);      // 自我驗證：束制彎矩支承間必線性
+      r.spans=sp; r.w=w; r.dphi=dphi;
+      // 預力 M₂：簡支張拉時 M₂≡0（靜定），連續後由潛變生成 λ·M₂,cont
+      try{
+        var tp=B.contTendonSegs(sp,this.contEEnd,this.contEMid,this.contEPier,
+                                {kPier:this.contKPier,rEnd:this.contREnd});
+        var cp=B.continuousPrestress(sp,[{P:this.R.loss.Pe/1e3, segs:tp.segs}]);
+        var xp=[], tot=sp.reduce(function(a,b){return a+b},0);
+        for(var i=0;i<=80;i++) xp.push(tot*i/80);
+        r.m2=B.prestressM2Redistribution(sp,xp,xp.map(function(x){return cp.M2At(x)}),
+                                         dphi,this.stgChi,this.stgMethod);
+      }catch(e){ r.m2=null; }
+      // 時序敏感度：決定 λ 的是**剩餘**潛變，故越早合龍墩頂越不利
+      r.timing=B.timingSensitivity(this.stgPhiInf,
+        [['7 天（趕工早合龍）',0.25],['28 天（常規）',0.55],['90 天',1.05],['180 天（延後合龍）',1.35]],
+        0, -w*sp[0]*sp[0]/8, this.stgChi, this.stgMethod);
+      r.xPier=sp[0];
+      r.xMid=sp[0]/2;
+      memoFn[key]=r;
+      return r;
+    },
     // ── 中間錨碇齒塊（blister）錨碇區設計（BC.blisterDesign）─────
     // 只在勾選「設中間錨碇段」時有意義：內部錨碇必須靠齒塊把腱力打回腹板，
     // 而齒塊的後方**沒有鋼腱延伸提供回力**——Tie-back 是唯一抵抗後向分離的機制。
@@ -2639,6 +2768,8 @@ function calc(){
     ntd:8, strands:19, e:1109, sv:250, Vu:2069, VuAuto:true, midAnchorOn:false, midAnchors:'',   // VuAuto：⑤ Vu 由包絡自動帶入（手動 2,069 為 golden 參考值）
     // 中間錨碇齒塊（blister）：尺寸與錨板；blTieDeduct＝Tie-back 是否扣既有預壓（補強既有橋時應關閉）
     blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false,
+    // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
+    stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost',
     ductOD:100, ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'alt',
     fricMu:0.25, fricK:0.003, fricX:0.5,   // 摩擦：μ、搖擺 K(/m)、控制斷面 x/L   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／骨材粒徑／淨距規則
     strandType:'15.2', customAp:140, customFpu:1860,

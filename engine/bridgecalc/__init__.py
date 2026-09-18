@@ -11,6 +11,11 @@ from .blister import (blister_local_bearing, blister_bursting, blister_tieback,
                       blister_geometry_check, blister_design, BlisterDesign,
                       LocalBearingResult, BurstResult, TiebackResult,
                       SpallResult, InterfaceResult, BlisterGeomResult)
+from .staging import (redistribution_factor, creep_redistribution,
+                      simple_span_dl_moment, span_by_span_dead_load,
+                      redistribution_is_linear, prestress_M2_redistribution,
+                      timing_sensitivity, RedistFactor, RedistPoint,
+                      StagingResult, M2RedistResult, TimingRow)
 from .prestress import (compute_losses, LossResult, loss_profile,
                         LossProfileResult, LossPoint, parabolic_e, udl_moment)
 from .loads import combinations, lane_live_load
@@ -156,5 +161,9 @@ __all__ = [
     "blister_spalling", "blister_interface_shear", "blister_geometry_check",
     "blister_design", "BlisterDesign", "LocalBearingResult", "BurstResult",
     "TiebackResult", "SpallResult", "InterfaceResult", "BlisterGeomResult",
+    "redistribution_factor", "creep_redistribution", "simple_span_dl_moment",
+    "span_by_span_dead_load", "redistribution_is_linear",
+    "prestress_M2_redistribution", "timing_sensitivity",
+    "RedistFactor", "RedistPoint", "StagingResult", "M2RedistResult", "TimingRow",
     "allowables",
 ]

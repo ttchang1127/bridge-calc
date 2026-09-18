@@ -1187,6 +1187,113 @@ def test_blister_vs_deviator_magnitude():
 
 
 
+# ── 施工階段體系轉換的潛變重分配 ──────────────────────────────
+# M(∞) = M_I + λ(M_II − M_I)；M_I＝施工體系解、M_II＝最終體系解。
+
+_SPANS = [40.0, 40.0]
+_W_SBS = 5.065 * 24.5          # kN/m 自重
+
+
+def test_staging_endpoint_moments_match_closed_form():
+    """M_I／M_II 對閉合解：簡支跨中 wL²/8、連續墩頂 −wL²/8、連續跨中 wL²/16。"""
+    from bridgecalc.staging import simple_span_dl_moment, span_by_span_dead_load
+    L, w = 40.0, _W_SBS
+    _close(simple_span_dl_moment(_SPANS, w, 20), w * L * L / 8, 1e-6)
+    xs, m1, m2 = span_by_span_dead_load(_SPANS, w, 40)
+    i_pier = min(range(len(xs)), key=lambda k: abs(xs[k] - 40))
+    i_mid = min(range(len(xs)), key=lambda k: abs(xs[k] - 20))
+    _close(m2[i_pier], -w * L * L / 8, 1e-3)
+    _close(m2[i_mid], w * L * L / 16, 1e-3)
+
+
+def test_staging_lambda_degenerates():
+    """λ=0 → M_I；λ=1 → M_II。重分配式的兩個端點必須退化正確。"""
+    from bridgecalc.staging import span_by_span_dead_load, creep_redistribution
+    xs, m1, m2 = span_by_span_dead_load(_SPANS, _W_SBS, 40)
+    r0 = creep_redistribution(xs, m1, m2, 0.0)
+    r1 = creep_redistribution(xs, m1, m2, 1e6, method="dischinger")
+    _close(r0.factor.lam, 0.0, 1e-12)
+    _close(r1.factor.lam, 1.0, 1e-9)
+    for i in range(len(xs)):
+        _close(r0.pts[i].M_inf, m1[i], 1e-9)
+        _close(r1.pts[i].M_inf, m2[i], 1e-6)
+
+
+def test_staging_restraint_moment_is_linear_between_supports():
+    """🔑 最強檢查：ΔM = λ(M_II − M_I) 是束制彎矩，不對應外載 → 支承間必為線性。
+
+    M_I 與 M_II 是同一組載重的兩個平衡解，其差為自平衡的束制場，二階微分為零。
+    只要任一側的彎矩算錯，這條就會掛掉。
+    """
+    from bridgecalc.staging import (span_by_span_dead_load, creep_redistribution,
+                                    redistribution_is_linear)
+    xs, m1, m2 = span_by_span_dead_load(_SPANS, _W_SBS, 40)
+    for dphi in (0.5, 1.7, 3.0):
+        for meth in ("trost", "dischinger"):
+            r = creep_redistribution(xs, m1, m2, dphi, method=meth)
+            assert redistribution_is_linear(r, _SPANS), f"{meth} Δφ={dphi} 非線性"
+    # 反向驗證：竄改 M_I 後檢查必須抓得到（否則這條檢查形同虛設）
+    bad = [v * 1.05 if 5 < x < 35 else v for x, v in zip(xs, m1)]
+    assert not redistribution_is_linear(
+        creep_redistribution(xs, bad, m2, 1.7), _SPANS)
+
+
+def test_staging_two_methods_agree_to_first_order():
+    """Trost 與 Dischinger 是同一物理的不同近似，小 Δφ 時一階一致。"""
+    from bridgecalc.staging import redistribution_factor
+    # 一階項相消 → 兩式差為 O(Δφ²)，且二階係數應為 (χ − ½)：
+    #   Dischinger ≈ Δφ − Δφ²/2、Trost ≈ Δφ − χΔφ² → 差 ≈ (χ − ½)Δφ²
+    # 驗 |D−T|/Δφ² → 0.3（χ=0.8），比「差很小」有力得多。
+    for dphi in (0.01, 0.02, 0.05):
+        t = redistribution_factor(dphi, chi=0.8, method="trost").lam
+        d = redistribution_factor(dphi, chi=0.8, method="dischinger").lam
+        _close(abs(t - d) / dphi ** 2, 0.8 - 0.5, 0.03)
+    # 實務範圍 Dischinger 偏大
+    assert (redistribution_factor(1.7, method="dischinger").lam
+            > redistribution_factor(1.7, method="trost").lam)
+    # Trost 在 Δφ 過大時逸出 [0,1] → valid=False（不是靜默給錯答案）
+    assert not redistribution_factor(10.0, chi=0.8, method="trost").valid
+
+
+def test_staging_earlier_continuity_gives_more_redistribution():
+    """🔴 與直覺相反：決定 λ 的是**剩餘**潛變 Δφ，故越早合龍墩頂負彎矩越大。"""
+    from bridgecalc.staging import timing_sensitivity
+    rows = timing_sensitivity(2.0, [("早", 0.25), ("常規", 0.55), ("晚", 1.35)],
+                              0.0, -_W_SBS * 40 * 40 / 8)
+    assert rows[0].lam > rows[1].lam > rows[2].lam
+    assert abs(rows[0].M_pier) > abs(rows[2].M_pier)   # 早合龍墩頂更不利
+
+
+def test_staging_span_by_span_worse_at_midspan():
+    """逐跨施工把不利處從墩頂搬到跨中：跨中 M(∞) **大於**連續體系值。"""
+    from bridgecalc.staging import span_by_span_dead_load, creep_redistribution
+    xs, m1, m2 = span_by_span_dead_load(_SPANS, _W_SBS, 40)
+    r = creep_redistribution(xs, m1, m2, 1.7, 0.8, "trost")
+    mid, pier = r.at(20.0), r.at(40.0)
+    assert mid.M_inf > mid.M_II          # 跨中比連續值大（保留部分簡支正彎矩）
+    assert abs(pier.M_inf) < abs(pier.M_II)   # 墩頂比連續值小
+    _close(mid.M_inf / mid.M_II, 1.28, 0.01)
+    _close(pier.M_inf / pier.M_II, 0.72, 0.01)
+
+
+def test_staging_prestress_M2_generated_by_creep():
+    """先簡支張拉時 M₂≡0（靜定），連續後由潛變生成 λ·M₂,cont。"""
+    from bridgecalc.staging import prestress_M2_redistribution
+    from bridgecalc.continuous import (cont_tendon_segs, TendonGroup,
+                                       continuous_prestress)
+    tp = cont_tendon_segs(_SPANS, 0, 1109, -600)
+    cp = continuous_prestress(_SPANS, [TendonGroup(P=23725.0, segs=tp.segs)])  # P 為 kN
+    xs = [float(i) for i in range(81)]
+    M2c = [cp.M2_at(x) for x in xs]
+    r = prestress_M2_redistribution(_SPANS, xs, M2c, 1.7)
+    _close(r.M2_pier_inf, r.factor.lam * r.M2_pier_cont, 1e-9)
+    assert 0 < r.M2_pier_inf < r.M2_pier_cont     # 介於「靜定 0」與「全連續」之間
+    # Δφ=0（無潛變）時 M₂ 永遠是 0——簡支張拉的靜定性被保留
+    r0 = prestress_M2_redistribution(_SPANS, xs, M2c, 0.0)
+    _close(r0.M2_pier_inf, 0.0, 1e-12)
+
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

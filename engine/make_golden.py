@@ -43,7 +43,10 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         anchor_slip_loss, pier_cap_tendon_force, cont_shear_design_scan,
                         groups_prestress_at, stirrup_max_spacing_TW, tendon_slip_loss,
                         segmented_tendon_force, segmented_friction_profile,
-                        loss_profile, parabolic_e, udl_moment, blister_design)
+                        loss_profile, parabolic_e, udl_moment, blister_design,
+                        redistribution_factor, creep_redistribution,
+                        span_by_span_dead_load, redistribution_is_linear,
+                        prestress_M2_redistribution, timing_sensitivity)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -571,6 +574,53 @@ def _blister_B1():
                  "🔴算例漏檢介面面積上限：τ=17.57 > min(0.25f'c,10.3)=10.0 MPa，400×250 的介面差1.76倍，"
                  "加多少鋼筋都沒用只能加大齒塊(600×300 即通過，且配筋需求完全不變)。K1/K2 隨規範版次不同。"}
 
+
+def _staging_redist_S1():
+    """施工階段體系轉換的潛變重分配：40+40 逐跨施工（先簡支後連續）。
+
+    逐跨施工的橋既不是簡支也不是連續——墩頂拿到七成連續負彎矩，跨中卻仍保留
+    超過連續值的正彎矩，**兩頭都要設計**。這是實務常見的控制因素。
+    """
+    sp, w, dphi = [40.0, 40.0], 5.065 * 24.5, 1.7
+    xs, m1, m2 = span_by_span_dead_load(sp, w, 40)
+    r = creep_redistribution(xs, m1, m2, dphi, 0.8, "trost")
+    rd = creep_redistribution(xs, m1, m2, dphi, 0.8, "dischinger")
+    tp = cont_tendon_segs(sp, 0, 1109, -600)
+    cp = continuous_prestress(sp, [TendonGroup(P=23725.0, segs=tp.segs)])
+    xp = [float(i) for i in range(81)]
+    rm = prestress_M2_redistribution(sp, xp, [cp.M2_at(x) for x in xp], dphi)
+    tim = timing_sensitivity(2.0, [("7d", 0.25), ("28d", 0.55), ("180d", 1.35)],
+                             0.0, -w * 1600 / 8)
+    mid, pier = r.at(20.0), r.at(40.0)
+    return {
+        "config": "40+40 逐跨施工/w=124.09kN/m/Δφ=1.7/Trost χ=0.8",
+        "lam_trost": round(r.factor.lam, 4),
+        "lam_dischinger": round(rd.factor.lam, 4),
+        "lam_trost_invalid_at_dphi10": not redistribution_factor(10.0, 0.8, "trost").valid,
+        "mid_M_I_kNm": round(mid.M_I, 1),
+        "mid_M_II_kNm": round(mid.M_II, 1),
+        "mid_M_inf_kNm": round(mid.M_inf, 1),
+        "mid_ratio_to_cont": round(mid.M_inf / mid.M_II, 3),
+        "pier_M_I_kNm": round(pier.M_I, 1),
+        "pier_M_II_kNm": round(pier.M_II, 1),
+        "pier_M_inf_kNm": round(pier.M_inf, 1),
+        "pier_ratio_to_cont": round(pier.M_inf / pier.M_II, 3),
+        "restraint_linear": redistribution_is_linear(r, sp),
+        "M2_pier_cont_kNm": round(rm.M2_pier_cont, 1),
+        "M2_pier_inf_kNm": round(rm.M2_pier_inf, 1),
+        "pier_total_cont_kNm": round(pier.M_II + rm.M2_pier_cont, 1),
+        "pier_total_sbs_kNm": round(pier.M_inf + rm.M2_pier_inf, 1),
+        "lam_7d": round(tim[0].lam, 4),
+        "lam_180d": round(tim[2].lam, 4),
+        "M_pier_7d_kNm": round(tim[0].M_pier, 1),
+        "M_pier_180d_kNm": round(tim[2].M_pier, 1),
+        "_note": "M(∞)=M_I+λ(M_II−M_I)。跨中 15,880＝連續值的128%(保留部分簡支正彎矩)、"
+                 "墩頂 −17,878＝連續值的72%——逐跨施工把不利處從墩頂搬到跨中，兩頭都要設計。"
+                 "🔑 束制彎矩 ΔM=λ(M_II−M_I) 不對應外載故支承間必為線性，這是本項最強的自我驗證。"
+                 "M₂ 在簡支張拉時＝0(靜定)，連續後由潛變生成 λ·M₂,cont；與恆載方向相反部分抵銷，只算一項會錯。"
+                 "🔴 決定 λ 的是**剩餘**潛變 Δφ 而非 φ(∞)：7天合龍 λ=0.729 vs 180天 λ=0.428，"
+                 "趕工早合龍反而使墩頂更不利(−18,097 vs −10,613，差71%)。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -657,6 +707,7 @@ golden = {
     "mid_anchor_G1": _mid_anchor_G1(),
     "loss_profile_G1": _loss_profile_G1(),
     "blister_B1": _blister_B1(),
+    "staging_redist_S1": _staging_redist_S1(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

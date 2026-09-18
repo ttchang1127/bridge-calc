@@ -387,6 +387,8 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <label title="排列、淨間距、保護層用外徑；波紋管外徑依廠商型錄（PTI §4.4.5：壁厚由製造商決定）">管道外徑 φ (mm)<input type="number" x-model.number="ductOD" step="1"></label>
       <label title="面積比與表 8.3 用內徑；表 8.3／PTI Table 4.4 列的都是內徑">管道內徑 (mm)<input type="number" x-model.number="ductID" step="1"></label>
       <label title="最外側管兩側各再預留的餘裕（施工誤差、箍筋位置）。預設 0 時最外側管保護層恰等於下限">側向額外餘裕 (mm)<input type="number" x-model.number="ductSideMargin" step="5" min="0"></label>
+      <label title="§8.25.3：彎折或撓曲時套管最多可三束捆紮；距構材端部 90 cm 內應維持 §8.25.2 間距" style="display:flex;gap:6px;align-items:center">
+        <input type="checkbox" x-model="ductBundle"> 允許 §8.25.3 捆紮（每束 ≤ 3）</label>
       <label>套管面積比依據
         <select x-model="ductAreaRule" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:13px">
           <option value="tw">台灣 §8.25.4：≥ 2.0 倍</option>
@@ -435,6 +437,13 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           x-text="durCover.required==null?'水膠比超過上限':(fmt(ductCover)+' ≥ '+fmt(durCover.required)+' mm'+(ductCover>=durCover.required?' ✓':' ✗'))"></div></div>
       <div class="metric"><div class="l">依據</div>
         <div class="v" style="font-size:13px" x-text="durCover.source+'（表列 '+(durCover.table==null?'—':durCover.table)+'；§8.25.1 底線 40）'"></div></div>
+    </div>
+    <div class="hint" x-show="ductBundle" x-cloak style="margin-bottom:8px">
+      §8.25.3 捆紮：本斷面採 <b x-text="{none:'不捆紮（捆紮無助益）',H:'水平捆（同層並排接觸）',V:'垂直捆（上下疊放接觸）'}[DL.bundle||'none']"></b>，
+      e<sub>max</sub> = <b x-text="fmt(DL.eMax,0)"></b> mm
+      <span x-show="DL.cands" x-text="DL.cands?'（不捆 '+fmt(DL.cands.none.eMax,0)+(DL.cands.none.fits?'':' ✗')+(DL.cands.H?'、水平捆 '+fmt(DL.cands.H.eMax,0)+(DL.cands.H.fits?'':' ✗'):'')+(DL.cands.V?'、垂直捆 '+fmt(DL.cands.V.eMax,0)+(DL.cands.V.fits?'':' ✗'):'')+'）':''"></span>。
+      <b style="color:var(--ng)">⚠ 距構材端部 90 cm 內須維持 §8.25.2 間距</b>——錨碇區須另行展開（3D 與縱剖面沿全長沿用本斷面排列，端部僅示意）。
+      捆紮只處理幾何可行性；腹板最小厚度、剪力等其他限制仍須另檢。
     </div>
     <div class="hint" x-show="!ductSize.od_gt_id" x-cloak style="color:#b45309;margin-bottom:8px">
       ⚠ <b>外徑 ≤ 內徑——等於把內徑當外徑用</b>，下方排列、淨間距、保護層與 3D 檢核都<b>偏不保守</b>。
@@ -2263,7 +2272,7 @@ var PARAM_KEYS=[
   // ② 載重
   'L','lanes','wDW',
   // ③ 預力
-  'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSideMargin','envType','envLife','envWC','envZone','ductSv','ductCover','dAgg','ductRule','jackEnd','jackDefV2','fricMu','fricK','fricX',
+  'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSideMargin','ductBundle','envType','envLife','envWC','envZone','ductSv','ductCover','dAgg','ductRule','jackEnd','jackDefV2','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
   'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct',
@@ -2310,7 +2319,7 @@ function calc(){
       // 沿長度取樣 P(x) 與合力偏移 Δe(x)：M₂ 的等效載重與 M₁ 都要逐點用（見 contPrestressM2）
       var samp=null;
       if(this.contM2On&&PeC>0){
-        var lay2=window.BC.ductLayout(this.ntd,this.nWeb,sec.yb-this.contEMid,
+        var lay2=this.layDL(this.ntd,this.nWeb,sec.yb-this.contEMid,
           {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,
            yb:sec.yb,h:this.h,rule:this.ductRule,sideMargin:this.ductSideMargin});
         var ts2=[], nw2=Math.max(1,this.nWeb|0), ApE2=this.strands*this.strandAp;
@@ -2347,7 +2356,7 @@ function calc(){
               kPier:this.contKPier, rEnd:this.contREnd,
               Pfn:samp&&samp.Pfn, deFn:samp&&samp.deFn, top:topG};
       var key=[sp.join('+'),this.lanes,wDC.toFixed(3),this.wDW,pt.Pe.toFixed(0),pt.eEnd,pt.eMid,pt.ePier,
-               pt.kPier,pt.rEnd,this.jackEnd,this.fricMu,this.fricK,this.ductCover,this.ductSideMargin,this.ductSv,
+               pt.kPier,pt.rEnd,this.jackEnd,this.fricMu,this.fricK,this.ductCover,this.ductSideMargin,this.ductBundle,this.ductSv,
                this.ductRule,this.ductOD,this.ntd,this.nWeb,this.webT,this.anchorSlip,(this.anchorList||[]).join('+'),
                topG?[this.contTopPeAuto,this.contTopPe,this.anchorSlip,this.contTopN,this.strands,this.contTopLen,this.contTopEAnc,this.contTopEPier].join(','):'-'].join('|');
       var hn=this.contHaunch; key+='|'+(hn?[this.contHf,this.contHaunchLen,this.topW,this.topT,this.botW,this.botT,this.h].join(','):'-');
@@ -2512,7 +2521,7 @@ function calc(){
     get eCtrl(){ return this.contLine ? this.contEMid : this.e; },
     // 管道實配：把 ntd 組排進腹板（引擎算，形心恆等於控制偏心）；3D 與 ③ 檢核共用同一結果
     get DL(){ var yb=this.R.sec.yb;
-      return window.BC.ductLayout(this.ntd,this.nWeb,yb-this.eCtrl,
+      return this.layDL(this.ntd,this.nWeb,yb-this.eCtrl,
         {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h,rule:this.ductRule,sideMargin:this.ductSideMargin}); },
     // 鋼腱一覽：編號與位置同 ductLayout 的填充順序；張拉端依 jackEnd 配置（C4 §六）
     get tendonList(){
@@ -2583,6 +2592,11 @@ function calc(){
     // 台灣第十二章耐久性保護層：箱梁外露面＝表 12.1 等級 II；鹽害取「梁腹版外露面」列
     get durCover(){
       return window.BC.durabilityCover(this.envType,this.envLife,'II',this.envWC,'梁腹版外露面',this.envZone);
+    },
+    // 管道排列：勾「§8.25.3 捆紮」時取 e_max 最大的可行排列（H 同層並排接觸／V 上下疊放接觸）
+    layDL(n,nw,y,o){
+      if(!this.ductBundle) return window.BC.ductLayout(n,nw,y,o);
+      var r=window.BC.ductLayoutBundled(n,nw,y,o); r.best.cands=r.cands; return r.best;
     },
     get ductSize(){
       return window.BC.ductSizeCheck(this.strands,this.ductID,this.ductOD,
@@ -2737,7 +2751,7 @@ function calc(){
       return {R:R, seg:!!(q&&q.tp), reqTW:6000, reqJP:100*this.ductOD,
               okTW:R>=6000, okJP:R>=100*this.ductOD}; },
     get key3d(){ return [this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h,this.L,this.e,
-                         this.ntd,this.ductOD,this.ductSv,this.ductCover,this.ductSideMargin,this.dAgg,this.v3d.vz,this.jackEnd,
+                         this.ntd,this.ductOD,this.ductSv,this.ductCover,this.ductSideMargin,this.ductBundle,this.dAgg,this.v3d.vz,this.jackEnd,
                          this.contLine,this.contSpans,this.contEEnd,this.contEMid,this.contEPier,
                          this.seiH,this.seiColD].join('|'); },
     // 3D 幾何來源：單跨走 ① 的拋物線；勾「連續梁」則走 ⑦ 的多跨線形（與 M₂ 同一個 eAt）
@@ -2749,7 +2763,7 @@ function calc(){
              spans=C.spans; eAt=tp.eAt; sx=tp.sx; tot=tp.total; eMid=this.contEMid; }
       else { var L=this.L, e=this.e; spans=[L]; sx=[0,L]; tot=L; eMid=e;
              eAt=function(x){ return 4*e*x*(L-x)/(L*L) }; }
-      var lay=window.BC.ductLayout(this.ntd,this.nWeb,yb-eMid,
+      var lay=this.layDL(this.ntd,this.nWeb,yb-eMid,
         {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h,rule:this.ductRule,sideMargin:this.ductSideMargin});
       var geo={topW:this.topW,topT:this.topT,botW:this.botW,botT:this.botT,webT:this.webT,
                nWeb:this.nWeb,h:this.h,yb:yb,od:this.ductOD,cover:this.ductCover};
@@ -2759,10 +2773,10 @@ function calc(){
     },
     // 跨中／墩頂斷面實配（⑦ 用；墩頂 e_pier 為負＝腱在形心上方，控制的是頂緣保護層）
     get DLmid(){ var yb=this.R.sec.yb;
-      return window.BC.ductLayout(this.ntd,this.nWeb,yb-this.contEMid,
+      return this.layDL(this.ntd,this.nWeb,yb-this.contEMid,
         {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h,rule:this.ductRule,sideMargin:this.ductSideMargin}); },
     get DLpier(){ var yb=this.R.sec.yb;
-      return window.BC.ductLayout(this.ntd,this.nWeb,yb-this.contEPier,
+      return this.layDL(this.ntd,this.nWeb,yb-this.contEPier,
         {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h,rule:this.ductRule,sideMargin:this.ductSideMargin}); },
     // 中墩斷面形心回饋：底板加厚（contHf）→ 形心下移 Δȳ；參考軸仍為等斷面形心，實體高度不變、力臂改變
     get pierFb(){
@@ -2937,7 +2951,7 @@ function calc(){
     blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false,
     // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
     stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost', stgAge:28, stgFcD:35, stgPhiSrc:'aashto', stgT0:7, stgH:75, stgFci:32,   // stgPhiSrc：φ 由 AASHTO 5.4.2.3.2 算（台灣規範無 φ(t) 模式）或手填   // stgAge＝合龍時梁齡(天)；stgFcD＝連續橫隔梁 f'c
-    ductOD:100, ductID:100, ductAreaRule:'tw', ductSideMargin:0, envType:'general', envLife:50, envWC:0.45, envZone:'中度', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams
+    ductOD:100, ductID:100, ductAreaRule:'tw', ductSideMargin:0, ductBundle:false, envType:'general', envLife:50, envWC:0.45, envZone:'中度', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams
     fricMu:0.25, fricK:0.003, fricX:0.5,   // 摩擦：μ、搖擺 K(/m)、控制斷面 x/L   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／骨材粒徑／淨距規則
     strandType:'15.2', customAp:140, customFpu:1860,
     fcGrade:'40', stirrupBar:'D16', stirrupLegs:2, customAv:397.4,
@@ -3104,7 +3118,7 @@ function calc(){
       // 逐腱合成：各腱依自己的張拉端算 Pe → 合力偏心 e_eff。損失與 e_eff 互相依賴
       // （f_cgp 含 e²），故迭代兩次即收斂（Δe 本身只有數 mm，第二輪變動 <0.01 mm）。
       var eCtl=this.contLine?this.contEMid:this.e;
-      var layE=B.ductLayout(this.ntd,this.nWeb,sec.yb-eCtl,
+      var layE=this.layDL(this.ntd,this.nWeb,sec.yb-eCtl,
         {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,
          yb:sec.yb,h:this.h,rule:this.ductRule,sideMargin:this.ductSideMargin});
       var tsR=[], nWebR=Math.max(1,this.nWeb|0), ApEachR=this.strands*this.strandAp;

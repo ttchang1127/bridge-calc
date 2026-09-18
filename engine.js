@@ -368,6 +368,52 @@
              coverSide: (webT - (xs[nCol - 1] - xs[0]) - od) / 2 };
   };
 
+  // §8.25.3 套管捆紮（同 tendon_profile.duct_layout_bundled）：每束 ≤3 管接觸、束間 §8.25.2 淨距；
+  // "H" 同層並排接觸（窄腹板決定性）、"V" 上下疊放接觸（壓低合力）。端部 90 cm 內須維持間距。
+  BC.ductLayoutBundled = function (nTendons, nWeb, yCgs, o) {
+    o = o || {};
+    var base = BC.ductLayout(nTendons, nWeb, yCgs, o), od = o.od == null ? 100 : o.od,
+        webT = o.webT == null ? 350 : o.webT, cover = o.cover == null ? 40 : o.cover,
+        sv = o.sv == null ? 40 : o.sv, yb = o.yb, h = o.h, mb = Math.max(1, Math.min(3, o.maxBundle || 3));
+    base.bundle = 'none';
+    var cands = { none: base }, n = base.nPerWeb, avail = base.webAvail, i;
+    function build(pos, tag, sH) {
+      var rel = pos.reduce(function (a, p) { return a + p[1]; }, 0) / pos.length, shift = yCgs - rel;
+      var ys = [], xs = [];
+      pos.forEach(function (p) {
+        if (!ys.some(function (v) { return Math.abs(v - p[1]) < 1e-9; })) ys.push(p[1]);
+        if (!xs.some(function (v) { return Math.abs(v - p[0]) < 1e-9; })) xs.push(p[0]);
+      });
+      ys.sort(function (a, b) { return a - b; }); xs.sort(function (a, b) { return a - b; });
+      var rows = ys.map(function (y) { return { y: y + shift, count: pos.filter(function (p) { return Math.abs(p[1] - y) < 1e-9; }).length }; });
+      var yBot = rows[0].y, yTop = rows[rows.length - 1].y, coverBot = yBot - od / 2,
+          coverOk = coverBot >= cover - 1e-9, topOk = h == null ? true : (yTop + od / 2 <= h - cover + 1e-9),
+          svOk = sv >= base.sReq - 1e-9;
+      return { nPerWeb: n, perWeb: base.perWeb, nCol: xs.length, nRow: rows.length, rows: rows, xOffsets: xs,
+               pitchV: od + sv, sReq: base.sReq, sH: sH, sv: sv, webAvail: avail, yCgs: yCgs, yBot: yBot, yTop: yTop,
+               coverBot: coverBot, coverOk: coverOk, svOk: svOk, sHOk: true, topOk: topOk, fits: coverOk && topOk && svOk,
+               eMax: yb == null ? null : yb - (cover + od / 2 + rel), eMaxPoint: yb == null ? null : yb - cover - od / 2,
+               coverSide: (webT - (xs[xs.length - 1] - xs[0]) - od) / 2, bundle: tag };
+    }
+    var k = avail >= od ? Math.min(mb, Math.floor(avail / od)) : 0;
+    if (k > base.nCol) {
+      var pH = [];
+      for (i = 0; i < n; i++) { var r = Math.floor(i / k), j = i % k;   // 末層不另置中（與一般排列一致）
+        pH.push([(j - (k - 1) / 2) * od, r * (od + sv)]); }
+      cands.H = build(pH, 'H', 0);
+    }
+    if (base.nRow > 1 && mb > 1) {
+      var pV = [], nc = base.nCol;
+      for (i = 0; i < n; i++) { var layer = Math.floor(i / nc), c = i % nc, gg = Math.floor(layer / mb), jj = layer % mb;
+        pV.push([c < base.xOffsets.length ? base.xOffsets[c] : 0, gg * (mb * od + sv) + jj * od]); }
+      cands.V = build(pV, 'V', base.sH);
+    }
+    var best = base;
+    Object.keys(cands).forEach(function (t) { var v = cands[t];
+      if (v.fits && v.eMax != null && (!best.fits || v.eMax > best.eMax)) best = v; });
+    return { best: best, cands: cands };
+  };
+
   // ── 腹板抗剪 D1 ───────────────────────────────────────
   BC.principalTensionLimitTW = function (fc) { return 0.094 * sqrt(fc); };
   BC.shearWeb = function (Pe, sec, e, fc, bw, dv, Vu, xCtrl, L, nWebs, phi, fsy) {

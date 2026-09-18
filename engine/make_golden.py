@@ -50,6 +50,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         simple_span_tendon_segs, staged_envelope, duct_size_check,
                         positive_moment_connection, durability_cover,
                         aashto_creep, staging_phi, box_volume_surface, timing_sensitivity_aashto)
+from bridgecalc.tendon_profile import duct_layout_bundled
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -752,6 +753,18 @@ def _creep_aashto_A1():
                      "單一 Δφ 近似使 λ 偏大(28 天 0.513 vs 0.462)，對墩頂負彎矩與正束制偏保守。"
                      "ψ(∞,7)=1.30 遠小於 H7 示範的 φ∞=2.0。"}
 
+
+def _duct_bundle_825_3():
+    """§8.25.3 套管捆紮（每束 ≤3、端部 90 cm 內除外）：參考橋 8 組 φ100、保護層 40。"""
+    b350, c350 = duct_layout_bundled(8, 2, sec.yb - 1109, web_t=350, y_b=sec.yb, h=2100)
+    b300, c300 = duct_layout_bundled(8, 2, sec.yb - 1109, web_t=300, y_b=sec.yb, h=2100)
+    return {"w350_none_e_max": round(c350["none"].e_max, 1), "w350_best": b350.bundle,
+            "w350_best_e_max": round(b350.e_max, 1),
+            "w300_none_e_max": round(c300["none"].e_max, 1), "w300_none_fits": c300["none"].fits,
+            "w300_best": b300.bundle, "w300_best_e_max": round(b300.e_max, 1), "w300_best_fits": b300.fits,
+            "_note": "腹板 350：垂直捆 e_max 1,169→1,189；腹板 300：不捆單列 e_max 1,029 排不下，水平捆兩列 1,169 排得下。"
+                     "僅幾何可行性——腹板最小厚度、剪力、端部 90 cm 須展開之錨碇區未檢核。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -847,6 +860,7 @@ golden = {
     "durability_cover_T12": _durability_cover_T12(),
     "duct_side_margin": _duct_side_margin(),
     "creep_aashto_A1": _creep_aashto_A1(),
+    "duct_bundle_825_3": _duct_bundle_825_3(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

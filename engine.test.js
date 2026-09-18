@@ -493,6 +493,17 @@ function chkEq(name, got, exp) {
   chk('90天合龍 λ 嚴格', tsA[1].lam_exact, cag.t90_lam_exact, 1e-4);
   chk('90天合龍 墩頂 M', tsA[1].M_pier, cag.t90_M_pier_kNm, 0.1);
   chk('180天合龍 λ 嚴格', tsA[2].lam_exact, cag.t180_lam_exact, 1e-4);
+  // §8.25.3 套管捆紮
+  var dbg = g.duct_bundle_825_3, db350 = BC.ductLayoutBundled(8, 2, 1329 - 1109, { webT: 350, yb: 1329, h: 2100 }),
+      db300 = BC.ductLayoutBundled(8, 2, 1329 - 1109, { webT: 300, yb: 1329, h: 2100 });
+  chk('捆紮 350 不捆 e_max', db350.cands.none.eMax, dbg.w350_none_e_max, 0.1);
+  chkEq('捆紮 350 最佳型式', db350.best.bundle, dbg.w350_best);
+  chk('捆紮 350 最佳 e_max', db350.best.eMax, dbg.w350_best_e_max, 0.1);
+  chk('捆紮 300 不捆 e_max', db300.cands.none.eMax, dbg.w300_none_e_max, 0.1);
+  chkEq('捆紮 300 不捆 可行', db300.cands.none.fits, dbg.w300_none_fits);
+  chkEq('捆紮 300 最佳型式', db300.best.bundle, dbg.w300_best);
+  chk('捆紮 300 最佳 e_max', db300.best.eMax, dbg.w300_best_e_max, 0.1);
+  chkEq('捆紮 300 最佳 可行', db300.best.fits, dbg.w300_best_fits);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

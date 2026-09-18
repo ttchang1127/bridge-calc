@@ -1444,6 +1444,26 @@ def test_aashto_creep_and_exact_aaem():
         box_volume_surface(11000, 250, 5800, 200, 350, 2, 2100, 1.0)
 
 
+def test_duct_layout_bundled_825_3():
+    """§8.25.3 捆紮：窄腹板水平捆使排不下→排得下；寬腹板垂直捆小幅提高 e_max。"""
+    from bridgecalc.tendon_profile import duct_layout_bundled as db
+    best, c = db(8, 2, 1329 - 1109, web_t=350, y_b=1329, h=2100)
+    assert best.bundle == "V" and abs(best.e_max - 1189) < 1e-6 and abs(c["none"].e_max - 1169) < 1e-6
+    best3, c3 = db(8, 2, 1329 - 1109, web_t=300, y_b=1329, h=2100)
+    assert not c3["none"].fits and c3["none"].e_max < 1109           # 不捆：單列排不下
+    assert best3.bundle == "H" and best3.fits and best3.e_max > 1109  # 水平捆：兩列排得下
+    assert best3.s_h == 0.0 and best3.n_col == 2
+    # 每束 ≤ 3：同層並排數不超過 3
+    b4, _ = db(12, 2, 1329 - 1109, web_t=600, y_b=1329, h=2100)
+    assert all(cnt <= max(3, b4.n_col) for _, cnt in b4.rows)
+    # 末層不滿時不另置中，列數維持 k（否則多出列座標）
+    _, c5 = db(10, 2, 1329 - 1109, web_t=300, y_b=1329, h=2100)
+    assert c5["H"].n_col == 2 and len(c5["H"].x_offsets) == 2
+    # 捆紮不改變「淨距規則」本身：od 規則下 s_v 40 < 100 仍不可行
+    bo, co = db(8, 2, 1329 - 1109, web_t=350, y_b=1329, h=2100, rule="od")
+    assert not any(v.fits for v in co.values())
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

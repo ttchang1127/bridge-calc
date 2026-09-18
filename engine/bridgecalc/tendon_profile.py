@@ -112,6 +112,7 @@ class DuctLayoutResult:
     e_max: float           # 實配可行的最大偏心 mm（None 表未給 y_b）
     e_max_point: float     # 單點簡化上限 ȳb − cover − od/2 mm（對照用）
     cover_side: float = None  # 最外側管壁至腹板側面的淨距 mm（side_margin=0 時＝cover）
+    bundle: str = "none"      # §8.25.3 捆紮型式："none"／"H"（同層並排接觸）／"V"（上下疊放接觸）
 
 
 def duct_spacing_required(duct_od: float, d_agg: float = 25.0, rule: str = "tw") -> float:
@@ -568,3 +569,74 @@ def duct_size_check(n_strands: int, duct_id: float, duct_od: float = None,
         A_ps=Aps, A_duct=Ad, ratio=Ad / Aps, ratio_req=req, area_ok=Ad / Aps >= req - 1e-9,
         id_max_tw=idm, id_ok=(idm is None or duct_id <= idm + 1e-9),
         od_gt_id=od > duct_id + 1e-9, wall=(od - duct_id) / 2.0)
+
+
+
+# ── §8.25.3 套管捆紮（台灣第八章 p.179，NLM 7d947294 核對）───────────────
+# 「如後拉法預力鋼材彎折或撓曲時，套管最多可三束捆紮一起。惟距構材之端部 90cm 內
+#   應維持依 8.25.2 節規定之間距。」
+# 捆紮＝管與管接觸（淨距 0），每束 ≤ 3 管；束與束之間仍須 §8.25.2 淨距。
+def _layout_from_positions(pos, n_per_web, per_web, duct_od, web_t, cover, s_v, s_req,
+                           y_cgs, y_b, h, bundle, s_h, avail):
+    """由相對座標 [(x, y_rel)] 組回 DuctLayoutResult（形心鎖回 y_cgs）。"""
+    rel_cgs = sum(y for _, y in pos) / len(pos)
+    shift = y_cgs - rel_cgs
+    ys = sorted(set(round(y, 9) for _, y in pos))
+    rows = [(y + shift, sum(1 for _, yy in pos if abs(yy - y) < 1e-9)) for y in ys]
+    xs = sorted(set(round(x, 9) for x, _ in pos))
+    y_bot, y_top = rows[0][0], rows[-1][0]
+    cover_bot = y_bot - duct_od / 2
+    cover_ok = cover_bot >= cover - 1e-9
+    top_ok = True if h is None else (y_top + duct_od / 2 <= h - cover + 1e-9)
+    e_max = None if y_b is None else y_b - (cover + duct_od / 2 + rel_cgs)
+    return DuctLayoutResult(
+        n_per_web=n_per_web, per_web=per_web, n_col=len(xs), n_row=len(rows),
+        rows=rows, x_offsets=xs, pitch_v=duct_od + s_v, s_req=s_req, s_h=s_h, s_v=s_v,
+        web_avail=avail, y_cgs=y_cgs, y_bot=y_bot, y_top=y_top, cover_bot=cover_bot,
+        cover_ok=cover_ok, s_v_ok=s_v >= s_req - 1e-9, s_h_ok=True, top_ok=top_ok,
+        fits=cover_ok and top_ok and s_v >= s_req - 1e-9,
+        e_max=e_max, e_max_point=None if y_b is None else y_b - cover - duct_od / 2,
+        cover_side=(web_t - (xs[-1] - xs[0]) - duct_od) / 2.0, bundle=bundle)
+
+
+def duct_layout_bundled(n_tendons: int, n_web: int, y_cgs: float,
+                        duct_od: float = 100.0, web_t: float = 350.0,
+                        cover: float = 40.0, s_v: float = 40.0,
+                        d_agg: float = 25.0, y_b: float = None, h: float = None,
+                        rule: str = "tw", side_margin: float = 0.0, max_bundle: int = 3):
+    """在 §8.25.3 允許捆紮下取 e_max 最大的可行排列；回傳 (最佳, {"none","H","V"} 各候選)。
+
+    "H"：同層 k 管並排接觸（k ≤ 3 且 k·od ≤ 可用寬），層與層間距 s_v。
+         **窄腹板**（兩列排不下淨間距、但接觸可以）時差別決定性。
+    "V"：列數同一般排列，每列上下 ≤3 管疊放接觸，束與束之間 s_v。減少層距、壓低合力。
+    ⚠ 捆紮只適用「彎折或撓曲」段；**距構材端部 90 cm 內須維持 §8.25.2 間距**——
+      錨碇區須另行展開（本函式只處理控制斷面）。
+    """
+    base = duct_layout(n_tendons, n_web, y_cgs, duct_od, web_t, cover, s_v, d_agg,
+                       y_b, h, rule, side_margin)
+    n_per_web, per_web, s_req, avail = base.n_per_web, base.per_web, base.s_req, base.web_avail
+    cands = {"none": base}
+    mb = max(1, min(3, int(max_bundle)))
+    # H：同層並排接觸
+    k = min(mb, int(avail // duct_od)) if avail >= duct_od else 0
+    if k > base.n_col:
+        pos = []
+        for i in range(n_per_web):
+            r, j = divmod(i, k)          # 不滿的末層與一般排列同樣沿用前幾個列位（不另置中，否則多出列座標）
+            pos.append(((j - (k - 1) / 2.0) * duct_od, r * (duct_od + s_v)))
+        cands["H"] = _layout_from_positions(pos, n_per_web, per_web, duct_od, web_t, cover, s_v,
+                                            s_req, y_cgs, y_b, h, "H", 0.0, avail)
+    # V：每列上下疊放接觸
+    if base.n_row > 1 and mb > 1:
+        ncol = base.n_col
+        pos = []
+        for i in range(n_per_web):
+            layer, c = divmod(i, ncol)
+            g, jj = divmod(layer, mb)
+            pos.append((base.x_offsets[c] if c < len(base.x_offsets) else 0.0,
+                        g * (mb * duct_od + s_v) + jj * duct_od))
+        cands["V"] = _layout_from_positions(pos, n_per_web, per_web, duct_od, web_t, cover, s_v,
+                                            s_req, y_cgs, y_b, h, "V", base.s_h, avail)
+    ok = {k2: v for k2, v in cands.items() if v.fits and v.e_max is not None}
+    best = max(ok.values(), key=lambda r: r.e_max) if ok else base
+    return best, cands

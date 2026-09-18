@@ -809,6 +809,12 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
     <div class="hint" x-show="!VuAuto" x-cloak style="color:var(--ng)">⚠ 目前使用手動 V<sub>u</sub> = <b x-text="fmt(Vu)"></b> kN／腹板（包絡實算 <b x-text="fmt(R.VuAutoW)"></b>）——改了跨徑、載重或斷面時手動值不會跟著變。</div>
   </div>
   <div class="card"><h2>腹板抗剪・撓度</h2>
+    <div class="hint" x-show="R.lp" x-cloak style="margin-bottom:6px">
+      剪力所用預力取 <b>d<sub>v</sub> 斷面的 P(x)</b>（x = <span x-text="fmt(R.dv/1000,2)"></span> m）＝
+      <b x-text="fmt(R.PeShear/1e3,0)+' kN'"></b>，跨中單點 P<sub>e</sub> 為 <span x-text="fmt(R.loss.Pe/1e3,0)"></span> kN
+      （<span :class="R.PeShear<R.loss.Pe?'ng':''" x-text="((R.PeShear/R.loss.Pe-1)*100).toFixed(1)+' %'"></span>）。
+      V<sub>p</sub> 與 f<sub>pc</sub> 都與 P 成正比——以跨中值代入會高估腹板抗剪；交錯端張拉時端部半數腱由遠端拉來，差異最大。見 ③ 的 P(x) 表。
+    </div>
     <template x-for="r in R.rows.filter(x=>x[4]==='⑤')" :key="r[0]">
       <div class="chk">
         <div class="chk-h" @click="r[5]&&(open=open===r[0]?null:r[0])" :style="r[5]?'cursor:pointer':''">
@@ -2560,23 +2566,14 @@ function calc(){
     // ⚠ 記憶化：Alpine getter 無快取，一次參數變動會被數百個綁定重算（前幾輪已踩過）。
     get lossPx(){
       if(this.contLine) return null;          // 連續梁的 P(x) 在 ⑦（已逐點）
-      var B=window.BC, sec=this.R.sec, L=this.L,
-          ten=B.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu),
-          q=this.fricGeom, anc=this.anchorList, wDC=sec.A/1e6*24.5;
-      var key=['LPX',L,this.e,this.ntd,this.strands,this.strandAp,this.strandFpu,
-               sec.A,sec.I,sec.yb,sec.h,this.fricMu,this.fricK,this.jackEnd,
-               this.anchorSlip,(anc||[]).join('+')].join('|');
-      if(memoFn[key]) return memoFn[key];
-      // 單跨線形：parabolicCurvSegs(L, e) 的垂度＝e，故端部 e=0（兩者自洽）
-      var lp=B.lossProfile(ten,sec,L,B.parabolicE(this.e,0,L),B.udlMoment(wDC,L),q.segs,
-              {mu:this.fricMu,K:this.fricK,jack:this.jackEnd,slip:this.anchorSlip,
-               anchors:anc,n:40});
+      var R=this.R, lp=R.lp, L=this.L;          // 與 ⑤ 剪力同一份（R 內已記憶化）
+      if(!lp) return null;
       var xc=this.fricX*L, atCtrl=lp.at(xc), single=this.R.loss;
       lp.ctrl=atCtrl; lp.xc=xc;
       lp.singlePe=single.Pe;                                  // ④ 服務性實際採用的 P_e
       lp.gap=(single.Pe-lp.Pe_min)/lp.Pe_min*100;             // 單點式相對最不利斷面高估幾 %
       lp.ctrlIsWorst=Math.abs(xc-lp.x_Pemin)<=L/40+1e-9;      // 控制斷面是否即最不利（容一個取樣間距）
-      memoFn[key]=lp;
+      lp.PeShear=R.PeShear; lp.xdv=R.dv/1000;                  // ⑤ 剪力實際採用
       return lp;
     },
     // 摩擦分佈表：各位置的損失率與該處 f_pe／Pe（非摩擦損失各項不隨位置變）
@@ -3003,7 +3000,21 @@ function calc(){
       var vk='V|'+[this.L,dv,wsw,this.wDW,this.lanes].join('|');
       var VuRow=memoFn[vk]||(memoFn[vk]=B.taiwanContShearAt([this.L],dv/1000,'R',wsw,this.wDW,this.lanes)), VuAutoW=VuRow.Vu_pos/this.nWeb;
       var VuUse=this.VuAuto?VuAutoW:this.Vu;
-      var sh=B.shearWeb(loss.Pe,sec,this.e,this.fc,bwEff,dv,VuUse*1e3,dv,this.L*1000,this.nWeb);
+      // 沿長度 P(x)（單跨）：⑤ 的 V_p 與 f_pc 取 d_v 斷面的 P(x)，不再以跨中單點 P_e 代表。
+      // 交錯端張拉時端部半數腱由遠端拉來（摩擦近全長），d_v 處 P 比跨中低約 8%——單點式偏不保守。
+      // 連續梁（contLine）的剪力走 ⑦ 的逐點掃描，不在此處。
+      var lpR=null, PeShear=loss.Pe;
+      if(!this.contLine){
+        var ancR=this.anchorList;
+        var lpk=['LPR',this.L,this.e,this.ntd,this.strands,this.strandAp,this.strandFpu,sec.A,sec.I,sec.yb,sec.h,
+                 this.wDW,this.fricMu,this.fricK,this.jackEnd,this.anchorSlip,(ancR||[]).join('+')].join('|');
+        lpR=memoFn[lpk]||(memoFn[lpk]=B.lossProfile(B.tendon(this.ntd,this.strands,this.e,this.strandAp,this.strandFpu),
+              sec,this.L,B.parabolicE(this.e,0,this.L),B.udlMoment(wsw,this.L),fgR.segs,
+              {M_SDL_fn:B.udlMoment(this.wDW,this.L),mu:this.fricMu,K:this.fricK,jack:this.jackEnd,
+               slip:this.anchorSlip,anchors:ancR,n:40}));
+        PeShear=lpR.at(dv/1000).Pe;
+      }
+      var sh=B.shearWeb(PeShear,sec,this.e,this.fc,bwEff,dv,VuUse*1e3,dv,this.L*1000,this.nWeb);
       var phiVn=B.phiVn(sh.Vcw,this.avAuto/this.sv,dv), AvsMin=B.AvSminTW(this.fc,bwEff);
       var compAllow=-0.60*this.fc;
       var df=B.deflection(this.L*1000,29700,sec,wsw+this.wDW,loss.Pe,this.e,perLane*0.01);
@@ -3084,7 +3095,7 @@ function calc(){
       var ftP=B.flexuralStrengthT(this.contApsTopUse,1860,this.fc,this.contB,this.contHf,this.contBw,this.contDpUse,this.contMuUse);
       var cont={ftP:ftP,f:f};   // M₂ 已改由 ⑦ CB（引擎力法實算），不再用硬編算例值
       return {sec:sec,wsw:wsw,Mdc:Mdc,Mdw:Mdw,IM:IM,perLane:perLane,Mll:Mll,loss:loss,tenPi:ten.Pi,
-              rows:rows,npass:np,ntot:nt,matchGolden:mg,cont:cont,VuRow:VuRow,VuAutoW:VuAutoW,VuUse:VuUse,
+              rows:rows,npass:np,ntot:nt,matchGolden:mg,cont:cont,VuRow:VuRow,VuAutoW:VuAutoW,VuUse:VuUse,lp:lpR,PeShear:PeShear,
               svgSec:svgSec,svgStr:svgStr,svgMohr:svgMohr,
               svgSecEnd:svgSecEnd,svgSecPier:svgSecPier,svgDet:svgDet,svgDetPier:svgDetPier,svgElevCut:svgElevCut,svgElev:svgElev,lay:layE,
               dv:dv,shSlope:sh.slope,weq:df.w_eq,cgsBot:cgsBot,

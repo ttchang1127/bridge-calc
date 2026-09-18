@@ -324,10 +324,10 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <label>鋼腱組數<input type="number" x-model.number="ntd" step="1"></label>
       <label>每組股數<input type="number" x-model.number="strands" step="1"></label>
       <label>偏心 e (mm)<input type="number" x-model.number="e" step="5"></label>
-      <label title="C4 §六：相鄰鋼腱交錯端張拉使摩擦損失對稱">張拉端配置
+      <label title="預設雙端張拉＝40 m 參考橋（golden／算例）的定義。交錯端（C4 §六）使相鄰腱摩擦對稱，但端部半數腱由遠端拉來，d_v 處 P 約低 8%">張拉端配置
         <select x-model="jackEnd" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:13px">
+          <option value="both">雙端張拉（參考橋定義）</option>
           <option value="alt">交錯端（相鄰腱左右輪流）</option>
-          <option value="both">雙端張拉</option>
           <option value="start">全部自起點</option>
           <option value="end">全部自終點</option>
         </select></label>
@@ -1972,7 +1972,7 @@ function build3D(p){
                           bad?matNG:matOK));
         var tag='W'+(iw+1)+'-'+(drawn+1);          // 與大樣同一套：由下往上、同層由左至右
         // 張拉端：'alt' 交錯（相鄰腱左右輪流，C4 §六）／'start'／'end'／'both' 雙端
-        var jk=p.jackEnd||'alt';
+        var jk=p.jackEnd||'both';
         var j0=(jk==='both')||(jk==='start')||(jk==='alt'&&drawn%2===0);   // z=0 端是否張拉
         var j1=(jk==='both')||(jk==='end')||(jk==='alt'&&drawn%2===1);
         [0,L].forEach(function(z){
@@ -2200,7 +2200,7 @@ var PARAM_KEYS=[
   // ② 載重
   'L','lanes','wDW',
   // ③ 預力
-  'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSv','ductCover','dAgg','ductRule','jackEnd','fricMu','fricK','fricX',
+  'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSv','ductCover','dAgg','ductRule','jackEnd','jackDefV2','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
   'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct',
@@ -2759,7 +2759,7 @@ function calc(){
       var self0=this;
       window.addEventListener('beforeprint',function(){ self0.refreshSummary(); });
       setTimeout(function(){ self0.refreshSummary(); },300);
-      try{ var s=localStorage.getItem(STORE_KEY); if(s){ applyParams(this,JSON.parse(s)); this.msgIO='已載入上次存檔'+this.migrateParams(); } }catch(e){}
+      try{ var s=localStorage.getItem(STORE_KEY); if(s){ var so=JSON.parse(s); applyParams(this,so); this.msgIO='已載入上次存檔'+this.migrateParams(so); } }catch(e){}
       var self=this;
       Alpine.effect(function(){
         var json=JSON.stringify(paramsOf(self));                // 讀到全部參數→任一改動即重跑
@@ -2772,7 +2772,7 @@ function calc(){
     // 存檔遷移：早期版本的預設值（管道保護層 75／垂直淨距 100／淨距含孔道外徑、
     // e_pier −900）會讓鋼腱穿出斷面——那是本工具當初給錯的預設，不是使用者的設計選擇，
     // 故載入舊存檔時就地修正並明確告知；使用者仍可自行改回。
-    migrateParams(){
+    migrateParams(raw){
       var msg=[];
       if(this.ductCover===75&&this.ductSv===100){        // 舊版預設的精確組合
         this.ductCover=40; this.ductSv=40; this.ductRule='tw';
@@ -2786,6 +2786,11 @@ function calc(){
         // 舊算例值：75,337 為估算外力且未計 M₂、d_p 對應頂板腱超出斷面；57,983 為一次校正（外力仍估算）
         var oM=this.contMuP; this.contMuP=30109; this.contDp=1975;
         msg.push('中墩手動 Mu '+oM.toLocaleString()+'→30,109（外力解析包絡＋M₂）、d_p→1,975（頂板腱 e=646）');
+      }
+      // applyParams 會略過存檔沒有的鍵 → 必須看原始存檔物件，不能看 this.jackDefV2（那是新預設 true）
+      if(raw&&raw.jackDefV2==null){                      // 2026-09-19 預設改雙端前的存檔：當時預設即交錯端，無法分辨是否刻意選擇
+        if(this.jackEnd==='alt'){ this.jackEnd='both'; msg.push('張拉端 交錯端→雙端（改為 40 m 參考橋定義；如需交錯端請於 ③ 重選）'); }
+        this.jackDefV2=true;
       }
       if(this.contApsTop===11292){                       // 舊算例值：由 P_e/f_pe 反推，非實際鋼腱面積
         this.contApsTop=10640; msg.push('中墩頂板 PT A_ps 11,292→10,640（4 束×2,660 實際面積）');
@@ -2801,7 +2806,7 @@ function calc(){
     importParams(ev){
       var f=ev.target.files[0]; if(!f) return; var r=new FileReader(), self=this;
       r.onload=function(){
-        try{ applyParams(self,JSON.parse(r.result)); self.msgIO='已匯入 '+f.name; }
+        try{ var io=JSON.parse(r.result); applyParams(self,io); self.msgIO='已匯入 '+f.name+self.migrateParams(io); }
         catch(err){ self.msgIO='匯入失敗：JSON 格式錯誤'; }
       };
       r.readAsText(f); ev.target.value='';
@@ -2830,7 +2835,7 @@ function calc(){
     blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false,
     // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
     stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost',
-    ductOD:100, ductID:100, ductAreaRule:'tw', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'alt',
+    ductOD:100, ductID:100, ductAreaRule:'tw', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams
     fricMu:0.25, fricK:0.003, fricX:0.5,   // 摩擦：μ、搖擺 K(/m)、控制斷面 x/L   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／骨材粒徑／淨距規則
     strandType:'15.2', customAp:140, customFpu:1860,
     fcGrade:'40', stirrupBar:'D16', stirrupLegs:2, customAv:397.4,

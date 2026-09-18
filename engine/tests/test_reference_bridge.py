@@ -1391,6 +1391,31 @@ def test_positive_moment_connection():
     assert pm(8000.0, 3.287e12, 1329.0, 40.0, age_days=89.9).governs == "Mu+"   # 門檻 90 天
 
 
+def test_durability_cover_tw_ch12():
+    """台灣第十二章保護層（表 12.2／12.5）：取 max(表列, §8.25.1 基本 40)。"""
+    from bridgecalc.durability import durability_cover as dc
+    assert dc("general", 50, "II", 0.45).table == 35 and dc("general", 50, "II", 0.45).required == 40
+    assert dc("general", 50, "II", 0.42).table == 35          # 符合上限 0.45、0.50 兩列 → 取小
+    assert dc("general", 50, "II", 0.50).table == 40
+    assert dc("general", 50, "II", 0.55).table is None         # 超過最大水膠比
+    assert dc("general", 100, "II", 0.40).required == 40 and dc("general", 100, "II", 0.45).required == 45
+    assert dc("general", 50, "I", 0.45).table == 25            # 箱梁內部
+    assert dc("salt", 50, member="橋面版頂層筋", zone="中度", wc=0.45).required == 50   # 唯一等於 5 cm 的情境
+    assert dc("salt", 100, member="梁腹版外露面", zone="極嚴重", wc=0.40).required == 75
+    assert not dc("salt", 50, member="梁腹版外露面", zone="嚴重", wc=0.45).wc_ok  # 表 12.4 上限 0.40
+
+
+def test_duct_layout_side_margin():
+    """最外側管側向餘裕：預設 0＝原行為；參考橋兩列配置只容 15 mm 額外餘裕。"""
+    from bridgecalc.tendon_profile import duct_layout as dl
+    a = dl(8, 2, 1329 - 1109, y_b=1329, h=2100)
+    _close(a.cover_side, 40.0, 1e-9)                   # 餘裕為零：恰等於 cover
+    b = dl(8, 2, 1329 - 1109, y_b=1329, h=2100, side_margin=15)
+    assert b.n_col == 2 and abs(b.s_h - 40.0) < 1e-9 and abs(b.cover_side - 55.0) < 1e-9
+    c = dl(8, 2, 1329 - 1109, y_b=1329, h=2100, side_margin=30)
+    assert c.n_col == 1 and c.e_max < 1109             # 退成單列 → 排不下
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

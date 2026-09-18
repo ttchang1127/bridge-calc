@@ -13,6 +13,8 @@ from .blister import (blister_local_bearing, blister_bursting, blister_tieback,
                       SpallResult, InterfaceResult, BlisterGeomResult)
 from .tendon_profile import (duct_size_check, DuctSizeResult, TW_DUCT_MAX_ID,
                              DUCT_AREA_RATIO)
+from .durability import (durability_cover, CoverReq, TW_COVER_GENERAL, TW_COVER_SALT,
+                         TW_SALT_MAX_WC, TW_SALT_MIN_FC)
 from .staging import (redistribution_factor, creep_redistribution,
                       simple_span_dl_moment, span_by_span_dead_load,
                       redistribution_is_linear, prestress_M2_redistribution,
@@ -174,5 +176,6 @@ __all__ = [
     "positive_moment_connection", "PosMomentConnResult",
     "RedistFactor", "RedistPoint", "StagingResult", "M2RedistResult", "TimingRow",
     "duct_size_check", "DuctSizeResult", "TW_DUCT_MAX_ID", "DUCT_AREA_RATIO",
+    "durability_cover", "CoverReq", "TW_COVER_GENERAL", "TW_COVER_SALT", "TW_SALT_MAX_WC", "TW_SALT_MIN_FC",
     "allowables",
 ]

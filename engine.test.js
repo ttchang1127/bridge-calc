@@ -461,6 +461,25 @@ function chkEq(name, got, exp) {
   chk('正彎矩接頭 As 估算', pmA.As_est, pmg.As_est_mm2, 1);
   chkEq('正彎矩接頭 90 天簡化 控制', pmB.governs, pmg.gov_90d);
   chk('正彎矩接頭 90 天簡化 需求', pmB.M_req, pmg.M_req_90d_kNm, 0.1);
+  // 台灣第十二章耐久性保護層
+  var dct = g.durability_cover_T12;
+  chk('保護層 一般50年 II w/c0.45 表列', BC.durabilityCover('general', 50, 'II', 0.45).table, dct.gen50_II_wc045_table, 1e-9);
+  chk('保護層 一般50年 II 需求（含§8.25.1底線）', BC.durabilityCover('general', 50, 'II', 0.45).required, dct.gen50_II_wc045_req, 1e-9);
+  chk('保護層 一般100年 II', BC.durabilityCover('general', 100, 'II', 0.45).required, dct.gen100_II_wc045_req, 1e-9);
+  chk('保護層 一般50年 I（箱內）', BC.durabilityCover('general', 50, 'I', 0.45).table, dct.gen50_I_wc045_table, 1e-9);
+  chk('保護層 鹽害50年 嚴重 腹版', BC.durabilityCover('salt', 50, null, 0.40, '梁腹版外露面', '嚴重').required, dct.salt50_web_severe_req, 1e-9);
+  chk('保護層 鹽害100年 極嚴重 腹版', BC.durabilityCover('salt', 100, null, 0.40, '梁腹版外露面', '極嚴重').required, dct.salt100_web_extreme_req, 1e-9);
+  chk('保護層 橋面版頂層 鹽害中度50年', BC.durabilityCover('salt', 50, null, 0.45, '橋面版頂層筋', '中度').required, dct.deck_top_salt50_moderate, 1e-9);
+  // duct_layout 側向額外餘裕
+  var dsm = g.duct_side_margin, dlo = function (m) { return BC.ductLayout(8, 2, 1329 - 1109, { yb: 1329, h: 2100, sideMargin: m }); };
+  chk('側向餘裕0 cover_side', dlo(0).coverSide, dsm.m0_cover_side, 1e-6);
+  chk('側向餘裕0 s_h', dlo(0).sH, dsm.m0_s_h, 1e-6);
+  chk('側向餘裕15 cover_side', dlo(15).coverSide, dsm.m15_cover_side, 1e-6);
+  chk('側向餘裕15 s_h', dlo(15).sH, dsm.m15_s_h, 1e-6);
+  chkEq('側向餘裕15 列數', dlo(15).nCol, dsm.m15_ncol);
+  chkEq('側向餘裕30 列數（退單列）', dlo(30).nCol, dsm.m30_ncol);
+  chk('側向餘裕30 e_max', dlo(30).eMax, dsm.m30_e_max, 0.1);
+  chkEq('側向餘裕30 排得下', dlo(30).fits, dsm.m30_fits);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

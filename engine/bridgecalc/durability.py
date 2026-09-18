@@ -69,3 +69,60 @@ def pc_fatigue_limit(Pu: float, Py: float) -> float:
     """PC 鋼材疲勞應力上限 = min(0.60·Pu, 0.75·Py)（道示Ⅲ 6.3.2 表-6.3.4）。
     Pu 極限強度、Py 降伏強度（同單位，回傳同單位）。"""
     return min(0.60 * Pu, 0.75 * Py)
+
+
+# ── 台灣第十二章耐久性保護層（NLM 7d947294 核對原文 p.341–343）────────────
+# 表 12.1：等級 I＝非乾濕交替（箱梁內部）；等級 II＝乾濕交替（柱、橋台、版、I/T 梁、箱梁外露面）。
+# 表 12.2（一般環境）：{年限: {等級: [(最大水膠比, 最小保護層 mm), ...]}}
+TW_COVER_GENERAL = {
+    50: {"I": [(0.50, 30), (0.45, 25)], "II": [(0.50, 40), (0.45, 35), (0.40, 30)]},
+    100: {"I": [(0.50, 35), (0.45, 30)], "II": [(0.45, 45), (0.40, 40), (0.35, 35)]},
+}
+# 表 12.4（鹽害）：最大水膠比、最低 f'c（kgf/cm²）
+TW_SALT_MAX_WC = {"極嚴重": 0.40, "嚴重": 0.40, "中度": 0.45}
+TW_SALT_MIN_FC = {"極嚴重": 350, "嚴重": 350, "中度": 280}
+# 表 12.5（鹽害）主要構件最小保護層 mm：{部位: {年限: (極嚴重, 嚴重, 中度)}}
+TW_COVER_SALT = {
+    "基礎基樁": {50: (100, 100, 100), 100: (100, 100, 100)},
+    "柱牆": {50: (100, 75, 75), 100: (100, 100, 75)},
+    "橋面版頂層筋": {50: (65, 55, 50), 100: (75, 65, 60)},
+    "橋面版下層筋": {50: (65, 55, 50), 100: (75, 65, 60)},
+    "箱梁底層筋": {50: (65, 55, 50), 100: (75, 65, 60)},
+    "梁腹版外露面": {50: (65, 55, 50), 100: (75, 65, 60)},
+    "未曝露面": {50: (40, 40, 40), 100: (40, 40, 40)},
+}
+_SALT_IDX = {"極嚴重": 0, "嚴重": 1, "中度": 2}
+PC_BASIC_COVER = 40.0   # §8.25.1：預力鋼材與主鋼筋 4 cm（基本底線）
+
+
+@dataclass
+class CoverReq:
+    table: float        # 第十二章表列值 mm（None＝水膠比超出允許）
+    basic: float        # §8.25.1 基本底線 mm
+    required: float     # max(表列, 基本)
+    wc_ok: bool
+    source: str
+
+
+def durability_cover(env: str = "general", life: int = 50, grade: str = "II",
+                     wc: float = 0.45, member: str = "梁腹版外露面",
+                     zone: str = "中度", basic: float = PC_BASIC_COVER) -> CoverReq:
+    """台灣第十二章耐久性最小保護層（§12.4.2 表 12.2／§12.4.3 表 12.4–12.5）。
+
+    §12.2：耐久性要求為「結構達到設計年限所需之最低要求」→ 取 max(第十二章表列, §8.25.1 基本值)。
+    一般環境：表列為「最大水膠比 → 最小保護層」，實際 wc 須 ≤ 該列上限；取符合條件中最小者。
+    鹽害環境：wc 須 ≤ 表 12.4 上限，保護層依表 12.5 部位×鹽害區×年限。
+    ⚠ 「橋面板頂面 50 mm」是 §7.1.5 表 7.2（RC）的值，或鹽害中度 50 年的值——不是 PC 的通則。
+    """
+    if env == "general":
+        rows = TW_COVER_GENERAL[life][grade]
+        ok = [c for (w, c) in rows if wc <= w + 1e-9]
+        tbl = min(ok) if ok else None
+        src = f"表12.2 一般環境 等級{grade} {life}年 w/c≤{wc}"
+    else:
+        ok_wc = wc <= TW_SALT_MAX_WC[zone] + 1e-9
+        tbl = TW_COVER_SALT[member][life][_SALT_IDX[zone]] if ok_wc else None
+        ok = [tbl] if ok_wc else []
+        src = f"表12.5 鹽害 {member} {zone}鹽害區 {life}年"
+    req = max(tbl, basic) if tbl is not None else None
+    return CoverReq(table=tbl, basic=basic, required=req, wc_ok=bool(ok), source=src)

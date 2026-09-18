@@ -333,13 +333,14 @@
     o = o || {};
     var od = o.od == null ? 100 : o.od, webT = o.webT == null ? 350 : o.webT,
         cover = o.cover == null ? 40 : o.cover, sv = o.sv == null ? 40 : o.sv,
-        dAgg = o.dAgg == null ? 25 : o.dAgg, yb = o.yb, h = o.h, rule = o.rule || 'tw';
+        dAgg = o.dAgg == null ? 25 : o.dAgg, yb = o.yb, h = o.h, rule = o.rule || 'tw',
+        sideMargin = o.sideMargin || 0;   // 側向額外餘裕：預設 0 時最外側管保護層恰等於 cover
     nWeb = Math.max(1, nWeb | 0); var n = Math.max(1, nTendons | 0);
     var base = Math.floor(n / nWeb), rem = n % nWeb, perWeb = [], i, j;
     for (i = 0; i < nWeb; i++) perWeb.push(base + (i < rem ? 1 : 0));
     var nPerWeb = Math.max.apply(null, perWeb);
 
-    var sReq = BC.ductSpacingRequired(od, dAgg, rule), avail = webT - 2 * cover;
+    var sReq = BC.ductSpacingRequired(od, dAgg, rule), avail = webT - 2 * (cover + sideMargin);
     var nCol = avail >= od ? Math.floor((avail + sReq) / (od + sReq)) : 0;
     nCol = Math.max(1, nCol);                       // 至少畫一列；放不下時由 sHOk 報 ✗
     var sH = nCol > 1 ? (avail - nCol * od) / (nCol - 1) : avail - od;
@@ -363,7 +364,8 @@
              coverOk: coverOk, svOk: svOk, sHOk: sHOk, topOk: topOk,
              fits: coverOk && svOk && sHOk && topOk,
              eMax: yb == null ? null : yb - (cover + od / 2 + relCgs),
-             eMaxPoint: yb == null ? null : yb - cover - od / 2 };
+             eMaxPoint: yb == null ? null : yb - cover - od / 2,
+             coverSide: (webT - (xs[nCol - 1] - xs[0]) - od) / 2 };
   };
 
   // ── 腹板抗剪 D1 ───────────────────────────────────────
@@ -437,6 +439,30 @@
   BC.spiralLocalBearing = function (Pu, Pult0, flat, A_core, s, Dsp) {
     var Pult = Pult0 + 4.1 * flat * A_core * Math.pow(1 - s / Dsp, 2) / 1e3;
     return { Pult: Pult, margin: Pult / Pu, ok: Pult >= Pu };
+  };
+
+  // ── 台灣第十二章耐久性保護層（同 durability.durability_cover；原文 p.341–343）────
+  // 表 12.1：等級 I＝箱梁內部；II＝乾濕交替（外露面）。取 max(表列, §8.25.1 基本 40 mm)。
+  BC.TW_COVER_GENERAL = { 50: { I: [[0.50, 30], [0.45, 25]], II: [[0.50, 40], [0.45, 35], [0.40, 30]] },
+                          100: { I: [[0.50, 35], [0.45, 30]], II: [[0.45, 45], [0.40, 40], [0.35, 35]] } };
+  BC.TW_SALT_MAX_WC = { '極嚴重': 0.40, '嚴重': 0.40, '中度': 0.45 };
+  BC.TW_COVER_SALT = {
+    '基礎基樁': { 50: [100, 100, 100], 100: [100, 100, 100] }, '柱牆': { 50: [100, 75, 75], 100: [100, 100, 75] },
+    '橋面版頂層筋': { 50: [65, 55, 50], 100: [75, 65, 60] }, '橋面版下層筋': { 50: [65, 55, 50], 100: [75, 65, 60] },
+    '箱梁底層筋': { 50: [65, 55, 50], 100: [75, 65, 60] }, '梁腹版外露面': { 50: [65, 55, 50], 100: [75, 65, 60] },
+    '未曝露面': { 50: [40, 40, 40], 100: [40, 40, 40] } };
+  BC.durabilityCover = function (env, life, grade, wc, member, zone, basic) {
+    env = env || 'general'; life = life || 50; grade = grade || 'II'; wc = wc == null ? 0.45 : wc;
+    member = member || '梁腹版外露面'; zone = zone || '中度'; basic = basic == null ? 40 : basic;
+    var tbl = null, src;
+    if (env === 'general') {
+      var ok = BC.TW_COVER_GENERAL[life][grade].filter(function (r) { return wc <= r[0] + 1e-9; }).map(function (r) { return r[1]; });
+      tbl = ok.length ? Math.min.apply(null, ok) : null; src = '表12.2 一般環境 等級' + grade + ' ' + life + '年';
+    } else {
+      if (wc <= BC.TW_SALT_MAX_WC[zone] + 1e-9) tbl = BC.TW_COVER_SALT[member][life][{ '極嚴重': 0, '嚴重': 1, '中度': 2 }[zone]];
+      src = '表12.5 鹽害 ' + member + ' ' + zone + '鹽害區 ' + life + '年';
+    }
+    return { table: tbl, basic: basic, required: tbl == null ? null : max(tbl, basic), wc_ok: tbl != null, source: src };
   };
 
   // ── 套管尺寸檢核（同 tendon_profile.duct_size_check）─────────────

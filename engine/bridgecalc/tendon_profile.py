@@ -111,6 +111,7 @@ class DuctLayoutResult:
     fits: bool
     e_max: float           # 實配可行的最大偏心 mm（None 表未給 y_b）
     e_max_point: float     # 單點簡化上限 ȳb − cover − od/2 mm（對照用）
+    cover_side: float = None  # 最外側管壁至腹板側面的淨距 mm（side_margin=0 時＝cover）
 
 
 def duct_spacing_required(duct_od: float, d_agg: float = 25.0, rule: str = "tw") -> float:
@@ -132,7 +133,7 @@ def duct_layout(n_tendons: int, n_web: int, y_cgs: float,
                 duct_od: float = 100.0, web_t: float = 350.0,
                 cover: float = 40.0, s_v: float = 40.0,
                 d_agg: float = 25.0, y_b: float = None, h: float = None,
-                rule: str = "tw") -> DuctLayoutResult:
+                rule: str = "tw", side_margin: float = 0.0) -> DuctLayoutResult:
     """把 n 組鋼腱實際排進腹板，回傳排列幾何與構造檢核。
 
     n_tendons：鋼腱組數；n_web：腹板數；y_cgs[mm]：鋼腱合力中心距梁底（= ȳb − e）。
@@ -143,6 +144,10 @@ def duct_layout(n_tendons: int, n_web: int, y_cgs: float,
 
     排列規則：每腹板由下往上逐層填滿，層距 = od + s_v；列數由腹板可用寬與淨間距
     需求決定。排完後整體平移，使實配形心恰等於 y_cgs——引擎用的偏心 e 不因實配改變。
+
+    ⚠ 多列時剩餘寬度全數分給列間距 → 最外側管的側向保護層**恰等於 cover、餘裕為零**。
+    side_margin[mm]：兩側各再預留的餘裕（施工誤差、箍筋位置），可用寬 = web_t − 2(cover+side_margin)。
+    預設 0＝原行為。實際側向淨保護層見結果 cover_side。
     """
     n_web = max(1, int(n_web))
     n = max(1, int(n_tendons))
@@ -151,7 +156,7 @@ def duct_layout(n_tendons: int, n_web: int, y_cgs: float,
     n_per_web = max(per_web)
 
     s_req = duct_spacing_required(duct_od, d_agg, rule)
-    avail = web_t - 2 * cover
+    avail = web_t - 2 * (cover + side_margin)
     n_col = int((avail + s_req) // (duct_od + s_req)) if avail >= duct_od else 0
     n_col = max(1, n_col)                      # 至少畫一列（放不下時由 s_h_ok 報 ✗）
     s_h = (avail - n_col * duct_od) / (n_col - 1) if n_col > 1 else avail - duct_od
@@ -182,7 +187,8 @@ def duct_layout(n_tendons: int, n_web: int, y_cgs: float,
         y_cgs=y_cgs, y_bot=y_bot, y_top=y_top, cover_bot=cover_bot,
         cover_ok=cover_ok, s_v_ok=s_v_ok, s_h_ok=s_h_ok, top_ok=top_ok,
         fits=(cover_ok and s_v_ok and s_h_ok and top_ok),
-        e_max=e_max, e_max_point=e_max_point)
+        e_max=e_max, e_max_point=e_max_point,
+        cover_side=(web_t - (x_offsets[-1] - x_offsets[0]) - duct_od) / 2.0)
 
 
 # ── 摩擦損失沿長度分佈（張拉端配置）────────────────────────────

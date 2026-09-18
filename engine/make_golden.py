@@ -48,7 +48,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         span_by_span_dead_load, redistribution_is_linear,
                         prestress_M2_redistribution, timing_sensitivity,
                         simple_span_tendon_segs, staged_envelope, duct_size_check,
-                        positive_moment_connection)
+                        positive_moment_connection, durability_cover)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -711,6 +711,28 @@ def _pos_moment_conn_S4():
             "_note": "M_cr＝f_r·I_g/y_t：總毛斷面、橫隔梁混凝土 f_r 0.63√f'c、不計預力(C5.14.1.4.9a)。"
                      "實際正束制 263 ≪ 0.6M_cr 5,913 → 最小量控制；90 天簡化要 1.2M_cr 11,826——省計算不省鋼筋。"}
 
+
+def _durability_cover_T12():
+    """台灣第十二章耐久性保護層（表 12.2／12.5，p.341–343），取 max(表列, §8.25.1 基本 40 mm)。"""
+    g50 = durability_cover("general", 50, "II", 0.45)
+    g100 = durability_cover("general", 100, "II", 0.45)
+    s50 = durability_cover("salt", 50, member="梁腹版外露面", zone="嚴重", wc=0.40)
+    s100 = durability_cover("salt", 100, member="梁腹版外露面", zone="極嚴重", wc=0.40)
+    return {"gen50_II_wc045_table": g50.table, "gen50_II_wc045_req": g50.required,
+            "gen100_II_wc045_req": g100.required, "gen50_I_wc045_table": durability_cover("general", 50, "I", 0.45).table,
+            "salt50_web_severe_req": s50.required, "salt100_web_extreme_req": s100.required,
+            "deck_top_salt50_moderate": durability_cover("salt", 50, member="橋面版頂層筋", zone="中度", wc=0.45).required,
+            "_note": "橋面板頂面 50 mm 只在鹽害中度 50 年成立（另 §7.1.5 表 7.2 RC 值）；一般環境外露面 50 年 w/c 0.45 表列 35 < §8.25.1 基本 40 → 40 控制。"}
+
+
+def _duct_side_margin():
+    """duct_layout 側向額外餘裕：參考橋 8 組 φ100、腹板 350、保護層 40。"""
+    r = {m: duct_layout(8, 2, sec.yb - 1109, y_b=sec.yb, h=2100, side_margin=m) for m in (0, 15, 30)}
+    return {"m0_cover_side": round(r[0].cover_side, 2), "m0_s_h": round(r[0].s_h, 2),
+            "m15_cover_side": round(r[15].cover_side, 2), "m15_s_h": round(r[15].s_h, 2), "m15_ncol": r[15].n_col,
+            "m30_ncol": r[30].n_col, "m30_e_max": round(r[30].e_max, 1), "m30_fits": r[30].fits,
+            "_note": "預設排列把剩餘寬度全給列距，最外側管側向保護層恰 40(餘裕 0)；兩列配置只容 15 mm 額外餘裕，30 mm 退單列 e_max 1,029 < 1,109 排不下。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -803,6 +825,8 @@ golden = {
     "cont_envelope_gamma_min": _cont_envelope_gamma_min(),
     "staged_shear_S3": _staged_shear_S3(),
     "pos_moment_conn_S4": _pos_moment_conn_S4(),
+    "durability_cover_T12": _durability_cover_T12(),
+    "duct_side_margin": _duct_side_margin(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

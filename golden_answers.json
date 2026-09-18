@@ -679,6 +679,27 @@
     "M_req_90d_kNm": 11825.7,
     "_note": "M_cr＝f_r·I_g/y_t：總毛斷面、橫隔梁混凝土 f_r 0.63√f'c、不計預力(C5.14.1.4.9a)。實際正束制 263 ≪ 0.6M_cr 5,913 → 最小量控制；90 天簡化要 1.2M_cr 11,826——省計算不省鋼筋。"
   },
+  "durability_cover_T12": {
+    "gen50_II_wc045_table": 35,
+    "gen50_II_wc045_req": 40.0,
+    "gen100_II_wc045_req": 45,
+    "gen50_I_wc045_table": 25,
+    "salt50_web_severe_req": 55,
+    "salt100_web_extreme_req": 75,
+    "deck_top_salt50_moderate": 50,
+    "_note": "橋面板頂面 50 mm 只在鹽害中度 50 年成立（另 §7.1.5 表 7.2 RC 值）；一般環境外露面 50 年 w/c 0.45 表列 35 < §8.25.1 基本 40 → 40 控制。"
+  },
+  "duct_side_margin": {
+    "m0_cover_side": 40.0,
+    "m0_s_h": 70.0,
+    "m15_cover_side": 55.0,
+    "m15_s_h": 40.0,
+    "m15_ncol": 2,
+    "m30_ncol": 1,
+    "m30_e_max": 1029.0,
+    "m30_fits": false,
+    "_note": "預設排列把剩餘寬度全給列距，最外側管側向保護層恰 40(餘裕 0)；兩列配置只容 15 mm 額外餘裕，30 mm 退單列 e_max 1,029 < 1,109 排不下。"
+  },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",
     "Tu_C": 6.91,
@@ -710,7 +731,7 @@
     "n_row": 2,
     "s_req_mm": 40.0,
     "s_h_mm": 70.0,
-    "web_avail_mm": 270,
+    "web_avail_mm": 270.0,
     "pitch_v_mm": 140,
     "rows_y_mm": [
       150.0,
@@ -732,7 +753,7 @@
     "n_col": 1,
     "n_row": 4,
     "s_req_mm": 100,
-    "web_avail_mm": 200,
+    "web_avail_mm": 200.0,
     "pitch_v_mm": 200,
     "rows_y_mm": [
       -80.0,

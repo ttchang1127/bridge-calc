@@ -471,6 +471,15 @@ function chkEq(name, got, exp) {
   chkEq('錨碇左 間距', aL.s_pick, css.anchorL_s); chkEq('錨碇右 間距', aR.s_pick, css.anchorR_s);
   chkEq('分區數', scan.zones.length, css.zones.length);
   chkEq('分區內容', JSON.stringify(scan.zones.map(function (z) { return [Math.round(z[0] * 1000) / 1000, Math.round(z[1] * 1000) / 1000, z[2]]; })), JSON.stringify(css.zones));
+  // 體系轉換的恆載剪力＋箍筋分區
+  var sss = g.staged_shear_S3, lamSS = 1.7 / (1 + 0.8 * 1.7);
+  var scanS = BC.contShearDesignScan([40, 40], BC.groupsPrestressAt([gBot, gTop]), fmc, 5.065 * 24.5, 20, 2, 2100, 1329, 40, 250, 2, 397.4, 1.0,
+                                     [24.95, 25.05, 54.95, 55.05], null, BC.section(5.065e6, 3.287e12, 1329, 2100), null, null, lamSS);
+  chk('逐跨 端支承 d_v Vu/腹板（一次成形）', scan.rows[0].Vu_web, sss.end_dv_Vu_web_mono, 0.1);
+  chk('逐跨 端支承 d_v Vu/腹板（逐跨）', scanS.rows[0].Vu_web, sss.end_dv_Vu_web_sbs, 0.1);
+  chkEq('逐跨 端部箍筋間距', scanS.zones[0][2], sss.end_zone_s_sbs);
+  chk('逐跨 端部分區長', scanS.zones[0][1], sss.end_zone_to_sbs, 1e-3);
+  chkEq('逐跨 分區內容', JSON.stringify(scanS.zones.map(function (z) { return [Math.round(z[0] * 1000) / 1000, Math.round(z[1] * 1000) / 1000, z[2]]; })), JSON.stringify(sss.zones_sbs));
   chk('§8.20.3 上限（減半）', BC.stirrupMaxSpacingTW(1e6, 40, 250, 1512, 2100)[0], css.max_spacing_halved, 1e-9);
   chk('§8.20.3 上限（一般）', BC.stirrupMaxSpacingTW(5e5, 40, 250, 1512, 2100)[0], css.max_spacing_normal, 1e-9);
   // HS20-44 中後軸距 4.25～9.15 掃描

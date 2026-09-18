@@ -1030,7 +1030,8 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         各列取 t₁（合龍當下，自重＝簡支）與 ∞（長期重分配）之不利。
         跨中由 <b x-text="CB&&CB.mid.govP==='t1'?'t₁ 合龍當下':'∞ 長期'"></b>、
         中墩由 <b x-text="CB&&CB.pier&&CB.pier.govN==='t1'?'t₁ 合龍當下':'∞ 長期'"></b> 控制；表中 M_DL 為控制狀態值。
-        ⚠ 恆載剪力尚未套用（仍為連續體系；端支承在 t₁ 為簡支 wL/2 大於連續 3wL/8，待辦）。
+        恆載<b>剪力</b>同樣兩狀態取不利（中墩剪力表與全長箍筋分區皆已套用）：端支承在 t₁ 為簡支 wL/2，大於連續 3wL/8——
+        40+40 端部 d_v 斷面 Vu 約 +19%、箍筋由 @450 收緊到 @250。
       </div>
     <div class="cite">包絡由引擎 <code>BC.taiwanContEnvelope</code> 算出（解析三彎矩法、EI 常數；Python <code>taiwan_cont_envelope</code> 同式、golden 驗證）：DL＝均布解析解；LL＝HS20-44 軸組雙向掃描（<b>中後軸距 4.25～9.15 m 逐 0.25 m 掃描</b>，短跨墩頂常由長軸距控制）與車道載重取大 ×(1+I)× 車道數 × 多車道折減（3 車道 0.90、≥4 車道 0.75）。<b>負彎矩車道載重另加一個等集中載重於他跨</b>（§3.9，共 2 個）；<b>衝擊長度</b>正彎矩取該跨、負彎矩取相鄰兩跨平均（§3.13）。每跨取 <b x-text="CB?CB.ne:''"></b> 個斷面。自重取 ① 斷面（<span x-text="R.wsw.toFixed(0)"></span> kN/m）、SDL 與車道數取 ②。</div>
   </div>
@@ -2361,6 +2362,7 @@ function calc(){
           }
           x=side==='L'?xs[j]-dv/1000:xs[j]+dv/1000; q=C.m2.atX(x); secX=st?st.sectionAt(x):R0;
           var row=B.taiwanContShearAt(sp,x,side,wDC,this.wDW,this.lanes,0.25,400,st);
+          if(C.stg) row=B.stagedShearRow(sp,row,wDC,C.stg.lam);   // 逐跨施工：t₁／∞ 兩狀態取不利
           var V2=B.secondaryShear(C.m2,sp,x,side), Vu=B.designShearWithV2(row.Vu_pos,row.Vu_neg,V2);
           var sh=B.shearWebAt(q.P*1e3,secX,q.P>0?q.Pslope/q.P:0,this.fc,bw,dv,Vu/nw*1e3,nw);
           var phiVn=B.phiVn(sh.Vcw,Avs,dv)/1e3, VuW=Math.abs(Vu)/nw;
@@ -2389,7 +2391,7 @@ function calc(){
       if(st) st.breaks.forEach(function(b){ extra.push(b-0.05, b+0.05); });
       var m2=C.m2, pa=function(x){ var q=m2.atX(x); return [q.P, q.eEff, q.Pslope]; };
       var res=B.contShearDesignScan(sp,pa,m2,R0.A/1e6*24.5,this.wDW,this.lanes,this.h,R0.yb,this.fc,this.webT-100,
-                                    Math.max(1,this.nWeb|0),this.avAuto,1.0,extra,st,R0);
+                                    Math.max(1,this.nWeb|0),this.avAuto,1.0,extra,st,R0,null,null,C.stg?C.stg.lam:null);
       var worst=res.rows.reduce(function(a,b){return b.Av_s_req>a.Av_s_req?b:a});
       res.worst=worst; res.bad=res.zones.filter(function(z){return z[2]==null}).length;
       return res;

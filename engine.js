@@ -870,6 +870,22 @@
                gov_pos: st.t1[2] >= st.inf[2] ? 't1' : 'inf', gov_neg: st.t1[3] <= st.inf[3] ? 't1' : 'inf' };
     });
   };
+  BC.simpleSpanDLShear = function (spans, w, x, side) {
+    var xs = contXs(spans), i = contShearSpan(xs, spans, x, side || 'R');
+    return w * (spans[i] / 2 - (x - xs[i]));
+  };
+  // 束制剪力 λ(V_II − V_I) 為束制彎矩斜率，每跨常數；端支承 t₁ 為簡支 wL/2 > 連續 3wL/8
+  BC.stagedShearRow = function (spans, r, wdc, lam) {
+    var vI = BC.simpleSpanDLShear(spans, wdc, r.x, r.side), vinf = vI + lam * (r.V_dc - vI);
+    var c = [['t1', vI], ['inf', vinf]].map(function (q) {
+      return [q[0], q[1], BC.factored(q[1], r.V_dw, r.V_ll_pos, true), BC.factored(q[1], r.V_dw, r.V_ll_neg, false)];
+    });
+    var p = c[0][2] >= c[1][2] ? c[0] : c[1], n = c[0][3] <= c[1][3] ? c[0] : c[1],
+        ctrl = Math.abs(p[2]) >= Math.abs(n[3]) ? p : n;
+    return { x: r.x, side: r.side, V_dc: ctrl[1], V_dw: r.V_dw, V_ll_pos: r.V_ll_pos, V_ll_neg: r.V_ll_neg,
+             Vu_pos: p[2], Vu_neg: n[3], I: r.I, V_dc_I: vI, V_dc_II: r.V_dc, V_dc_inf: vinf,
+             gov_pos: p[0], gov_neg: n[0] };
+  };
   BC.timingSensitivity = function (phiInf, rows, M_I_pier, M_II_pier, chi, method) {
     return rows.map(function (r) {
       var d = max(0, phiInf - r[1]), f = BC.redistributionFactor(d, chi, method);
@@ -1095,7 +1111,7 @@
     };
   };
   // 連續梁全長剪力設計掃描＋箍筋分區（同 influence_cont.cont_shear_design_scan）
-  BC.contShearDesignScan = function (spans, prestressAt, fm, wdc, wdw, lanes, h, yb, fc, bw, nWebs, Av, step, extra, stiff, sec, fsy, phi) {
+  BC.contShearDesignScan = function (spans, prestressAt, fm, wdc, wdw, lanes, h, yb, fc, bw, nWebs, Av, step, extra, stiff, sec, fsy, phi, stageLam) {
     step = step || 1; extra = extra || []; fsy = fsy || 420; phi = phi || 0.85;
     var xs = contXs(spans), ref = sec || BC.section(1, 1, yb, h);
     function dvAt(xf) {
@@ -1118,6 +1134,8 @@
         .forEach(function (x) { if (!seen[x]) { seen[x] = 1; pts.push([x, x - a < b - x ? 'R' : 'L']); } });
     });
     var env = BC.taiwanContShearEnvelope(spans, pts, wdc, wdw, lanes, stiff), AvsMin = BC.AvSminTW(fc, bw, fsy);
+    // 逐跨施工：恆載剪力改 t₁（簡支）／∞（重分配）兩狀態取不利（同 staging.staged_shear_row）
+    if (stageLam != null) env = env.map(function (r) { return BC.stagedShearRow(spans, r, wdc, stageLam); });
     var rows = pts.map(function (pt, i) {
       var x = pt[0], side = pt[1], r = env[i], dv = dvAt(x), q = prestressAt(x), P = q[0];
       var V2 = BC.secondaryShear(fm, spans, x, side), Vu = BC.designShearWithV2(r.Vu_pos, r.Vu_neg, V2);

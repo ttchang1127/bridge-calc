@@ -564,7 +564,7 @@ class ShearScanRow:
 def cont_shear_design_scan(spans: Sequence[float], prestress_at, fm, w_dc: float, w_dw: float,
                            lanes: int, h: float, yb: float, fc: float, bw: float, n_webs: int,
                            Av: float, step: float = 1.0, extra: Sequence[float] = (), stiff=None,
-                           sec=None, fsy: float = 420.0, phi: float = 0.85):
+                           sec=None, fsy: float = 420.0, phi: float = 0.85, stage_lam=None):
     """連續梁全長剪力設計掃描＋箍筋間距分區。
 
     prestress_at(x) → (P kN, e_eff mm（等斷面參考軸、形心下為正）, Σ P·de_loc/dx kN)。
@@ -573,6 +573,7 @@ def cont_shear_design_scan(spans: Sequence[float], prestress_at, fm, w_dc: float
     d_v＝max(0.9d_p, 0.72h)：該處恆載彎矩為負（受壓在底緣）時 d_p＝ȳb−e，否則 h−(ȳb−e)，迭代 3 次。
     每斷面：V_u＝max(|V|,|V+V2|)、shear_web_at → 需 A_v/s；允許間距＝min(強度需求、最小箍筋、§8.20.3 上限)。
     回傳 (rows, zones)；zones 由 stirrup_zones（支承面至 d_v 斷面沿用 d_v 斷面間距）。
+    stage_lam：逐跨施工的潛變重分配係數 λ（staging）；給定時恆載剪力改 t₁／∞ 兩狀態取不利。
     """
     from .shear import (shear_web_at, Av_s_min_TW, stirrup_max_spacing_TW, stirrup_pick_spacing,
                         stirrup_zones)
@@ -604,6 +605,9 @@ def cont_shear_design_scan(spans: Sequence[float], prestress_at, fm, w_dc: float
             side = "R" if x - a < b - x else "L"
             pts.append((x, side))
     rows_env = taiwan_cont_shear_envelope(spans, pts, w_dc, w_dw, lanes, stiff)
+    if stage_lam is not None:
+        from .staging import staged_shear_row
+        rows_env = [staged_shear_row(spans, r, w_dc, stage_lam) for r in rows_env]
     Avs_min = Av_s_min_TW(fc, bw, fsy)
     out = []
     for (x, side), r in zip(pts, rows_env):

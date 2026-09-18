@@ -350,3 +350,36 @@ def staged_envelope(spans: Sequence[float], rows, w_dc: float, lam: float,
             Mu_pos=max(st["t1"][2], st["inf"][2]), Mu_neg=min(st["t1"][3], st["inf"][3]),
             gov_pos=gp, gov_neg=gn))
     return out
+
+
+# ── 體系轉換的恆載剪力 ─────────────────────────────────────────
+def simple_span_dl_shear(spans: Sequence[float], w: float, x: float, side: str = "R") -> float:
+    """各跨獨立簡支時，斷面 x（side 側）的恆載剪力 V_I = w(L/2 − a)。"""
+    from .influence_cont import _supports, _shear_span
+    xs = _supports(spans)
+    i = _shear_span(xs, spans, x, side)
+    return w * (spans[i] / 2.0 - (x - xs[i]))
+
+
+def staged_shear_row(spans: Sequence[float], row, w_dc: float, lam: float):
+    """把一列連續梁剪力（ContShearRow）改為 t₁／∞ 兩狀態取不利。
+
+    t₁：自重剪力＝簡支 V_I；∞：V_I + λ(V_II − V_I)。束制剪力 λ(V_II − V_I) 為束制彎矩之
+    斜率，**每跨內為常數**。端支承 t₁ 為 wL/2，大於連續的 3wL/8——只用連續體系會低估。
+    回傳同欄位的 ContShearRow（V_dc 為控制狀態值），另附 V_dc_I／V_dc_inf／gov。
+    """
+    from .influence_cont import ContShearRow, factored
+    vI = simple_span_dl_shear(spans, w_dc, row.x, row.side)
+    vinf = vI + lam * (row.V_dc - vI)
+    cand = []
+    for tag, dc in (("t1", vI), ("inf", vinf)):
+        cand.append((tag, dc, factored(dc, row.V_dw, row.V_ll_pos, True),
+                     factored(dc, row.V_dw, row.V_ll_neg, False)))
+    p = max(cand, key=lambda c: c[2])
+    n = min(cand, key=lambda c: c[3])
+    ctrl = p if abs(p[2]) >= abs(n[3]) else n
+    out = ContShearRow(row.x, row.side, ctrl[1], row.V_dw, row.V_ll_pos, row.V_ll_neg,
+                       p[2], n[3], row.I)
+    out.V_dc_I, out.V_dc_II, out.V_dc_inf = vI, row.V_dc, vinf
+    out.gov_pos, out.gov_neg = p[0], n[0]
+    return out

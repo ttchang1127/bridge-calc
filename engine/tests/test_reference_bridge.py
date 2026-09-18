@@ -1362,6 +1362,21 @@ def test_cont_envelope_gamma_min_where_dead_load_favorable():
     _close(factored(-100.0, 0.0, 0.0, False), -125.0, 1e-12)
 
 
+def test_staged_shear_restraint_constant_and_end_support_governs():
+    """體系轉換的恆載剪力：束制剪力每跨常數；端支承由 t₁（簡支 wL/2）控制、大於連續。"""
+    from bridgecalc.staging import staged_shear_row, simple_span_dl_shear
+    from bridgecalc.influence_cont import taiwan_cont_shear_at
+    lam = 1.7 / (1 + 0.8 * 1.7)
+    dv = [lam * (r.V_dc - simple_span_dl_shear(_SPANS, _W_SBS, r.x, r.side))
+          for r in (taiwan_cont_shear_at(_SPANS, x, "R", _W_SBS, 20, 2) for x in (1, 10, 20, 30, 39))]
+    for v in dv:
+        _close(v, dv[0], 1e-9)                      # 束制彎矩線性 → 束制剪力常數
+    r = taiwan_cont_shear_at(_SPANS, 1.692, "R", _W_SBS, 20, 2)
+    s = staged_shear_row(_SPANS, r, _W_SBS, lam)
+    _close(s.V_dc_I, _W_SBS * (20 - 1.692), 1e-6)   # 簡支 w(L/2 − a)
+    assert s.gov_pos == "t1" and s.Vu_pos > r.Vu_pos
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

@@ -682,6 +682,24 @@ def _cont_envelope_gamma_min():
             "_note": "2026-09-19 前恆載一律 1.25/1.50：x=28 Mu⁻ +1,529（判無負彎矩）→ −163；x=32 Mu⁺ −1,591 → +343；"
                      "墩頂 Mu⁺ −37,023 → −24,937。控制斷面（跨中正、墩頂負）不變，golden 既有項零變動。"}
 
+
+def _staged_shear_S3():
+    """體系轉換的恆載剪力＋箍筋分區（同 cont_shear_scan 雙系統案，Δφ 1.7 Trost）。"""
+    lam = 1.7 / (1 + 0.8 * 1.7)
+    bot, top = _cont_case_groups()
+    fm = continuous_prestress([40, 40], [bot, top])
+    args = ([40, 40], groups_prestress_at([bot, top]), fm, sec.A / 1e6 * 24.5, 20, 2,
+            2100, 1329, 40, 250, 2, 397.4)
+    kw = dict(step=1.0, extra=[24.95, 25.05, 54.95, 55.05], sec=sec)
+    r0, z0 = cont_shear_design_scan(*args, **kw)
+    r1, z1 = cont_shear_design_scan(*args, stage_lam=lam, **kw)
+    return {
+        "end_dv_Vu_web_mono": round(r0[0].Vu_web, 1), "end_dv_Vu_web_sbs": round(r1[0].Vu_web, 1),
+        "end_zone_s_mono": z0[0][2], "end_zone_s_sbs": z1[0][2], "end_zone_to_sbs": round(z1[0][1], 3),
+        "zones_sbs": [[round(z[0], 3), round(z[1], 3), z[2]] for z in z1],
+        "_note": "逐跨施工剛合龍時自重剪力為簡支 wL/2(>連續 3wL/8)，端支承 d_v Vu/腹板 2,053→2,441(+19%)，"
+                 "端部 0–4.5 m 箍筋 @450→@250。束制剪力 λ(V_II−V_I) 每跨常數(束制彎矩線性)。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -772,6 +790,7 @@ golden = {
     "staged_envelope_S2": _staged_envelope_S2(),
     "duct_size_T83": _duct_size_T83(),
     "cont_envelope_gamma_min": _cont_envelope_gamma_min(),
+    "staged_shear_S3": _staged_shear_S3(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

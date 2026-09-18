@@ -384,18 +384,42 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
   </div>
   <div class="card"><h2>管道實配與構造檢核（G1 §7）</h2>
     <div class="grid no-print" style="margin-bottom:10px">
-      <label>管道外徑 φ (mm)<input type="number" x-model.number="ductOD" step="5"></label>
+      <label title="排列、淨間距、保護層用外徑；波紋管外徑依廠商型錄（PTI §4.4.5：壁厚由製造商決定）">管道外徑 φ (mm)<input type="number" x-model.number="ductOD" step="1"></label>
+      <label title="面積比與表 8.3 用內徑；表 8.3／PTI Table 4.4 列的都是內徑">管道內徑 (mm)<input type="number" x-model.number="ductID" step="1"></label>
+      <label>套管面積比依據
+        <select x-model="ductAreaRule" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:13px">
+          <option value="tw">台灣 §8.25.4：≥ 2.0 倍</option>
+          <option value="pti_push">PTI 穿入法：≥ 2.25 倍</option>
+          <option value="pti_pull">PTI 拉入法：≥ 2.5 倍</option>
+          <option value="pti_short">PTI ≤30 m 短腱／空間受限：≥ 2.0 倍</option>
+        </select></label>
       <label>腱間垂直淨距 s_v (mm)<input type="number" x-model.number="ductSv" step="5"></label>
       <label>管道清保護層 (mm)<input type="number" x-model.number="ductCover" step="5"></label>
       <label>最大骨材粒徑 (mm)<input type="number" x-model.number="dAgg" step="1"></label>
       <label title="corrugated 鋼管 0.25；PE 管較低">摩擦係數 μ (/rad)<input type="number" x-model.number="fricMu" step="0.01"></label>
       <label title="搖擺（偏差）係數，每公尺">搖擺係數 K (/m)<input type="number" x-model.number="fricK" step="0.0005"></label>
       <label title="摩擦損失取哪個斷面的值供上游檢核使用；預設跨中">摩擦控制斷面 x/L<input type="number" x-model.number="fricX" step="0.05" min="0" max="1"></label>
-      <label title="兩卡敘述不一致，原條文待查；od 為保守側">淨間距規則
+      <label title="§8.25.2 已核原文（第八章 p.178–179）：台灣明文僅 max(40, 1.5×粒徑)；「≥ 孔道外徑」是 AASHTO，非台灣規範要求">淨間距規則
         <select x-model="ductRule" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:13px">
           <option value="tw">台灣 §8.25.2 明文：max(40, 1.5×粒徑)</option>
-          <option value="od">保守：再取 ≥ 孔道外徑</option>
+          <option value="od">AASHTO（非台灣規範）：再取 ≥ 孔道外徑</option>
         </select></label>
+    </div>
+    <div class="grid" style="margin-bottom:8px">
+      <div class="metric"><div class="l">套管面積比 A<sub>duct</sub>／A<sub>ps</sub>（內徑）</div>
+        <div class="v" style="font-size:15px" :class="ductSize.area_ok?'ok':'ng'"
+          x-text="ductSize.ratio.toFixed(2)+' ≥ '+ductSize.ratio_req.toFixed(2)+(ductSize.area_ok?' ✓':' ✗')"></div></div>
+      <div class="metric"><div class="l">表 8.3 最大內徑（<span x-text="strands"></span> 股）</div>
+        <div class="v" style="font-size:15px" :class="ductSize.id_ok?'ok':'ng'"
+          x-text="ductSize.id_max_tw==null?'表列無此股數':(fmt(ductID)+' ≤ '+fmt(ductSize.id_max_tw)+' mm'+(ductSize.id_ok?' ✓':' ✗'))"></div></div>
+      <div class="metric"><div class="l">壁厚＋波紋 (OD−ID)/2</div>
+        <div class="v" style="font-size:15px" :class="ductSize.od_gt_id?'':'ng'" x-text="fmt(ductSize.wall,1)+' mm'"></div></div>
+    </div>
+    <div class="hint" x-show="!ductSize.od_gt_id" x-cloak style="color:#b45309;margin-bottom:8px">
+      ⚠ <b>外徑 ≤ 內徑——等於把內徑當外徑用</b>，下方排列、淨間距、保護層與 3D 檢核都<b>偏不保守</b>。
+      台灣表 8.3 與 PTI Table 4.4 列的都是<b>內徑</b>（19 股 15.2 mm：≤ 100 mm）；波紋管外徑依<b>廠商型錄</b>
+      （PTI §4.4.5：「The required wall thickness of a duct varies with diameter, depth and spacing of corrugations」），
+      規範不提供，請輸入實際採用產品的外徑。
     </div>
     <table>
       <thead><tr><th>檢核項目</th><th>實配</th><th>需求</th><th style="width:44px">判定</th><th class="no-print" style="width:60px"></th></tr></thead>
@@ -2176,7 +2200,7 @@ var PARAM_KEYS=[
   // ② 載重
   'L','lanes','wDW',
   // ③ 預力
-  'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductSv','ductCover','dAgg','ductRule','jackEnd','fricMu','fricK','fricX',
+  'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSv','ductCover','dAgg','ductRule','jackEnd','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
   'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct',
@@ -2493,6 +2517,10 @@ function calc(){
              return (f.friction+f.slip)/fpj; }
       return B.frictionAt(x,q.L,q.segs,this.fricMu,this.fricK,this.jackEnd)
              + B.tendonSlipLoss(x,q.L,q.segs,fpj,this.jackEnd,this.fricMu,this.fricK,this.anchorSlip)/fpj; },
+    get ductSize(){
+      return window.BC.ductSizeCheck(this.strands,this.ductID,this.ductOD,
+        this.strandType==='12.7'?12.7:15.2,this.strandAp,this.ductAreaRule);
+    },
     // ── 施工階段體系轉換的潛變重分配（BC.creepRedistribution）─────
     // ⑦ 的連續梁恆載一律以**連續體系**計算，那只有整座橋一次澆築成形時才對。
     // 逐跨施工（先簡支後連續）時恆載作用在簡支體系，連續後潛變才使內力漂移。
@@ -2802,7 +2830,7 @@ function calc(){
     blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false,
     // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
     stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost',
-    ductOD:100, ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'alt',
+    ductOD:100, ductID:100, ductAreaRule:'tw', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'alt',
     fricMu:0.25, fricK:0.003, fricX:0.5,   // 摩擦：μ、搖擺 K(/m)、控制斷面 x/L   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／骨材粒徑／淨距規則
     strandType:'15.2', customAp:140, customFpu:1860,
     fcGrade:'40', stirrupBar:'D16', stirrupLegs:2, customAv:397.4,

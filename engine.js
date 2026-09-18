@@ -439,6 +439,20 @@
     return { Pult: Pult, margin: Pult / Pu, ok: Pult >= Pu };
   };
 
+  // ── 套管尺寸檢核（同 tendon_profile.duct_size_check）─────────────
+  // 表 8.3 與 PTI Table 4.4 皆為**內徑**；外徑依廠商（PTI §4.4.5）。排列用外徑、面積比用內徑。
+  BC.TW_DUCT_MAX_ID = { '12.7': { 22: 90, 19: 90, 12: 75, 7: 55 }, '15.2': { 22: 110, 19: 100, 12: 85, 7: 70 } };
+  BC.DUCT_AREA_RATIO = { tw: 2.0, pti_push: 2.25, pti_pull: 2.5, pti_short: 2.0 };
+  BC.ductSizeCheck = function (nStrands, ductId, ductOd, strandDia, strandArea, rule) {
+    strandDia = strandDia || 15.2; strandArea = strandArea || 140; rule = rule || 'tw';
+    var Aps = nStrands * strandArea, Ad = Math.PI * ductId * ductId / 4, req = BC.DUCT_AREA_RATIO[rule],
+        tb = BC.TW_DUCT_MAX_ID[strandDia.toFixed(1)], idm = tb && tb[nStrands] != null ? tb[nStrands] : null,
+        od = ductOd == null ? ductId : ductOd;
+    return { A_ps: Aps, A_duct: Ad, ratio: Ad / Aps, ratio_req: req, area_ok: Ad / Aps >= req - 1e-9,
+             id_max_tw: idm, id_ok: idm == null || ductId <= idm + 1e-9,
+             od_gt_id: od > ductId + 1e-9, wall: (od - ductId) / 2 };
+  };
+
   // ── 中間錨碇齒塊（blister）錨碇區（同 bridgecalc.blister）───────
   // 齒塊 ≠ 端部錨碇 ≠ 轉向塊：後方無鋼腱延伸提供回力 → Tie-back 是唯一抵抗
   // 後向分離的機制；介面剪力傳的是 P·cosα（近全腱力）而非轉向塊的 P·sinα。

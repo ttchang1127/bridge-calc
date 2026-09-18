@@ -11,6 +11,8 @@ from .blister import (blister_local_bearing, blister_bursting, blister_tieback,
                       blister_geometry_check, blister_design, BlisterDesign,
                       LocalBearingResult, BurstResult, TiebackResult,
                       SpallResult, InterfaceResult, BlisterGeomResult)
+from .tendon_profile import (duct_size_check, DuctSizeResult, TW_DUCT_MAX_ID,
+                             DUCT_AREA_RATIO)
 from .staging import (redistribution_factor, creep_redistribution,
                       simple_span_dl_moment, span_by_span_dead_load,
                       redistribution_is_linear, prestress_M2_redistribution,
@@ -167,5 +169,6 @@ __all__ = [
     "prestress_M2_redistribution", "timing_sensitivity",
     "simple_span_tendon_segs", "staged_envelope", "StagedEnvRow",
     "RedistFactor", "RedistPoint", "StagingResult", "M2RedistResult", "TimingRow",
+    "duct_size_check", "DuctSizeResult", "TW_DUCT_MAX_ID", "DUCT_AREA_RATIO",
     "allowables",
 ]

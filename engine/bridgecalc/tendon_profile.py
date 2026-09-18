@@ -515,3 +515,50 @@ def segmented_friction_profile(anchors: Sequence[float], curv_segs: Sequence, fp
     mx = max(rs)
     return {"xs": xs, "ratios": rs, "max_ratio": mx, "x_max": xs[rs.index(mx)],
             "avg": sum(rs) / len(rs)}
+
+
+# ── 套管尺寸檢核（台灣 §8.25.4、表 8.3；PTI Manual 6th Table 4.3/4.4）──────
+# 🔴 表 8.3 與 PTI Table 4.4 列的都是**內徑**；外徑／壁厚依廠商波紋形狀與材質而定
+#   （PTI §4.4.5），規範不提供。排列、淨間距、保護層用**外徑**；面積比用**內徑**——
+#   兩者混用會使排列檢核偏不保守（把內徑當外徑）。
+TW_DUCT_MAX_ID = {   # 表 8.3 套管最大內徑參考值 mm：{鋼絞線徑: {股數: 內徑}}
+    12.7: {22: 90.0, 19: 90.0, 12: 75.0, 7: 55.0},
+    15.2: {22: 110.0, 19: 100.0, 12: 85.0, 7: 70.0},
+}
+DUCT_AREA_RATIO = {  # 套管內面積 / 鋼腱淨面積 下限
+    "tw": 2.0,           # 台灣 §8.25.4(1)：多股鋼腱「至少應為鋼腱淨面積之二倍」
+    "pti_push": 2.25,    # PTI Table 4.3：strand-push-through
+    "pti_pull": 2.5,     # PTI Table 4.3：strand-pull-through
+    "pti_short": 2.0,    # PTI：≤ 30 m 短腱或空間受限
+}
+
+
+@dataclass
+class DuctSizeResult:
+    A_ps: float          # 鋼腱淨面積 mm²
+    A_duct: float        # 套管內面積 mm²
+    ratio: float         # A_duct / A_ps
+    ratio_req: float
+    area_ok: bool
+    id_max_tw: float     # 表 8.3 最大內徑（查無則 None）
+    id_ok: bool          # 未超過表 8.3（查無則 True）
+    od_gt_id: bool       # 外徑 > 內徑（否則代表把內徑當外徑用）
+    wall: float          # (OD − ID)/2 mm
+
+
+def duct_size_check(n_strands: int, duct_id: float, duct_od: float = None,
+                    strand_dia: float = 15.2, strand_area: float = 140.0,
+                    rule: str = "tw") -> DuctSizeResult:
+    """套管尺寸檢核：面積比（§8.25.4／PTI 4.3）、表 8.3 最大內徑、外徑是否大於內徑。
+
+    duct_id：內徑 mm（面積比用）；duct_od：外徑 mm（排列用；不給則視為未知）。
+    """
+    Aps = n_strands * strand_area
+    Ad = math.pi * duct_id ** 2 / 4.0
+    req = DUCT_AREA_RATIO[rule]
+    idm = TW_DUCT_MAX_ID.get(strand_dia, {}).get(n_strands)
+    od = duct_id if duct_od is None else duct_od
+    return DuctSizeResult(
+        A_ps=Aps, A_duct=Ad, ratio=Ad / Aps, ratio_req=req, area_ok=Ad / Aps >= req - 1e-9,
+        id_max_tw=idm, id_ok=(idm is None or duct_id <= idm + 1e-9),
+        od_gt_id=od > duct_id + 1e-9, wall=(od - duct_id) / 2.0)

@@ -47,7 +47,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         redistribution_factor, creep_redistribution,
                         span_by_span_dead_load, redistribution_is_linear,
                         prestress_M2_redistribution, timing_sensitivity,
-                        simple_span_tendon_segs, staged_envelope)
+                        simple_span_tendon_segs, staged_envelope, duct_size_check)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -658,6 +658,20 @@ def _staged_envelope_S2():
                  "自重對正彎矩有利須取 γ_min 0.90，若仍乘 1.25 得 −9,394 會誤判無需接頭。"
                  "AASHTO 5.14.1.4.2 束制彎矩有利時不得計入→兩狀態取不利即自動滿足。"}
 
+
+def _duct_size_T83():
+    """套管尺寸：台灣 §8.25.4（面積 ≥ 2 倍）、表 8.3（最大內徑）；PTI Table 4.3（2.25/2.5）。"""
+    a = duct_size_check(19, 100.0)
+    b = duct_size_check(19, 90.0, rule="pti_pull")
+    c = duct_size_check(19, 105.0)
+    return {
+        "ratio_19x152_id100": round(a.ratio, 4), "area_ok_tw": a.area_ok,
+        "id_max_tw_19x152_mm": a.id_max_tw, "od_gt_id_when_od_unknown": a.od_gt_id,
+        "ratio_id90": round(b.ratio, 4), "area_ok_id90_pti_pull": b.area_ok,
+        "id_ok_id105": c.id_ok,
+        "_note": "表 8.3 與 PTI Table 4.4 列的都是**內徑**，外徑依廠商(PTI §4.4.5)；排列用外徑、面積比用內徑。"
+                 "參考橋 φ100 是內徑，排列檢核把它當外徑用→偏不保守，須輸入廠商外徑。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -746,6 +760,7 @@ golden = {
     "blister_B1": _blister_B1(),
     "staging_redist_S1": _staging_redist_S1(),
     "staged_envelope_S2": _staged_envelope_S2(),
+    "duct_size_T83": _duct_size_T83(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

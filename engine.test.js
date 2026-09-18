@@ -435,6 +435,15 @@ function chkEq(name, got, exp) {
   chk('時序 λ(180天合龍)', timSt[2].lam, stg.lam_180d, 1e-4);
   chk('時序 墩頂 M(7天)', timSt[0].M_pier, stg.M_pier_7d_kNm, 0.1);
   chk('時序 墩頂 M(180天)', timSt[2].M_pier, stg.M_pier_180d_kNm, 0.1);
+  // 套管尺寸（§8.25.4／表 8.3／PTI 4.3）
+  var dsg = g.duct_size_T83, dsA = BC.ductSizeCheck(19, 100), dsB = BC.ductSizeCheck(19, 90, null, 15.2, 140, 'pti_pull');
+  chk('套管 面積比 19×15.2 φ100', dsA.ratio, dsg.ratio_19x152_id100, 1e-4);
+  chkEq('套管 §8.25.4 面積≥2倍', dsA.area_ok, dsg.area_ok_tw);
+  chk('套管 表8.3 最大內徑', dsA.id_max_tw, dsg.id_max_tw_19x152_mm, 1e-9);
+  chkEq('套管 未給外徑＝把內徑當外徑', dsA.od_gt_id, dsg.od_gt_id_when_od_unknown);
+  chk('套管 面積比 φ90', dsB.ratio, dsg.ratio_id90, 1e-4);
+  chkEq('套管 φ90 PTI 拉入法 2.5 倍', dsB.area_ok, dsg.area_ok_id90_pti_pull);
+  chkEq('套管 φ105 超表8.3', BC.ductSizeCheck(19, 105).id_ok, dsg.id_ok_id105);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);
   chk('簡支 d_v V_DC', rSS.V_dc, ssd.V_dc, 1e-3);

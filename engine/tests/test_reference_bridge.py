@@ -1331,6 +1331,22 @@ def test_staged_envelope_positive_pier_moment_needs_gamma_min():
     assert bad[ip].Mu_pos < 0                                  # 會把正彎矩需求算不見
 
 
+def test_duct_size_check_area_ratio_and_table83():
+    """§8.25.4 面積比、表 8.3 最大內徑；內外徑分離（表 8.3／PTI 4.4 皆為內徑）。"""
+    from bridgecalc.tendon_profile import duct_size_check
+    import math
+    r = duct_size_check(19, 100.0)                       # 參考橋 19×15.2、φ100 內徑
+    _close(r.ratio, math.pi * 100 ** 2 / 4 / 2660, 1e-9)
+    _close(r.ratio, 2.953, 1e-3)
+    assert r.area_ok and r.id_max_tw == 100.0 and r.id_ok
+    assert not r.od_gt_id                                # 未給外徑＝把內徑當外徑
+    assert not duct_size_check(19, 90.0, rule="pti_pull").area_ok   # 2.39 < 2.5
+    assert duct_size_check(19, 90.0, rule="tw").area_ok             # 2.39 ≥ 2.0
+    assert not duct_size_check(19, 105.0).id_ok                     # 超過表 8.3
+    w = duct_size_check(19, 100.0, 110.0)
+    assert w.od_gt_id and abs(w.wall - 5.0) < 1e-9
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

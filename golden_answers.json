@@ -547,6 +547,16 @@
     "pss_pier_gov_pos": "inf",
     "_note": "逐跨施工使跨中 Mu⁺ 較一次成形大 43%，由 t₁ 控制(剛合龍時自重全為簡支值、活載已作用於連續體系)。簡支時張拉：長期中墩 Mu⁺ +263＞0→需正彎矩接頭(AASHTO 5.14.1.4.9a：max(係數化正束制彎矩,0.6M_cr))；自重對正彎矩有利須取 γ_min 0.90，若仍乘 1.25 得 −9,394 會誤判無需接頭。AASHTO 5.14.1.4.2 束制彎矩有利時不得計入→兩狀態取不利即自動滿足。"
   },
+  "duct_size_T83": {
+    "ratio_19x152_id100": 2.9526,
+    "area_ok_tw": true,
+    "id_max_tw_19x152_mm": 100.0,
+    "od_gt_id_when_od_unknown": false,
+    "ratio_id90": 2.3916,
+    "area_ok_id90_pti_pull": false,
+    "id_ok_id105": false,
+    "_note": "表 8.3 與 PTI Table 4.4 列的都是**內徑**，外徑依廠商(PTI §4.4.5)；排列用外徑、面積比用內徑。參考橋 φ100 是內徑，排列檢核把它當外徑用→偏不保守，須輸入廠商外徑。"
+  },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",
     "Tu_C": 6.91,

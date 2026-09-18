@@ -748,9 +748,10 @@
         pts.forEach(function (p) { if (abs(p.x - x) < abs(best.x - x)) best = p; });
         return best;
       },
+      // λ(t) 單調 → 極值只在 t₁（M_I）與 ∞（M_inf）；M_II 實際從未達到
       envelope: function (x) {
         var p = this.at(x);
-        return [min(p.M_I, min(p.M_II, p.M_inf)), max(p.M_I, max(p.M_II, p.M_inf))];
+        return [min(p.M_I, p.M_inf), max(p.M_I, p.M_inf)];
       } };
   };
   BC.simpleSpanDLMoment = function (spans, w, x) {
@@ -811,6 +812,41 @@
     for (var i = 1; i < xs.length; i++) if (abs(xs[i] - spans[0]) < abs(xs[ip] - spans[0])) ip = i;
     return { factor: f, xs: xs, M2_cont: M2cont, M2_inf: inf,
              M2_pier_cont: M2cont[ip], M2_pier_inf: inf[ip] };
+  };
+  // 簡支時張拉的腱：各跨自己的拋物線（連續腱線形只在合龍後才存在，不可拿來算 M₂,cont）
+  BC.simpleSpanTendonSegs = function (spans, eMid, eEnd) {
+    eEnd = eEnd || 0;
+    var segs = [], acc = 0;
+    spans.forEach(function (L) {
+      segs.push(BC.parabolaSeg(acc, acc + L, acc + L / 2, eMid, -4 * (eMid - eEnd) / (L * L), 'simple'));
+      acc += L;
+    });
+    return segs;
+  };
+  // 體系轉換套進連續梁包絡：t₁（自重＝簡支）與 ∞（重分配）兩狀態取不利；
+  // 恆載對所求彎矩有利時取 γ_min（墩頂正彎矩接頭的關鍵）。AASHTO 5.14.1.4.2 自動滿足。
+  BC.stagedEnvelope = function (spans, rows, wDC, lam, o) {
+    o = o || {};
+    var M2 = o.M2 || null, pss = !!o.psAtSimple,
+        gdc = o.gDC == null ? 1.25 : o.gDC, gdw = o.gDW == null ? 1.50 : o.gDW, gll = o.gLL == null ? 1.75 : o.gLL,
+        gdcm = o.gDCmin == null ? 0.90 : o.gDCmin, gdwm = o.gDWmin == null ? 0.65 : o.gDWmin;
+    var fac = function (v, gmax, gmin, wantPos) { return ((v >= 0) === wantPos ? gmax : gmin) * v; };
+    return rows.map(function (r, i) {
+      var mI = BC.simpleSpanDLMoment(spans, wDC, r.x), mII = r.M_dc, minf = mI + lam * (mII - mI),
+          m2 = M2 ? M2[i] : 0, m2t1 = pss ? 0 : m2, m2inf = pss ? lam * m2 : m2;
+      var st = {};
+      [['t1', mI, m2t1], ['inf', minf, m2inf]].forEach(function (q) {
+        var dc = q[1], mm = q[2];
+        st[q[0]] = [dc + r.M_dw + r.M_ll_pos + mm, dc + r.M_dw + r.M_ll_neg + mm,
+                    fac(dc, gdc, gdcm, true) + fac(r.M_dw, gdw, gdwm, true) + gll * r.M_ll_pos + mm,
+                    fac(dc, gdc, gdcm, false) + fac(r.M_dw, gdw, gdwm, false) + gll * r.M_ll_neg + mm];
+      });
+      return { x: r.x, M_dc_I: mI, M_dc_II: mII, M_dc_inf: minf, M_dw: r.M_dw,
+               M_ll_pos: r.M_ll_pos, M_ll_neg: r.M_ll_neg, M2_t1: m2t1, M2_inf: m2inf,
+               Ms_pos: max(st.t1[0], st.inf[0]), Ms_neg: min(st.t1[1], st.inf[1]),
+               Mu_pos: max(st.t1[2], st.inf[2]), Mu_neg: min(st.t1[3], st.inf[3]),
+               gov_pos: st.t1[2] >= st.inf[2] ? 't1' : 'inf', gov_neg: st.t1[3] <= st.inf[3] ? 't1' : 'inf' };
+    });
   };
   BC.timingSensitivity = function (phiInf, rows, M_I_pier, M_II_pier, chi, method) {
     return rows.map(function (r) {

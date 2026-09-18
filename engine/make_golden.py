@@ -46,7 +46,8 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         loss_profile, parabolic_e, udl_moment, blister_design,
                         redistribution_factor, creep_redistribution,
                         span_by_span_dead_load, redistribution_is_linear,
-                        prestress_M2_redistribution, timing_sensitivity)
+                        prestress_M2_redistribution, timing_sensitivity,
+                        simple_span_tendon_segs, staged_envelope)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -585,8 +586,8 @@ def _staging_redist_S1():
     xs, m1, m2 = span_by_span_dead_load(sp, w, 40)
     r = creep_redistribution(xs, m1, m2, dphi, 0.8, "trost")
     rd = creep_redistribution(xs, m1, m2, dphi, 0.8, "dischinger")
-    tp = cont_tendon_segs(sp, 0, 1109, -600)
-    cp = continuous_prestress(sp, [TendonGroup(P=23725.0, segs=tp.segs)])
+    # 簡支時張拉的腱只能是各跨自己的拋物線（連續腱線形只在合龍後才存在）
+    cp = continuous_prestress(sp, [TendonGroup(P=23725.0, segs=simple_span_tendon_segs(sp, 1109.0))])
     xp = [float(i) for i in range(81)]
     rm = prestress_M2_redistribution(sp, xp, [cp.M2_at(x) for x in xp], dphi)
     tim = timing_sensitivity(2.0, [("7d", 0.25), ("28d", 0.55), ("180d", 1.35)],
@@ -610,6 +611,7 @@ def _staging_redist_S1():
         "M2_pier_inf_kNm": round(rm.M2_pier_inf, 1),
         "pier_total_cont_kNm": round(pier.M_II + rm.M2_pier_cont, 1),
         "pier_total_sbs_kNm": round(pier.M_inf + rm.M2_pier_inf, 1),
+        "M2_pier_closed_form_Pa_kNm": round(23725.0 * 1109.0 / 1000, 1),
         "lam_7d": round(tim[0].lam, 4),
         "lam_180d": round(tim[2].lam, 4),
         "M_pier_7d_kNm": round(tim[0].M_pier, 1),
@@ -617,9 +619,44 @@ def _staging_redist_S1():
         "_note": "M(∞)=M_I+λ(M_II−M_I)。跨中 15,880＝連續值的128%(保留部分簡支正彎矩)、"
                  "墩頂 −17,878＝連續值的72%——逐跨施工把不利處從墩頂搬到跨中，兩頭都要設計。"
                  "🔑 束制彎矩 ΔM=λ(M_II−M_I) 不對應外載故支承間必為線性，這是本項最強的自我驗證。"
-                 "M₂ 在簡支張拉時＝0(靜定)，連續後由潛變生成 λ·M₂,cont；與恆載方向相反部分抵銷，只算一項會錯。"
+                 "M₂ 在簡支張拉時＝0(靜定)，連續後由潛變生成 λ·M₂,cont；🔴M₂,cont 須以各跨簡支拋物線算"
+                 "(力法 26,311＝閉合解 P·a)，2026-09-18 首版誤用連續腱線形得 14,185。長期墩頂合計 +1,075 為**正彎矩**"
+                 "→需正彎矩接頭(AASHTO 5.14.1.4.9a；C5.14.1.4.5 早合龍時梁持續上拱致連續橫隔梁底開裂)。"
                  "🔴 決定 λ 的是**剩餘**潛變 Δφ 而非 φ(∞)：7天合龍 λ=0.729 vs 180天 λ=0.428，"
                  "趕工早合龍反而使墩頂更不利(−18,097 vs −10,613，差71%)。"}
+
+
+def _staged_envelope_S2():
+    """體系轉換套進連續梁包絡（40+40、台灣活載 2 車道、DW 20 kN/m、Δφ 1.7 Trost）。
+
+    兩狀態取不利：t₁（合龍當下，自重＝簡支）與 ∞（長期重分配）；恆載有利時取 γ_min。
+    """
+    sp, w, lam = [40.0, 40.0], 5.065 * 24.5, 1.7 / (1 + 0.8 * 1.7)
+    rows = taiwan_cont_envelope(sp, w, 20.0, 2, 20)
+    xs = [r.x for r in rows]
+    ip = min(range(len(xs)), key=lambda i: abs(xs[i] - 40))
+    cp = continuous_prestress(sp, [TendonGroup(P=23725.0, segs=simple_span_tendon_segs(sp, 1109.0))])
+    M2 = [cp.M2_at(x) for x in xs]
+    a = staged_envelope(sp, rows, w, lam)                              # 連續後張拉（M₂ 另計）
+    b = staged_envelope(sp, rows, w, lam, M2=M2, ps_at_simple=True)    # 簡支時張拉
+    im0 = max(range(len(rows)), key=lambda i: rows[i].Mu_pos)
+    ima = max(range(len(a)), key=lambda i: a[i].Mu_pos)
+    return {
+        "config": "40+40/w124.09/DW20/2車道/Δφ1.7 Trost/γ_DC 1.25|0.90、γ_DW 1.50|0.65",
+        "mono_mid_Mu_pos_kNm": round(rows[im0].Mu_pos, 1),
+        "mono_pier_Mu_neg_kNm": round(rows[ip].Mu_neg, 1),
+        "sbs_mid_Mu_pos_kNm": round(a[ima].Mu_pos, 1),
+        "sbs_mid_x_m": round(a[ima].x, 2),
+        "sbs_mid_gov": a[ima].gov_pos,
+        "sbs_pier_Mu_neg_kNm": round(a[ip].Mu_neg, 1),
+        "sbs_pier_gov_neg": a[ip].gov_neg,
+        "pss_pier_Mu_neg_kNm": round(b[ip].Mu_neg, 1),
+        "pss_pier_Mu_pos_kNm": round(b[ip].Mu_pos, 1),
+        "pss_pier_gov_pos": b[ip].gov_pos,
+        "_note": "逐跨施工使跨中 Mu⁺ 較一次成形大 43%，由 t₁ 控制(剛合龍時自重全為簡支值、活載已作用於連續體系)。"
+                 "簡支時張拉：長期中墩 Mu⁺ +263＞0→需正彎矩接頭(AASHTO 5.14.1.4.9a：max(係數化正束制彎矩,0.6M_cr))；"
+                 "自重對正彎矩有利須取 γ_min 0.90，若仍乘 1.25 得 −9,394 會誤判無需接頭。"
+                 "AASHTO 5.14.1.4.2 束制彎矩有利時不得計入→兩狀態取不利即自動滿足。"}
 
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
@@ -708,6 +745,7 @@ golden = {
     "loss_profile_G1": _loss_profile_G1(),
     "blister_B1": _blister_B1(),
     "staging_redist_S1": _staging_redist_S1(),
+    "staged_envelope_S2": _staged_envelope_S2(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

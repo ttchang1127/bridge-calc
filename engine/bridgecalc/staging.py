@@ -100,13 +100,15 @@ class StagingResult:
         return min(self.pts, key=lambda p: abs(p.x - x))
 
     def envelope(self, x: float):
-        """該點應設計的彎矩範圍 (min, max)——**三種體系都要含進去**。
+        """該點應設計的彎矩範圍 (min, max)＝合龍當下 M_I 與長期 M(∞) 兩狀態。
 
+        M(t) = M_I + λ(t)(M_II − M_I)，λ(t) 自 0 單調增至 λ∞ < 1 → 極值只會出現在
+        兩端點；M_II（一次成形）**實際從未達到**，不必納入。
         逐跨施工的橋既不是簡支也不是連續：跨中保留較多簡支的正彎矩、
         墩頂又拿到大部分連續的負彎矩，兩者都必須設計。
         """
         p = self.at(x)
-        return (min(p.M_I, p.M_II, p.M_inf), max(p.M_I, p.M_II, p.M_inf))
+        return (min(p.M_I, p.M_inf), max(p.M_I, p.M_inf))
 
 
 def creep_redistribution(xs: Sequence[float], M_I: Sequence[float],
@@ -262,3 +264,93 @@ def timing_sensitivity(phi_inf: float, phi_at_continuity: Sequence,
         rows.append(TimingRow(t1_label=label, phi_t1=p1, dphi=d, lam=f.lam,
                               M_pier=M_I_pier + f.lam * (M_II_pier - M_I_pier)))
     return rows
+
+
+# ── 簡支時張拉的腱：各跨自己的拋物線 ────────────────────────────
+def simple_span_tendon_segs(spans: Sequence[float], e_mid: float, e_end: float = 0.0):
+    """先簡支後連續、**簡支時張拉**的腱線形：各跨獨立拋物線（端 e_end、跨中 e_mid）。
+
+    🔴 不可拿連續腱線形（通過墩頂、有負偏心）來算 M₂,cont——那種線形只有在
+      連續**之後**張拉才存在。兩者的 M₂ 差很多（40+40：簡支線形 P·a = 26,311
+      vs 連續線形 14,185），2026-09-18 以前的 H7 §六即犯此錯。
+    """
+    from .continuous import parabola_seg
+    segs, acc = [], 0.0
+    for L in spans:
+        xm = acc + L / 2.0
+        segs.append(parabola_seg(acc, acc + L, xm, e_mid, -4.0 * (e_mid - e_end) / (L * L), "simple"))
+        acc += L
+    return segs
+
+
+# ── 把體系轉換套進連續梁包絡 ────────────────────────────────────
+@dataclass
+class StagedEnvRow:
+    x: float
+    M_dc_I: float       # 合龍當下（施工體系）自重彎矩
+    M_dc_II: float      # 一次成形（連續體系）自重彎矩——僅供對照
+    M_dc_inf: float     # 長期重分配後
+    M_dw: float         # 附加恆載（連續後才施加，不重分配）
+    M_ll_pos: float
+    M_ll_neg: float
+    M2_t1: float        # 合龍當下的預力次彎矩
+    M2_inf: float       # 長期
+    Ms_pos: float       # 兩狀態取不利
+    Ms_neg: float
+    Mu_pos: float
+    Mu_neg: float
+    gov_pos: str        # "t1"／"inf"：正彎矩由哪個狀態控制
+    gov_neg: str
+
+
+def staged_envelope(spans: Sequence[float], rows, w_dc: float, lam: float,
+                    M2=None, ps_at_simple: bool = False,
+                    g_dc: float = 1.25, g_dw: float = 1.50, g_ll: float = 1.75,
+                    g_dc_min: float = 0.90, g_dw_min: float = 0.65):
+    """把逐跨施工的潛變重分配套進連續梁包絡（rows＝taiwan_cont_envelope 的列）。
+
+    檢核兩個真實狀態，逐列取不利：
+      t₁（合龍當下）：自重 = M_I（各跨簡支）
+      ∞ （長期）    ：自重 = M_I + λ(M_II − M_I)
+    M(t) 在兩者之間單調變化，極值只在端點；**M_II 從未真的出現**。
+
+    附加恆載 DW 與活載皆在連續後施加 → 直接作用於連續體系、不重分配。
+
+    預力次彎矩 M2（逐列，連續體系下的 M₂,cont）：
+      ps_at_simple=False（**連續後才張拉**，如全長連續腱／墩頂頂板腱）：兩狀態皆為全量。
+      ps_at_simple=True （**簡支時張拉**）：t₁ 為 0（靜定）、∞ 為 λ·M₂,cont；
+                          此時 M2 必須以 `simple_span_tendon_segs` 的線形算。
+    M₂ 載重因數 1.0（與分析器一致）。
+
+    ⚠ **載重因數依正負號取 max／min**（AASHTO γ_p）：恆載對所檢核的彎矩**有利**時取
+      γ_min（DC 0.90、DW 0.65）。這在墩頂**正彎矩**特別關鍵——自重是負彎矩、對正彎矩
+      有利，若仍乘 1.25 會嚴重低估正彎矩接頭的需求。
+    AASHTO 5.14.1.4.2「束制彎矩有利時不得計入任何組合」由 t₁（無束制）與 ∞（有束制）
+    兩狀態取不利**自動滿足**。
+    """
+    def fac(v, gmax, gmin, want_pos):
+        # 恆載效應與所求彎矩同號＝不利 → γ_max；反號＝有利 → γ_min
+        return (gmax if (v >= 0) == want_pos else gmin) * v
+    out = []
+    for i, r in enumerate(rows):
+        mI = simple_span_dl_moment(spans, w_dc, r.x)
+        mII = r.M_dc
+        minf = mI + lam * (mII - mI)
+        m2 = 0.0 if M2 is None else M2[i]
+        m2_t1, m2_inf = (0.0, lam * m2) if ps_at_simple else (m2, m2)
+        st = {}
+        for tag, dc, mm2 in (("t1", mI, m2_t1), ("inf", minf, m2_inf)):
+            st[tag] = (dc + r.M_dw + r.M_ll_pos + mm2, dc + r.M_dw + r.M_ll_neg + mm2,
+                       fac(dc, g_dc, g_dc_min, True) + fac(r.M_dw, g_dw, g_dw_min, True)
+                       + g_ll * r.M_ll_pos + mm2,
+                       fac(dc, g_dc, g_dc_min, False) + fac(r.M_dw, g_dw, g_dw_min, False)
+                       + g_ll * r.M_ll_neg + mm2)
+        gp = "t1" if st["t1"][2] >= st["inf"][2] else "inf"
+        gn = "t1" if st["t1"][3] <= st["inf"][3] else "inf"
+        out.append(StagedEnvRow(
+            x=r.x, M_dc_I=mI, M_dc_II=mII, M_dc_inf=minf, M_dw=r.M_dw,
+            M_ll_pos=r.M_ll_pos, M_ll_neg=r.M_ll_neg, M2_t1=m2_t1, M2_inf=m2_inf,
+            Ms_pos=max(st["t1"][0], st["inf"][0]), Ms_neg=min(st["t1"][1], st["inf"][1]),
+            Mu_pos=max(st["t1"][2], st["inf"][2]), Mu_neg=min(st["t1"][3], st["inf"][3]),
+            gov_pos=gp, gov_neg=gn))
+    return out

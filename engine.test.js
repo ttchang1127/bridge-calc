@@ -399,8 +399,7 @@ function chkEq(name, got, exp) {
   chk('逐跨 墩頂 M(∞)', pierSt.M_inf, stg.pier_M_inf_kNm, 0.1);
   chk('逐跨 墩頂／連續比', pierSt.M_inf / pierSt.M_II, stg.pier_ratio_to_cont, 1e-3);
   chkEq('🔑 束制彎矩支承間線性', BC.redistributionIsLinear(rSt, spSt), stg.restraint_linear);
-  var tpSt = BC.contTendonSegs(spSt, 0, 1109, -600),
-      cpSt = BC.continuousPrestress(spSt, [{ P: 23725, segs: tpSt.segs }]),
+  var cpSt = BC.continuousPrestress(spSt, [{ P: 23725, segs: BC.simpleSpanTendonSegs(spSt, 1109) }]),
       xpSt = [], iSt;
   for (iSt = 0; iSt <= 80; iSt++) xpSt.push(iSt);
   var m2cSt = xpSt.map(function (x) { return cpSt.M2At(x); });
@@ -409,6 +408,27 @@ function chkEq(name, got, exp) {
   chk('M₂ 墩頂（先簡支後連續）', rmSt.M2_pier_inf, stg.M2_pier_inf_kNm, 0.1);
   chk('墩頂合計 一次成形', pierSt.M_II + rmSt.M2_pier_cont, stg.pier_total_cont_kNm, 0.1);
   chk('墩頂合計 逐跨施工', pierSt.M_inf + rmSt.M2_pier_inf, stg.pier_total_sbs_kNm, 0.1);
+  chk('M₂ 簡支線形＝閉合解 P·a', rmSt.M2_pier_cont, stg.M2_pier_closed_form_Pa_kNm, 0.1);
+  // 體系轉換套進連續梁包絡
+  var s2 = g.staged_envelope_S2, lamS2 = 1.7 / (1 + 0.8 * 1.7),
+      envS2 = BC.taiwanContEnvelope(spSt, wSt, 20, 2, 20, 0.25, 400, null),
+      xsS2 = envS2.map(function (r) { return r.x; }), ipS2 = 0, k2;
+  for (k2 = 1; k2 < xsS2.length; k2++) if (Math.abs(xsS2[k2] - 40) < Math.abs(xsS2[ipS2] - 40)) ipS2 = k2;
+  var M2S2 = xsS2.map(function (x) { return cpSt.M2At(x); }),
+      aS2 = BC.stagedEnvelope(spSt, envS2, wSt, lamS2),
+      bS2 = BC.stagedEnvelope(spSt, envS2, wSt, lamS2, { M2: M2S2, psAtSimple: true });
+  var imo = envS2.reduce(function (a, b) { return b.Mu_pos > a.Mu_pos ? b : a; }),
+      ima = aS2.reduce(function (a, b) { return b.Mu_pos > a.Mu_pos ? b : a; });
+  chk('包絡 一次成形 跨中 Mu⁺', imo.Mu_pos, s2.mono_mid_Mu_pos_kNm, 0.1);
+  chk('包絡 一次成形 中墩 Mu⁻', envS2[ipS2].Mu_neg, s2.mono_pier_Mu_neg_kNm, 0.1);
+  chk('包絡 逐跨 跨中 Mu⁺', ima.Mu_pos, s2.sbs_mid_Mu_pos_kNm, 0.1);
+  chk('包絡 逐跨 跨中位置', ima.x, s2.sbs_mid_x_m, 1e-3);
+  chkEq('包絡 逐跨 跨中控制狀態', ima.gov_pos, s2.sbs_mid_gov);
+  chk('包絡 逐跨 中墩 Mu⁻', aS2[ipS2].Mu_neg, s2.sbs_pier_Mu_neg_kNm, 0.1);
+  chkEq('包絡 逐跨 中墩控制狀態', aS2[ipS2].gov_neg, s2.sbs_pier_gov_neg);
+  chk('包絡 簡支張拉 中墩 Mu⁻', bS2[ipS2].Mu_neg, s2.pss_pier_Mu_neg_kNm, 0.1);
+  chk('包絡 簡支張拉 中墩 Mu⁺（正彎矩接頭）', bS2[ipS2].Mu_pos, s2.pss_pier_Mu_pos_kNm, 0.1);
+  chkEq('包絡 簡支張拉 中墩 Mu⁺ 控制狀態', bS2[ipS2].gov_pos, s2.pss_pier_gov_pos);
   var timSt = BC.timingSensitivity(2.0, [['7d', 0.25], ['28d', 0.55], ['180d', 1.35]],
                                    0, -wSt * 1600 / 8);
   chk('時序 λ(7天合龍)', timSt[0].lam, stg.lam_7d, 1e-4);

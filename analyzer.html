@@ -995,6 +995,13 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
             <td x-text="CB?fmt(CB.mid.MsP):''"></td><td x-text="CB?fmt(CB.mid.MuP):''"></td></tr>
       </tbody>
     </table>
+      <div class="hint" x-show="CB&&CB.stg" x-cloak style="margin-top:6px;color:#92400e">
+        ⚙ 已計入<b>施工階段體系轉換</b>（⑧ H7，λ = <span x-text="CB&&CB.stg?CB.stg.lam.toFixed(3):''"></span>）：
+        各列取 t₁（合龍當下，自重＝簡支）與 ∞（長期重分配）之不利。
+        跨中由 <b x-text="CB&&CB.mid.govP==='t1'?'t₁ 合龍當下':'∞ 長期'"></b>、
+        中墩由 <b x-text="CB&&CB.pier&&CB.pier.govN==='t1'?'t₁ 合龍當下':'∞ 長期'"></b> 控制；表中 M_DL 為控制狀態值。
+        ⚠ 恆載剪力尚未套用（仍為連續體系；端支承在 t₁ 為簡支 wL/2 大於連續 3wL/8，待辦）。
+      </div>
     <div class="cite">包絡由引擎 <code>BC.taiwanContEnvelope</code> 算出（解析三彎矩法、EI 常數；Python <code>taiwan_cont_envelope</code> 同式、golden 驗證）：DL＝均布解析解；LL＝HS20-44 軸組雙向掃描（<b>中後軸距 4.25～9.15 m 逐 0.25 m 掃描</b>，短跨墩頂常由長軸距控制）與車道載重取大 ×(1+I)× 車道數 × 多車道折減（3 車道 0.90、≥4 車道 0.75）。<b>負彎矩車道載重另加一個等集中載重於他跨</b>（§3.9，共 2 個）；<b>衝擊長度</b>正彎矩取該跨、負彎矩取相鄰兩跨平均（§3.13）。每跨取 <b x-text="CB?CB.ne:''"></b> 個斷面。自重取 ① 斷面（<span x-text="R.wsw.toFixed(0)"></span> kN/m）、SDL 與車道數取 ②。</div>
   </div>
 
@@ -1196,19 +1203,32 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
               <td style="font-weight:600" x-text="fmt(staging.at(staging.xPier).M_inf,0)"></td>
               <td x-text="(staging.at(staging.xPier).M_inf/staging.at(staging.xPier).M_II*100).toFixed(0)+' %'"></td></tr>
             <template x-if="staging.m2">
-              <tr><td>中墩頂 預力 M₂</td><td>0（簡支張拉時靜定）</td>
+              <tr><td>中墩頂 預力 M₂<br><small>（簡支時張拉、各跨簡支拋物線）</small></td><td>0（靜定）</td>
                 <td x-text="fmt(staging.m2.M2_pier_cont,0)"></td>
                 <td style="font-weight:600" x-text="fmt(staging.m2.M2_pier_inf,0)"></td>
                 <td x-text="(staging.factor.lam*100).toFixed(0)+' %'"></td></tr>
             </template>
             <template x-if="staging.m2">
-              <tr style="border-top:1.5px solid var(--line)"><td><b>中墩頂 合計</b></td><td>—</td>
+              <tr style="border-top:1.5px solid var(--line)"><td><b>中墩頂 恆載＋M₂</b></td>
+                <td>0</td>
                 <td x-text="fmt(staging.at(staging.xPier).M_II+staging.m2.M2_pier_cont,0)"></td>
-                <td style="font-weight:600" x-text="fmt(staging.at(staging.xPier).M_inf+staging.m2.M2_pier_inf,0)"></td>
+                <td style="font-weight:600" :class="staging.at(staging.xPier).M_inf+staging.m2.M2_pier_inf>0?'ng':''"
+                    x-text="fmt(staging.at(staging.xPier).M_inf+staging.m2.M2_pier_inf,0)"></td>
                 <td>—</td></tr>
             </template>
           </tbody>
         </table>
+        <div class="hint" style="margin-top:6px;color:var(--ng)"
+             x-show="staging.m2&&staging.at(staging.xPier).M_inf+staging.m2.M2_pier_inf>0" x-cloak>
+          🔴 <b>墩頂長期轉為正彎矩</b>（<span x-text="staging.m2?fmt(staging.at(staging.xPier).M_inf+staging.m2.M2_pier_inf,0):''"></span> kN·m，墩頂底緣受拉）：
+          簡支時張拉的預力持續使梁上拱，被連續接頭束制後在墩頂產生<b>正</b>束制彎矩，蓋過恆載重分配的負彎矩。
+          須設<b>正彎矩接頭</b>——AASHTO 5.14.1.4.9a：鋼筋取 max(係數化正束制彎矩, 0.6M<sub>cr</sub>)；
+          C5.14.1.4.5：「especially when continuity is established at an early girder age, continuing upward cambering … may cause cracking at the bottom of the continuity diaphragm」。
+          合龍時梁齡 ≥ 90 天可依 5.14.1.4.4 簡化（正束制彎矩取 0、接頭 φM<sub>n</sub> ≥ 1.2M<sub>cr</sub>）。
+        </div>
+        <div class="cite">⑦ 的連續梁包絡在勾選本區時<b>同步改為兩狀態取不利</b>（t₁ 合龍當下：自重＝簡支；∞：重分配後），
+          恆載有利時取 γ<sub>min</sub>（DC 0.90、DW 0.65）；⑦ 的腱為全長連續腱（合龍後張拉），故該處 M₂ 為全量、不重分配。
+          AASHTO 5.14.1.4.2「束制彎矩有利時不得計入任何組合」由兩狀態取不利自動滿足。</div>
         <div class="hint" style="margin-top:6px;color:var(--ng)"
              x-show="Math.abs(staging.at(staging.xMid).M_inf)>Math.abs(staging.at(staging.xMid).M_II)" x-cloak>
           ⚠ <b>逐跨施工把不利處從墩頂搬到跨中</b>：跨中 M(∞) 是連續值的
@@ -2029,7 +2049,7 @@ function apply3D(o){
 // §3.9 負彎矩車道另加一個等集中載重於他跨；§3.13 衝擊長度：正彎矩＝該跨、負彎矩＝相鄰兩跨平均。
 // ⚠ 2026-09-17 以前用 influence-lines.js 數值剛度法：衝擊以全長計（兩跨 80 m → 12.9%，應 19.5%）、
 //   負彎矩車道只放 1 個集中載重、未計多車道折減——三者皆使活載偏低，已修。
-function contEnvelope(spans,wDC,wDW,lanes,pt,stiff){
+function contEnvelope(spans,wDC,wDW,lanes,pt,stiff,stg){
   var tot=spans.reduce(function(a,b){return a+b},0);
   var ne=Math.max(12,Math.round(100/spans.length));
   var env=window.BC.taiwanContEnvelope(spans,wDC,wDW,lanes,ne,0.25,400,stiff||null);
@@ -2051,6 +2071,17 @@ function contEnvelope(spans,wDC,wDW,lanes,pt,stiff){
       r.Ptop=q.Ptop; r.eTop=q.eTop; r.Ptot=q.Ptot; r.eEffTot=q.eEffTot;
       r.MsP+=q.M2; r.MsN+=q.M2; r.MuP+=q.M2; r.MuN+=q.M2; });
     C.m2=m2;
+  }
+  // 逐跨施工（先簡支後連續）：自重作用於簡支體系，連續後潛變重分配 → t₁／∞ 兩狀態取不利。
+  // ⑦ 的腱是全長連續腱，只能在合龍後張拉 → M₂ 為全量、不重分配（psAtSimple=false）；
+  // 簡支時張拉的情形（M₂＝λ·M₂,cont、墩頂可能轉正彎矩）見 ⑧ H7。
+  if(stg && stg.lam!=null){
+    var st=window.BC.stagedEnvelope(spans,env,wDC,stg.lam,{M2:rows.map(function(r){return r.M2||0})});
+    rows.forEach(function(r,t){ var q=st[t];
+      r.MdcI=q.M_dc_I; r.MdcII=q.M_dc_II; r.MdcInf=q.M_dc_inf; r.govP=q.gov_pos; r.govN=q.gov_neg;
+      r.Mdl=(q.gov_pos==='t1'?q.M_dc_I:q.M_dc_inf)+q.M_dw;
+      r.MsP=q.Ms_pos; r.MsN=q.Ms_neg; r.MuP=q.Mu_pos; r.MuN=q.Mu_neg; });
+    C.stg=stg;
   }
   C.pier=pierIdx.map(function(t){return rows[t]}).reduce(function(a,b){return (a&&a.MuN<b.MuN)?a:b}, null);
   C.mid=rows.reduce(function(a,b){return a.MuP>b.MuP?a:b});
@@ -2227,7 +2258,11 @@ function calc(){
                this.ductRule,this.ductOD,this.ntd,this.nWeb,this.webT,this.anchorSlip,(this.anchorList||[]).join('+'),
                topG?[this.contTopPeAuto,this.contTopPe,this.anchorSlip,this.contTopN,this.strands,this.contTopLen,this.contTopEAnc,this.contTopEPier].join(','):'-'].join('|');
       var hn=this.contHaunch; key+='|'+(hn?[this.contHf,this.contHaunchLen,this.topW,this.topT,this.botW,this.botT,this.h].join(','):'-');
-      if(cbCache.key!==key){ cbCache.key=key; cbCache.val=contEnvelope(sp,wDC,this.wDW,this.lanes,pt,hn); }
+      var stgL=null;
+      if(this.stgOn){ var dph=Math.max(0,this.stgPhiInf-this.stgPhiT1);
+        stgL={lam:window.BC.redistributionFactor(dph,this.stgChi,this.stgMethod).lam, dphi:dph}; }
+      key+='|STG:'+(stgL?[stgL.lam.toFixed(6)].join(','):'-');
+      if(cbCache.key!==key){ cbCache.key=key; cbCache.val=contEnvelope(sp,wDC,this.wDW,this.lanes,pt,hn,stgL); }
       return cbCache.val;
     },
     // 連續梁彎矩包絡圖（正彎矩畫在受拉側＝軸下；負彎矩在軸上）
@@ -2471,9 +2506,9 @@ function calc(){
       r.spans=sp; r.w=w; r.dphi=dphi;
       // 預力 M₂：簡支張拉時 M₂≡0（靜定），連續後由潛變生成 λ·M₂,cont
       try{
-        var tp=B.contTendonSegs(sp,this.contEEnd,this.contEMid,this.contEPier,
-                                {kPier:this.contKPier,rEnd:this.contREnd});
-        var cp=B.continuousPrestress(sp,[{P:this.R.loss.Pe/1e3, segs:tp.segs}]);
+        // 簡支時張拉的腱只能是各跨自己的拋物線（端 0、跨中 e_mid）——⑦ 的連續腱線形
+        // 只有合龍後才存在，拿來算會嚴重低估 M₂（40+40：14,185 vs 閉合解 P·a 26,311）
+        var cp=B.continuousPrestress(sp,[{P:this.R.loss.Pe/1e3, segs:B.simpleSpanTendonSegs(sp,this.contEMid)}]);
         var xp=[], tot=sp.reduce(function(a,b){return a+b},0);
         for(var i=0;i<=80;i++) xp.push(tot*i/80);
         r.m2=B.prestressM2Redistribution(sp,xp,xp.map(function(x){return cp.M2At(x)}),

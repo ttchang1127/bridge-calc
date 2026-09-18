@@ -1281,17 +1281,54 @@ def test_staging_prestress_M2_generated_by_creep():
     from bridgecalc.staging import prestress_M2_redistribution
     from bridgecalc.continuous import (cont_tendon_segs, TendonGroup,
                                        continuous_prestress)
-    tp = cont_tendon_segs(_SPANS, 0, 1109, -600)
-    cp = continuous_prestress(_SPANS, [TendonGroup(P=23725.0, segs=tp.segs)])  # P 為 kN
+    from bridgecalc.staging import simple_span_tendon_segs
+    # 簡支時張拉 → 各跨自己的拋物線；M₂,cont 應等於閉合解 P·a
+    cp = continuous_prestress(_SPANS, [TendonGroup(P=23725.0,
+                                                   segs=simple_span_tendon_segs(_SPANS, 1109.0))])  # P 為 kN
     xs = [float(i) for i in range(81)]
     M2c = [cp.M2_at(x) for x in xs]
     r = prestress_M2_redistribution(_SPANS, xs, M2c, 1.7)
+    _close(r.M2_pier_cont, 23725.0 * 1109.0 / 1000, 1e-6)   # 力法＝閉合解 P·a
     _close(r.M2_pier_inf, r.factor.lam * r.M2_pier_cont, 1e-9)
     assert 0 < r.M2_pier_inf < r.M2_pier_cont     # 介於「靜定 0」與「全連續」之間
     # Δφ=0（無潛變）時 M₂ 永遠是 0——簡支張拉的靜定性被保留
     r0 = prestress_M2_redistribution(_SPANS, xs, M2c, 0.0)
     _close(r0.M2_pier_inf, 0.0, 1e-12)
 
+
+
+def test_staged_envelope_degenerates_and_governs():
+    """體系轉換套進包絡：λ=0 兩狀態重合；λ=1 長期自重＝連續解；結果不會比一次成形寬鬆。"""
+    from bridgecalc.staging import staged_envelope
+    from bridgecalc.influence_cont import taiwan_cont_envelope
+    rows = taiwan_cont_envelope(_SPANS, _W_SBS, 20.0, 2, 20)
+    for s0 in staged_envelope(_SPANS, rows, _W_SBS, 0.0):
+        _close(s0.M_dc_inf, s0.M_dc_I, 1e-9)
+    for r, s1 in zip(rows, staged_envelope(_SPANS, rows, _W_SBS, 1.0)):
+        _close(s1.M_dc_inf, r.M_dc, 1e-6)
+    lam = 1.7 / (1 + 0.8 * 1.7)
+    st = staged_envelope(_SPANS, rows, _W_SBS, lam)
+    im = max(range(len(st)), key=lambda i: st[i].Mu_pos)
+    assert st[im].gov_pos == "t1"                         # 跨中由剛合龍狀態控制
+    assert st[im].Mu_pos > max(r.Mu_pos for r in rows)    # 比一次成形不利
+
+
+def test_staged_envelope_positive_pier_moment_needs_gamma_min():
+    """簡支時張拉 → 長期墩頂出現正彎矩；自重對正彎矩有利須取 γ_min，否則誤判無需正彎矩接頭。"""
+    from bridgecalc.staging import staged_envelope, simple_span_tendon_segs
+    from bridgecalc.influence_cont import taiwan_cont_envelope
+    from bridgecalc.continuous import TendonGroup, continuous_prestress
+    rows = taiwan_cont_envelope(_SPANS, _W_SBS, 20.0, 2, 20)
+    xs = [r.x for r in rows]
+    ip = min(range(len(xs)), key=lambda i: abs(xs[i] - 40))
+    cp = continuous_prestress(_SPANS, [TendonGroup(P=23725.0, segs=simple_span_tendon_segs(_SPANS, 1109.0))])
+    M2 = [cp.M2_at(x) for x in xs]
+    lam = 1.7 / (1 + 0.8 * 1.7)
+    ok = staged_envelope(_SPANS, rows, _W_SBS, lam, M2=M2, ps_at_simple=True)
+    assert ok[ip].Mu_pos > 0 and ok[ip].gov_pos == "inf"
+    bad = staged_envelope(_SPANS, rows, _W_SBS, lam, M2=M2, ps_at_simple=True,
+                          g_dc_min=1.25, g_dw_min=1.50)       # 一律用 γ_max 的錯誤做法
+    assert bad[ip].Mu_pos < 0                                  # 會把正彎矩需求算不見
 
 
 if __name__ == "__main__":

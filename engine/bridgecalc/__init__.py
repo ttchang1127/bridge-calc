@@ -14,7 +14,8 @@ from .blister import (blister_local_bearing, blister_bursting, blister_tieback,
 from .staging import (redistribution_factor, creep_redistribution,
                       simple_span_dl_moment, span_by_span_dead_load,
                       redistribution_is_linear, prestress_M2_redistribution,
-                      timing_sensitivity, RedistFactor, RedistPoint,
+                      timing_sensitivity, simple_span_tendon_segs, staged_envelope,
+                      StagedEnvRow, RedistFactor, RedistPoint,
                       StagingResult, M2RedistResult, TimingRow)
 from .prestress import (compute_losses, LossResult, loss_profile,
                         LossProfileResult, LossPoint, parabolic_e, udl_moment)
@@ -164,6 +165,7 @@ __all__ = [
     "redistribution_factor", "creep_redistribution", "simple_span_dl_moment",
     "span_by_span_dead_load", "redistribution_is_linear",
     "prestress_M2_redistribution", "timing_sensitivity",
+    "simple_span_tendon_segs", "staged_envelope", "StagedEnvRow",
     "RedistFactor", "RedistPoint", "StagingResult", "M2RedistResult", "TimingRow",
     "allowables",
 ]

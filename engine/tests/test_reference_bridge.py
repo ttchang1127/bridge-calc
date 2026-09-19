@@ -1464,6 +1464,48 @@ def test_duct_layout_bundled_825_3():
     assert not any(v.fits for v in co.values())
 
 
+def test_duct_end_zone_825_3():
+    """§8.25.3 端部 90 cm：回到 §8.25.2 間距；捆紮→展開逐管移位；排列可行性對偏心單調。"""
+    from bridgecalc import end_zone_duct_check as ez, parabolic_e, duct_layout, duct_positions
+    f = parabolic_e(1109, 0, 40)
+    es = [f(x / 1000) for x in range(0, 901, 100)]
+    assert abs(max(es) - 4 * 1109 * 0.9 * 39.1 / 1600) < 1e-9          # 97.6 mm
+    r = ez(8, 2, es, 1329, 2100, web_t=300, bundle="H")
+    assert r.fits and r.lay_hi.n_col == 1 and r.lay_hi.n_row == 4        # 端部不捆：單列 4 層
+    # 手算：展開 y = −210,−70,70,210；水平捆 y = −70,−70,70,70、x = ∓50 → 1 號 (+50,−140)
+    assert [(i, round(dx, 6), round(dy, 6)) for i, dx, dy in r.moves] == \
+        [(1, 50.0, -140.0), (2, -50.0, 0.0), (3, 50.0, 0.0), (4, -50.0, 140.0)]
+    ys = [m[2] for m in r.moves]                                         # 垂直次序不交叉
+    pb = [y for _, y in duct_positions(duct_layout(8, 2, 1329 - es[-1], web_t=300))]
+    assert pb == sorted(pb)
+    r2 = ez(8, 2, es, 1329, 2100, web_t=350, bundle="V")
+    assert r2.fits and r2.dx_max == 0.0 and abs(r2.dy_max - 20.0) < 1e-9  # 垂直捆只收層距 40→0
+    # 移位後形心不變（兩排列都鎖回同一 CGS）
+    assert abs(sum(ys)) < 1e-9
+    # 端部偏心過大 → 以 §8.25.2 間距排不下
+    bad = ez(8, 2, [1000, 1050], 1329, 2100, web_t=300)
+    assert not bad.fits and bad.lay_hi.cover_bot < 40
+    # 端部腹板加厚可救回
+    assert ez(8, 2, [1000, 1050], 1329, 2100, web_t=300, web_t_end=350).fits
+    # 不捆紮時無移位
+    assert ez(8, 2, es, 1329, 2100).moves == []
+
+
+def test_web_duct_A2():
+    """腹板厚與管徑（AASHTO 參考）：0.4 比、最小腹板、b_v 扣除；台灣 §8.9.3 漸變 12 倍。"""
+    from bridgecalc import web_duct_check as w, AASHTO_WEB_MIN
+    a = w(350, 100, 2, 2100)
+    assert a.ratio_ok and a.web_min == 300 and a.web_min_ok and not a.deep_note
+    assert a.bv_grouted == 350 - 0.25 * 200 and a.bv_ungrouted == 350 - 0.5 * 200
+    assert w(250, 100, 1).ratio_ok and not w(249, 100, 1).ratio_ok       # 100/250 恰 0.4 ✓，再薄即 ✗
+    assert w(350, 100, 2, vertical_ducts=True).web_min == AASHTO_WEB_MIN["both"] == 380
+    assert not w(350, 100, 2, vertical_ducts=True).web_min_ok
+    assert w(350, 100, 2, h=2500).deep_note
+    b = w(300, 100, 2, bundle="H", dt_change=-250)
+    assert b.bundle_w == 200 and abs(b.bundle_ratio - 2 / 3) < 1e-12 and b.taper_min == 3000
+    assert w(350, 100, 2).bundle_w is None and w(350, 100, 2).taper_min is None
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

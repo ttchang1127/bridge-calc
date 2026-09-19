@@ -389,6 +389,8 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <label title="最外側管兩側各再預留的餘裕（施工誤差、箍筋位置）。預設 0 時最外側管保護層恰等於下限">側向額外餘裕 (mm)<input type="number" x-model.number="ductSideMargin" step="5" min="0"></label>
       <label title="§8.25.3：彎折或撓曲時套管最多可三束捆紮；距構材端部 90 cm 內應維持 §8.25.2 間距" style="display:flex;gap:6px;align-items:center">
         <input type="checkbox" x-model="ductBundle"> 允許 §8.25.3 捆紮（每束 ≤ 3）</label>
+      <label title="AASHTO C5.14.1.5.1c：腹板同時有縱向與豎向預力管時，建議最小腹板厚 380 mm（僅一向 300）" style="display:flex;gap:6px;align-items:center">
+        <input type="checkbox" x-model="webVertPT"> 腹板另有豎向預力管</label>
       <label>套管面積比依據
         <select x-model="ductAreaRule" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:13px">
           <option value="tw">台灣 §8.25.4：≥ 2.0 倍</option>
@@ -442,7 +444,9 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       §8.25.3 捆紮：本斷面採 <b x-text="{none:'不捆紮（捆紮無助益）',H:'水平捆（同層並排接觸）',V:'垂直捆（上下疊放接觸）'}[DL.bundle||'none']"></b>，
       e<sub>max</sub> = <b x-text="fmt(DL.eMax,0)"></b> mm
       <span x-show="DL.cands" x-text="DL.cands?'（不捆 '+fmt(DL.cands.none.eMax,0)+(DL.cands.none.fits?'':' ✗')+(DL.cands.H?'、水平捆 '+fmt(DL.cands.H.eMax,0)+(DL.cands.H.fits?'':' ✗'):'')+(DL.cands.V?'、垂直捆 '+fmt(DL.cands.V.eMax,0)+(DL.cands.V.fits?'':' ✗'):'')+'）':''"></span>。
-      <b style="color:var(--ng)">⚠ 距構材端部 90 cm 內須維持 §8.25.2 間距</b>——錨碇區須另行展開（3D 與縱剖面沿全長沿用本斷面排列，端部僅示意）。
+      <b>距構材端部 90 cm 內須回到 §8.25.2 間距</b>（下表「端部 90 cm 排列」）：過渡段單管最大移位
+      橫向 <b x-text="fmt(endZone.dxMax,0)"></b> mm、垂直 <b x-text="fmt(endZone.dyMax,0)"></b> mm，
+      須在捆紮段與端部 90 cm 之間完成；移位造成的偏折力（管道側向拉脫）另檢。3D 與縱剖面沿全長沿用本斷面排列，端部僅示意。
       捆紮只處理幾何可行性；腹板最小厚度、剪力等其他限制仍須另檢。
     </div>
     <div class="hint" x-show="!ductSize.od_gt_id" x-cloak style="color:#b45309;margin-bottom:8px">
@@ -457,6 +461,22 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <tr><td>腹板內排列</td>
             <td x-text="DL.nCol+' 列 × '+DL.nRow+' 層'"></td>
             <td x-text="ntd+' 組 / '+nWeb+' 腹板 → 每腹板 '+DL.perWeb.join('、')+' 腱'"></td>
+            <td style="text-align:center" class="mut">—</td><td class="no-print"></td></tr>
+        <tr title="§8.25.3：捆紮只限彎折或撓曲段，距構材端部 90 cm 內應維持 §8.25.2 之間距"><td>端部 90 cm 排列（§8.25.2 間距、不捆紮）</td>
+            <td x-text="endZone.layHi.nCol+' 列 × '+endZone.layHi.nRow+' 層・e '+fmt(endZone.eLo,0)+'～'+fmt(endZone.eHi,0)+' mm（'+endZone.side+'）'"></td>
+            <td x-text="'底保護層 '+fmt(Math.min(endZone.layLo.coverBot,endZone.layHi.coverBot),0)+' ≥ '+fmt(ductCover)+'、頂側在斷面內'"></td>
+            <td style="text-align:center" :class="endZone.fits?'ok':'ng'" x-text="endZone.fits?'✓':'✗'"></td><td class="no-print"></td></tr>
+        <tr title="台灣規範未規定腹板最小厚度（§8.9.3 僅規定漸變長度 ≥ 12 倍厚度差）；此列為 AASHTO C5.14.1.5.1c 解說之澆置建議值"><td>腹板最小厚度 <span class="mut">（AASHTO 參考；台灣未規定）</span></td>
+            <td x-text="fmt(webT)+' mm'"></td>
+            <td x-text="'≥ '+fmt(webDuct.webMin)+' mm（'+(webVertPT?'縱向＋豎向管':'僅縱向管')+'）'+(webDuct.deepNote?'；梁深 > 2,400 應再加大':'')"></td>
+            <td style="text-align:center" :class="webDuct.webMinOk?'ok':'ng'" x-text="webDuct.webMinOk?'✓':'✗'"></td><td class="no-print"></td></tr>
+        <tr title="台灣規範未規定管徑與腹板厚比；AASHTO 5.4.6.2：size of ducts ≤ 0.4 × least gross concrete thickness at the duct"><td>管徑／腹板厚 <span class="mut">（AASHTO 5.4.6.2 參考；台灣未規定）</span></td>
+            <td x-text="fmt(ductOD)+' / '+fmt(webT)+' = '+webDuct.ratio.toFixed(3)+(webDuct.bundleW!=null?'；水平捆束寬 '+fmt(webDuct.bundleW)+' → '+webDuct.bundleRatio.toFixed(2)+'（條文未定義捆紮，僅列出）':'')"></td>
+            <td>≤ 0.40</td>
+            <td style="text-align:center" :class="webDuct.ratioOk?'ok':'ng'" x-text="webDuct.ratioOk?'✓':'✗'"></td><td class="no-print"></td></tr>
+        <tr title="台灣 §8.20 剪力之腹板寬 b′ 直接代入、不扣套管；AASHTO 5.8.2.9 同高程扣管徑 ¼（灌漿）／½（未灌漿）。⑤ 仍依台灣規範"><td>剪力有效腹板寬 b<sub>v</sub> <span class="mut">（AASHTO 5.8.2.9 參考；台灣 §8.20 不扣）</span></td>
+            <td x-text="'灌漿 '+fmt(webDuct.bvGrouted)+'・未灌漿 '+fmt(webDuct.bvUngrouted)+' mm／腹板'"></td>
+            <td x-text="fmt(webT)+' − '+(webDuct.nLevel)+'×'+fmt(ductOD)+'×(¼／½)'"></td>
             <td style="text-align:center" class="mut">—</td><td class="no-print"></td></tr>
         <tr><td>水平淨距 s<sub>h</sub>（腹板可用寬 <span x-text="fmt(DL.webAvail)"></span> mm）</td>
             <td x-text="DL.nCol>1 ? fmt(DL.sH)+' mm' : '單列（餘裕 '+fmt(DL.sH)+' mm）'"></td>
@@ -2272,7 +2292,7 @@ var PARAM_KEYS=[
   // ② 載重
   'L','lanes','wDW',
   // ③ 預力
-  'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSideMargin','ductBundle','envType','envLife','envWC','envZone','ductSv','ductCover','dAgg','ductRule','jackEnd','jackDefV2','fricMu','fricK','fricX',
+  'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSideMargin','ductBundle','webVertPT','envType','envLife','envWC','envZone','ductSv','ductCover','dAgg','ductRule','jackEnd','jackDefV2','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
   'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct',
@@ -2523,6 +2543,26 @@ function calc(){
     get DL(){ var yb=this.R.sec.yb;
       return this.layDL(this.ntd,this.nWeb,yb-this.eCtrl,
         {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h,rule:this.ductRule,sideMargin:this.ductSideMargin}); },
+    // 腹板厚與管徑：台灣規範未規定（§8.9.3 僅漸變 12 倍）→ 列 AASHTO 參考值，不改 ⑤ 台灣剪力計算
+    get webDuct(){ var L=this.DL, nl=Math.max.apply(null,L.rows.map(function(r){return r.count}));
+      return window.BC.webDuctCheck(this.webT,this.ductOD,nl,this.h,this.webVertPT,this.ductBundle?(L.bundle||'none'):'none'); },
+    // §8.25.3 端部 90 cm：距構材端部 90 cm 內須維持 §8.25.2 間距（不捆紮）；兩端各取 x = 0～0.9 m 取樣，
+    //   邊界放最後一個（引擎以之比較捆紮→展開的逐管移位）。取不利端：排不下者優先，其次移位大者。
+    get endZone(){
+      var B=window.BC, yb=this.R.sec.yb, f, T, ends=[];
+      if(this.contLine){
+        var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
+        if(sp.length>=2){ var tp=contTendonSegs(sp,this.contEEnd,this.contEMid,this.contEPier,{kPier:this.contKPier,rEnd:this.contREnd});
+          f=tp.eAt; T=tp.total; }
+      }
+      if(!f){ f=B.parabolicE(this.e,0,this.L); T=this.L; }
+      var a=[], b=[]; for(var i=0;i<=9;i++){ a.push(f(i/10)); b.push(f(T-i/10)); }
+      var o={od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,rule:this.ductRule,
+             sideMargin:this.ductSideMargin,bundle:this.ductBundle?(this.DL.bundle||'none'):'none'};
+      [a,b].forEach(function(es,k){ var r=B.endZoneDuctCheck(this.ntd,this.nWeb,es,yb,this.h,o); r.side=k?'終點端':'起點端'; ends.push(r); },this);
+      ends.sort(function(p,q){ return (p.fits-q.fits)||(Math.hypot(q.dxMax,q.dyMax)-Math.hypot(p.dxMax,p.dyMax)); });
+      return ends[0];
+    },
     // 鋼腱一覽：編號與位置同 ductLayout 的填充順序；張拉端依 jackEnd 配置（C4 §六）
     get tendonList(){
       var lay=this.DL, jk=this.jackEnd, out=[], n=Math.max(1,this.nWeb|0);
@@ -2951,7 +2991,7 @@ function calc(){
     blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false,
     // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
     stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost', stgAge:28, stgFcD:35, stgPhiSrc:'aashto', stgT0:7, stgH:75, stgFci:32,   // stgPhiSrc：φ 由 AASHTO 5.4.2.3.2 算（台灣規範無 φ(t) 模式）或手填   // stgAge＝合龍時梁齡(天)；stgFcD＝連續橫隔梁 f'c
-    ductOD:100, ductID:100, ductAreaRule:'tw', ductSideMargin:0, ductBundle:false, envType:'general', envLife:50, envWC:0.45, envZone:'中度', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams
+    ductOD:100, ductID:100, ductAreaRule:'tw', ductSideMargin:0, ductBundle:false, webVertPT:false, envType:'general', envLife:50, envWC:0.45, envZone:'中度', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams
     fricMu:0.25, fricK:0.003, fricX:0.5,   // 摩擦：μ、搖擺 K(/m)、控制斷面 x/L   // 管道實配（G1 §7）：外徑／垂直淨距／清保護層／骨材粒徑／淨距規則
     strandType:'15.2', customAp:140, customFpu:1860,
     fcGrade:'40', stirrupBar:'D16', stirrupLegs:2, customAv:397.4,

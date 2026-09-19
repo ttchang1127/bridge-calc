@@ -503,6 +503,34 @@ function chkEq(name, got, exp) {
   chkEq('捆紮 300 不捆 可行', db300.cands.none.fits, dbg.w300_none_fits);
   chkEq('捆紮 300 最佳型式', db300.best.bundle, dbg.w300_best);
   chk('捆紮 300 最佳 e_max', db300.best.eMax, dbg.w300_best_e_max, 0.1);
+  // §8.25.3 端部 90 cm 須回到 §8.25.2 間距
+  var gez = g.duct_end_zone_825_3, fez = BC.parabolicE(1109, 0, 40), esz = [];
+  for (var xz = 0; xz <= 900; xz += 100) esz.push(fez(xz / 1000));
+  var ez350 = BC.endZoneDuctCheck(8, 2, esz, 1329, 2100, { webT: 350, bundle: 'V' }),
+      ez300 = BC.endZoneDuctCheck(8, 2, esz, 1329, 2100, { webT: 300, bundle: 'H' });
+  chk('端部 e_hi', ez350.eHi, gez.e_hi_mm, 0.1);
+  chkEq('端部 350 可行', ez350.fits, gez.w350_fits);
+  chkEq('端部 350 排列', ez350.layHi.nCol + 'x' + ez350.layHi.nRow, gez.w350_layout);
+  chk('端部 350 橫移', ez350.dxMax, gez.w350_dx_max, 1e-6);
+  chk('端部 350 豎移', ez350.dyMax, gez.w350_dy_max, 1e-6);
+  chkEq('端部 300 可行', ez300.fits, gez.w300_fits);
+  chkEq('端部 300 排列', ez300.layHi.nCol + 'x' + ez300.layHi.nRow, gez.w300_layout);
+  chk('端部 300 橫移', ez300.dxMax, gez.w300_dx_max, 1e-6);
+  chk('端部 300 豎移', ez300.dyMax, gez.w300_dy_max, 1e-6);
+  chkEq('端部 偏心過大排不下', BC.endZoneDuctCheck(8, 2, [1000, 1050], 1329, 2100, { webT: 300 }).fits, false);
+  chkEq('端部 腹板加厚救回', BC.endZoneDuctCheck(8, 2, [1000, 1050], 1329, 2100, { webT: 300, webTEnd: 350 }).fits, true);
+  // 腹板厚與管徑（AASHTO 參考；台灣未規定）
+  var gwd = g.web_duct_A2, wd1 = BC.webDuctCheck(350, 100, 2, 2100), wd2 = BC.webDuctCheck(300, 100, 2, 2100, false, 'H', 250);
+  chk('腹板 350 管徑比', wd1.ratio, gwd.w350_ratio, 1e-4);
+  chkEq('腹板 350 管徑比 OK', wd1.ratioOk, gwd.w350_ratio_ok);
+  chk('腹板 350 最小厚', wd1.webMin, gwd.w350_web_min, 1e-9);
+  chk('腹板 350 bv 灌漿', wd1.bvGrouted, gwd.w350_bv_grouted, 1e-9);
+  chk('腹板 350 bv 未灌漿', wd1.bvUngrouted, gwd.w350_bv_ungrouted, 1e-9);
+  chk('腹板 300H 管徑比', wd2.ratio, gwd.w300H_ratio, 1e-4);
+  chk('腹板 300H 束寬比', wd2.bundleRatio, gwd.w300H_bundle_ratio, 1e-4);
+  chkEq('腹板 300H 最小厚 OK', wd2.webMinOk, gwd.w300H_web_min_ok);
+  chk('腹板 300H bv 灌漿', wd2.bvGrouted, gwd.w300H_bv_grouted, 1e-9);
+  chk('腹板 漸變 12 倍', wd2.taperMin, gwd.taper_250_mm, 1e-9);
   chkEq('捆紮 300 最佳 可行', db300.best.fits, dbg.w300_best_fits);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);

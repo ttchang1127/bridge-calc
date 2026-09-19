@@ -11,7 +11,7 @@ from .blister import (blister_local_bearing, blister_bursting, blister_tieback,
                       blister_geometry_check, blister_design, BlisterDesign,
                       LocalBearingResult, BurstResult, TiebackResult,
                       SpallResult, InterfaceResult, BlisterGeomResult)
-from .tendon_profile import (duct_layout_bundled, duct_size_check, DuctSizeResult, TW_DUCT_MAX_ID,
+from .tendon_profile import (duct_layout_bundled, end_zone_duct_check, web_duct_check, WebDuctResult, AASHTO_WEB_MIN, AASHTO_DUCT_TO_THICKNESS, AASHTO_BV_DEDUCT, EndZoneDuctResult, duct_positions, duct_size_check, DuctSizeResult, TW_DUCT_MAX_ID,
                              DUCT_AREA_RATIO)
 from .durability import (durability_cover, CoverReq, TW_COVER_GENERAL, TW_COVER_SALT,
                          TW_SALT_MAX_WC, TW_SALT_MIN_FC)
@@ -179,7 +179,7 @@ __all__ = [
     "aashto_creep", "staging_phi", "box_volume_surface", "timing_sensitivity_aashto",
     "CreepAASHTO", "StagingPhi", "TimingRowAASHTO",
     "RedistFactor", "RedistPoint", "StagingResult", "M2RedistResult", "TimingRow",
-    "duct_layout_bundled", "duct_size_check", "DuctSizeResult", "TW_DUCT_MAX_ID", "DUCT_AREA_RATIO",
+    "duct_layout_bundled", "end_zone_duct_check", "web_duct_check", "WebDuctResult", "AASHTO_WEB_MIN", "AASHTO_DUCT_TO_THICKNESS", "AASHTO_BV_DEDUCT", "EndZoneDuctResult", "duct_positions", "duct_size_check", "DuctSizeResult", "TW_DUCT_MAX_ID", "DUCT_AREA_RATIO",
     "durability_cover", "CoverReq", "TW_COVER_GENERAL", "TW_COVER_SALT", "TW_SALT_MAX_WC", "TW_SALT_MIN_FC",
     "allowables",
 ]

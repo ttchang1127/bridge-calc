@@ -50,7 +50,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         simple_span_tendon_segs, staged_envelope, duct_size_check,
                         positive_moment_connection, durability_cover,
                         aashto_creep, staging_phi, box_volume_surface, timing_sensitivity_aashto)
-from bridgecalc.tendon_profile import duct_layout_bundled
+from bridgecalc.tendon_profile import duct_layout_bundled, end_zone_duct_check, web_duct_check
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -765,6 +765,31 @@ def _duct_bundle_825_3():
             "_note": "腹板 350：垂直捆 e_max 1,169→1,189；腹板 300：不捆單列 e_max 1,029 排不下，水平捆兩列 1,169 排得下。"
                      "僅幾何可行性——腹板最小厚度、剪力、端部 90 cm 須展開之錨碇區未檢核。"}
 
+
+def _duct_end_zone_825_3():
+    """§8.25.3 端部 90 cm 內須回到 §8.25.2 間距：簡支拋物線 e_end=0、x≤900 取樣。"""
+    f = parabolic_e(1109, 0, 40)
+    es = [f(x / 1000) for x in range(0, 901, 100)]
+    r350 = end_zone_duct_check(8, 2, es, sec.yb, 2100, web_t=350, bundle="V")
+    r300 = end_zone_duct_check(8, 2, es, sec.yb, 2100, web_t=300, bundle="H")
+    return {"e_hi_mm": round(r350.e_hi, 1),
+            "w350_fits": r350.fits, "w350_layout": f"{r350.lay_hi.n_col}x{r350.lay_hi.n_row}",
+            "w350_dx_max": r350.dx_max, "w350_dy_max": r350.dy_max,
+            "w300_fits": r300.fits, "w300_layout": f"{r300.lay_hi.n_col}x{r300.lay_hi.n_row}",
+            "w300_dx_max": r300.dx_max, "w300_dy_max": r300.dy_max,
+            "_note": "端部 x≤0.9 m 偏心 ≤ 97.6，不捆紮排得下；過渡段腹板 300 水平捆→單列展開須橫移 50、豎移 140。"}
+
+
+def _web_duct_A2():
+    """腹板厚與管徑：台灣規範未規定；AASHTO 5.4.6.2（0.4）、C5.14.1.5.1c（最小腹板）、5.8.2.9（b_v 扣除）參考。"""
+    a = web_duct_check(350, 100, 2, 2100)
+    b = web_duct_check(300, 100, 2, 2100, bundle="H", dt_change=250)
+    return {"w350_ratio": round(a.ratio, 4), "w350_ratio_ok": a.ratio_ok, "w350_web_min": a.web_min,
+            "w350_bv_grouted": a.bv_grouted, "w350_bv_ungrouted": a.bv_ungrouted,
+            "w300H_ratio": round(b.ratio, 4), "w300H_bundle_ratio": round(b.bundle_ratio, 4),
+            "w300H_web_min_ok": b.web_min_ok, "w300H_bv_grouted": b.bv_grouted, "taper_250_mm": b.taper_min,
+            "_note": "台灣三項均未規定（§8.9.3 僅漸變 12 倍）；以上為 AASHTO 參考值。H 捆紮束寬比 0.67 > 0.4，5.4.6.2 未定義捆紮 size，不判定。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -861,6 +886,8 @@ golden = {
     "duct_side_margin": _duct_side_margin(),
     "creep_aashto_A1": _creep_aashto_A1(),
     "duct_bundle_825_3": _duct_bundle_825_3(),
+    "duct_end_zone_825_3": _duct_end_zone_825_3(),
+    "web_duct_A2": _web_duct_A2(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

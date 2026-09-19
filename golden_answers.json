@@ -724,6 +724,31 @@
     "w300_best_fits": true,
     "_note": "腹板 350：垂直捆 e_max 1,169→1,189；腹板 300：不捆單列 e_max 1,029 排不下，水平捆兩列 1,169 排得下。僅幾何可行性——腹板最小厚度、剪力、端部 90 cm 須展開之錨碇區未檢核。"
   },
+  "duct_end_zone_825_3": {
+    "e_hi_mm": 97.6,
+    "w350_fits": true,
+    "w350_layout": "2x2",
+    "w350_dx_max": 0.0,
+    "w350_dy_max": 20.0,
+    "w300_fits": true,
+    "w300_layout": "1x4",
+    "w300_dx_max": 50.0,
+    "w300_dy_max": 140.0,
+    "_note": "端部 x≤0.9 m 偏心 ≤ 97.6，不捆紮排得下；過渡段腹板 300 水平捆→單列展開須橫移 50、豎移 140。"
+  },
+  "web_duct_A2": {
+    "w350_ratio": 0.2857,
+    "w350_ratio_ok": true,
+    "w350_web_min": 300.0,
+    "w350_bv_grouted": 300.0,
+    "w350_bv_ungrouted": 250.0,
+    "w300H_ratio": 0.3333,
+    "w300H_bundle_ratio": 0.6667,
+    "w300H_web_min_ok": true,
+    "w300H_bv_grouted": 250.0,
+    "taper_250_mm": 3000.0,
+    "_note": "台灣三項均未規定（§8.9.3 僅漸變 12 倍）；以上為 AASHTO 參考值。H 捆紮束寬比 0.67 > 0.4，5.4.6.2 未定義捆紮 size，不判定。"
+  },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",
     "Tu_C": 6.91,

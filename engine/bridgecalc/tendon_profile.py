@@ -640,3 +640,116 @@ def duct_layout_bundled(n_tendons: int, n_web: int, y_cgs: float,
     ok = {k2: v for k2, v in cands.items() if v.fits and v.e_max is not None}
     best = max(ok.values(), key=lambda r: r.e_max) if ok else base
     return best, cands
+
+
+def duct_positions(r: DuctLayoutResult) -> list:
+    """各管中心 [(x 相對腹板中心, y 距梁底)]，依填充順序（＝編號 W<腹板>-<序號>）。
+
+    一般、H、V 三種排列都是「第 i 管在第 i // n_col 層、第 i % n_col 列」。
+    """
+    return [(r.x_offsets[i % r.n_col], r.rows[i // r.n_col][0]) for i in range(r.n_per_web)]
+
+
+@dataclass
+class EndZoneDuctResult:
+    end_len: float          # 端部範圍 mm（§8.25.3：90 cm）
+    web_t_end: float        # 端部腹板厚 mm
+    e_lo: float             # 端部範圍內最小偏心 mm（合力最高）
+    e_hi: float             # 端部範圍內最大偏心 mm（合力最低）
+    lay_lo: DuctLayoutResult  # e_lo 處不捆紮排列
+    lay_hi: DuctLayoutResult  # e_hi 處不捆紮排列
+    fits: bool              # 端部範圍內以 §8.25.2 間距排得下
+    bundle: str             # 端部範圍外採用的捆紮型式
+    dx_max: float           # 過渡：單管最大橫向移位 mm（捆紮→展開，同一 CGS 比較）
+    dy_max: float           # 過渡：單管最大垂直移位 mm
+    moves: list             # [(編號序, dx, dy)]
+
+
+def end_zone_duct_check(n_tendons: int, n_web: int, e_values, y_b: float, h: float,
+                        duct_od: float = 100.0, web_t: float = 350.0,
+                        cover: float = 40.0, s_v: float = 40.0, d_agg: float = 25.0,
+                        rule: str = "tw", side_margin: float = 0.0,
+                        bundle: str = "none", end_len: float = 900.0,
+                        web_t_end: float = None) -> EndZoneDuctResult:
+    """§8.25.3 端部 90 cm：套管捆紮只限彎折／撓曲段，**距構材端部 90 cm 內須維持 §8.25.2 間距**。
+
+    e_values[mm]：端部範圍（x = 0 ~ end_len）內取樣的偏心；排列可行性對合力高度單調，
+        故只需檢最小與最大偏心兩端（合力最高→頂側、最低→底側保護層）。
+    bundle：範圍外（控制斷面）採用的型式 "none"/"H"/"V"；非 "none" 時以**端部邊界之 CGS**
+        比較捆紮與展開兩種排列，逐管（同編號）求移位量——即過渡段每根管須橫移／豎移多少。
+    web_t_end：端部腹板厚（端橫隔版附近常加厚），預設同 web_t。
+    ⚠ 只檢排列幾何；移位造成的偏折力（管道側向拉脫、AASHTO 5.10.4.3）另檢。
+    """
+    wt = web_t if web_t_end is None else web_t_end
+    es = list(e_values)
+    e_lo, e_hi = min(es), max(es)
+    lay = lambda e: duct_layout(n_tendons, n_web, y_b - e, duct_od, wt, cover, s_v, d_agg,
+                                y_b, h, rule, side_margin)
+    lo, hi = lay(e_lo), lay(e_hi)
+    moves, dx_max, dy_max = [], 0.0, 0.0
+    if bundle in ("H", "V"):
+        e_b = es[-1]                      # 端部邊界（x = end_len）
+        _, cands = duct_layout_bundled(n_tendons, n_web, y_b - e_b, duct_od, web_t, cover, s_v,
+                                       d_agg, y_b, h, rule, side_margin)
+        if bundle in cands:
+            pb = duct_positions(cands[bundle])
+            pu = duct_positions(duct_layout(n_tendons, n_web, y_b - e_b, duct_od, wt, cover, s_v,
+                                            d_agg, y_b, h, rule, side_margin))
+            for i, ((xb, yb_), (xu, yu)) in enumerate(zip(pb, pu)):
+                moves.append((i + 1, xu - xb, yu - yb_))
+            dx_max = max(abs(m[1]) for m in moves)
+            dy_max = max(abs(m[2]) for m in moves)
+    return EndZoneDuctResult(end_len=end_len, web_t_end=wt, e_lo=e_lo, e_hi=e_hi,
+                             lay_lo=lo, lay_hi=hi, fits=lo.fits and hi.fits, bundle=bundle,
+                             dx_max=dx_max, dy_max=dy_max, moves=moves)
+
+
+# ── 腹板厚度與管徑（A2，2026-09-19 NLM 查證）────────────────────────
+# 台灣公路橋梁設計規範：**三項均未規定**——§8.9.3 腹板僅規定「漸變長度須大於腹板變化厚度之 12 倍」
+#   （第八章 p.152；第七章 §7.1.22 同），無最小厚度；無管徑／腹板厚比；§8.20 剪力 b′ 直接代入、不扣套管
+#   （扣除開口只見於 §8.17.1 斷面性質、§8.21.7 承壓面積 A_b）。
+# 以下為 AASHTO LRFD（NLM 來源 2008 SI 版）參考值，非台灣規範要求：
+AASHTO_WEB_MIN = {"none": 200.0, "one_way": 300.0, "both": 380.0}   # C5.14.1.5.1c（解說；節塊 5.14.2.3.10b 兩向 375）
+AASHTO_DUCT_TO_THICKNESS = 0.4        # 5.4.6.2：size of ducts ≤ 0.4 × least gross concrete thickness at the duct
+AASHTO_BV_DEDUCT = {"grouted": 0.25, "ungrouted": 0.5}              # 5.8.2.9：同一高程之管徑 × 係數
+
+
+@dataclass
+class WebDuctResult:
+    web_t: float
+    duct_od: float
+    n_level: int            # 同一高程（同層）管數，控制 b_v 扣除
+    ratio: float            # 單管 od / web_t
+    ratio_ok: bool          # ≤ 0.4（AASHTO 5.4.6.2）
+    bundle_w: float         # 同層並排接觸時的束寬（H 捆紮）；非 H 為 None
+    bundle_ratio: float     # 束寬 / web_t（5.4.6.2 未定義捆紮之「size」，僅供參考）
+    web_min: float          # AASHTO C5.14.1.5.1c 建議最小腹板厚
+    web_min_ok: bool
+    deep_note: bool         # 梁深 > 2,400 mm：解說建議再加大
+    bv_grouted: float       # b_v = web_t − 0.25·Σφ（該層）
+    bv_ungrouted: float     # b_v = web_t − 0.50·Σφ
+    taper_min: float        # 台灣 §8.9.3：腹板厚變化 Δt 之最小漸變長度 12·Δt（未給 Δt 時為 None）
+
+
+def web_duct_check(web_t: float, duct_od: float, n_level: int, h: float = None,
+                   vertical_ducts: bool = False, bundle: str = "none",
+                   dt_change: float = None) -> WebDuctResult:
+    """腹板厚與管徑檢核。台灣規範未規定（見上註），結果除 taper_min 外皆為 AASHTO 參考。
+
+    n_level：同一高程管數（每腹板取排列的最多一層）；vertical_ducts：腹板另有豎向預力管。
+    bundle="H" 時同層 n_level 管並排接觸，另報束寬比——5.4.6.2 的「size of ducts」未處理捆紮，
+    不替使用者判定，只列出。
+    """
+    ratio = duct_od / web_t
+    bw = n_level * duct_od if bundle == "H" else None
+    wmin = AASHTO_WEB_MIN["both" if vertical_ducts else "one_way"]
+    s = n_level * duct_od
+    return WebDuctResult(
+        web_t=web_t, duct_od=duct_od, n_level=n_level, ratio=ratio,
+        ratio_ok=ratio <= AASHTO_DUCT_TO_THICKNESS + 1e-12,
+        bundle_w=bw, bundle_ratio=None if bw is None else bw / web_t,
+        web_min=wmin, web_min_ok=web_t >= wmin - 1e-9,
+        deep_note=(h is not None and h > 2400.0),
+        bv_grouted=web_t - AASHTO_BV_DEDUCT["grouted"] * s,
+        bv_ungrouted=web_t - AASHTO_BV_DEDUCT["ungrouted"] * s,
+        taper_min=None if dt_change is None else 12.0 * abs(dt_change))

@@ -318,9 +318,8 @@
   // 必低於 CGS。排完整體平移使實配形心 = y_cgs，故引擎在用的偏心 e 不因實配改變。
   // 淨間距需求，兩種規則（⚠ 這個選擇直接決定腹板內排得下幾列）：
   //   'tw'（預設）max(40, 1.5·d_agg)——台灣 §8.25.2 明文兩條件，同公式卡 G1 §7.1 表列
-  //   'od'         再取 max(…, 孔道外徑)——公式卡 B3 §4-1 台灣欄另列此條，與 AASHTO
-  //                「孔道 OD > 100 mm 時淨距 ≥ 孔道外徑」同義；兩卡不一致、原條文未查證，
-  //                 故做成可選，'od' 為保守側。
+  //   'od'         再取 max(…, 孔道外徑)——AASHTO「孔道 OD > 100 mm 時淨距 ≥ 孔道外徑」；
+  //                2026-09-18 核對第八章原文 p.178–179 確認**非台灣規範要求**，保留為保守設計慣例。
   // φ100、腹板 350、保護層 40 時：'tw' → 兩列（需求 40）、'od' → 單列（需求 100）。
   BC.ductSpacingRequired = function (od, dAgg, rule) {
     dAgg = dAgg == null ? 25 : dAgg;
@@ -412,6 +411,50 @@
     Object.keys(cands).forEach(function (t) { var v = cands[t];
       if (v.fits && v.eMax != null && (!best.fits || v.eMax > best.eMax)) best = v; });
     return { best: best, cands: cands };
+  };
+
+  // 各管中心 [[x, y]]，依填充順序（＝編號 W<腹板>-<序號>）；一般/H/V 皆為第 i 管在 i/nCol 層、i%nCol 列
+  BC.ductPositions = function (r) {
+    var out = [];
+    for (var i = 0; i < r.nPerWeb; i++) out.push([r.xOffsets[i % r.nCol], r.rows[Math.floor(i / r.nCol)].y]);
+    return out;
+  };
+  // §8.25.3 端部 90 cm（同 tendon_profile.end_zone_duct_check）：距構材端部 90 cm 內須維持 §8.25.2 間距。
+  // eValues＝端部範圍內取樣偏心；排列可行性對合力高度單調，只檢最小／最大偏心。bundle 非 'none' 時
+  // 以端部邊界 CGS 比較捆紮與展開排列，逐管求過渡段移位。⚠ 移位造成的偏折力另檢。
+  BC.endZoneDuctCheck = function (nTendons, nWeb, eValues, yb, h, o) {
+    o = o || {};
+    var bundle = o.bundle || 'none', endLen = o.endLen == null ? 900 : o.endLen,
+        wt = o.webTEnd == null ? (o.webT == null ? 350 : o.webT) : o.webTEnd;
+    var oe = Object.assign({}, o, { webT: wt, yb: yb, h: h }), ob = Object.assign({}, o, { yb: yb, h: h });
+    var eLo = Math.min.apply(null, eValues), eHi = Math.max.apply(null, eValues);
+    var lo = BC.ductLayout(nTendons, nWeb, yb - eLo, oe), hi = BC.ductLayout(nTendons, nWeb, yb - eHi, oe);
+    var moves = [], dxMax = 0, dyMax = 0;
+    if (bundle === 'H' || bundle === 'V') {
+      var eB = eValues[eValues.length - 1], cands = BC.ductLayoutBundled(nTendons, nWeb, yb - eB, ob).cands;
+      if (cands[bundle]) {
+        var pb = BC.ductPositions(cands[bundle]), pu = BC.ductPositions(BC.ductLayout(nTendons, nWeb, yb - eB, oe));
+        for (var i = 0; i < pb.length; i++) {
+          var dx = pu[i][0] - pb[i][0], dy = pu[i][1] - pb[i][1];
+          moves.push([i + 1, dx, dy]); dxMax = Math.max(dxMax, Math.abs(dx)); dyMax = Math.max(dyMax, Math.abs(dy));
+        }
+      }
+    }
+    return { endLen: endLen, webTEnd: wt, eLo: eLo, eHi: eHi, layLo: lo, layHi: hi, fits: lo.fits && hi.fits,
+             bundle: bundle, dxMax: dxMax, dyMax: dyMax, moves: moves };
+  };
+
+  // 腹板厚與管徑（同 tendon_profile.web_duct_check）：台灣規範三項均未規定——§8.9.3 僅漸變長度 ≥ 12 倍厚度差；
+  // 其餘為 AASHTO LRFD（2008 SI）參考：5.4.6.2 管徑 ≤ 0.4 × 該處最小厚度、C5.14.1.5.1c 最小腹板
+  // 200/300/380、5.8.2.9 b_v 扣同高程管徑 ¼（灌漿）／½（未灌漿）。H 捆紮束寬比僅列出不判定。
+  BC.AASHTO_WEB_MIN = { none: 200, one_way: 300, both: 380 };
+  BC.webDuctCheck = function (webT, od, nLevel, h, verticalDucts, bundle, dtChange) {
+    var ratio = od / webT, bw = bundle === 'H' ? nLevel * od : null,
+        wmin = BC.AASHTO_WEB_MIN[verticalDucts ? 'both' : 'one_way'], s = nLevel * od;
+    return { webT: webT, od: od, nLevel: nLevel, ratio: ratio, ratioOk: ratio <= 0.4 + 1e-12,
+             bundleW: bw, bundleRatio: bw == null ? null : bw / webT, webMin: wmin, webMinOk: webT >= wmin - 1e-9,
+             deepNote: h != null && h > 2400, bvGrouted: webT - 0.25 * s, bvUngrouted: webT - 0.5 * s,
+             taperMin: dtChange == null ? null : 12 * Math.abs(dtChange) };
   };
 
   // ── 腹板抗剪 D1 ───────────────────────────────────────

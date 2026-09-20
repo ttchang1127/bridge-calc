@@ -479,6 +479,32 @@
              LtMinLat: ltm(dx, Vl), LtMinVert: ltm(dy, Vv), sMax: Math.min(3 * od, 600) };
   };
 
+  // 相鄰（上下疊放）曲線管道互推（同 tendon_profile.adjacent_duct_radial_check）：AASHTO 5.10.4.3.1
+  // 三擇一——加大間距使 V_n 足夠／配圍束筋承擔徑向力／內側管先灌漿再拉外側。條文為**定性**，
+  // 故：路徑一以 Eq.3 估（d_c 取「淨間距+½管徑」，條文未定義管對管 d_c，屬解釋）；
+  // 路徑二依 §5.10.4.3 服務狀態 f_s ≤ 0.6f_y（f_y ≤ 420）回推鋼筋量。疊放時上方承受該列之和。
+  BC.adjacentDuctRadialCheck = function (Pu, Ps, R, nStack, sClear, fci, od, fy, phi, forceToward) {
+    od = od == null ? 100 : od; fy = Math.min(fy == null ? 420 : fy, 420);
+    phi = phi == null ? 0.9 : phi; forceToward = forceToward !== false;
+    var Fe = (R && R !== Infinity) ? Pu / R : 0, dc = sClear + od / 2,
+        Vr = phi * 0.33 * Math.sqrt(fci) * dc,
+        sReq = Math.max(0, Fe / (phi * 0.33 * Math.sqrt(fci)) - od / 2),
+        FsStack = ((R && R !== Infinity) ? Ps / R : 0) * nStack,
+        AsPerMm = FsStack / (0.6 * fy), sMax = Math.min(3 * od, 600);
+    return { applies: !!(forceToward && nStack >= 2 && Fe > 0), nStack: nStack, Feach: Fe,
+             Fstack: Fe * nStack, sClear: sClear, dcBetween: dc, VrBetween: Vr,
+             spacingOk: Fe <= Vr + 1e-9, sReq: sReq, AsPerMm: AsPerMm, tieSmax: sMax,
+             AsPerTie: AsPerMm * sMax, fyUsed: fy };
+  };
+  // 台灣 §8.9.1／§8.9.2 箱梁翼板最小厚度（同 model.box_slab_thickness_TW）
+  // ⚠ RC 箱梁底板才是「梁腹間淨距/16」（第七章 §7.1.22 10.(3)b）；PC 頂底板同為 1/30，勿混用。
+  BC.boxSlabThicknessTW = function (topT, botT, clearSpan, precast) {
+    var tf = precast ? 140 : 150, bf = precast ? 130 : 140,
+        tr = Math.max(clearSpan / 30, tf), br = Math.max(clearSpan / 30, bf);
+    return { clearSpan: clearSpan, topReq: tr, botReq: br, topOk: topT >= tr - 1e-9,
+             botOk: botT >= br - 1e-9, rcBotReq: Math.max(clearSpan / 16, 140) };
+  };
+
   // ── 腹板抗剪 D1 ───────────────────────────────────────
   BC.principalTensionLimitTW = function (fc) { return 0.094 * sqrt(fc); };
   BC.shearWeb = function (Pe, sec, e, fc, bw, dv, Vu, xCtrl, L, nWebs, phi, fsy) {
@@ -495,7 +521,12 @@
              sigma1_ok: sigma1 <= lim, Vcw: Vcw, Vs_req: Vs_req, Av_s_req: max(Vs_req, 0) / (fsy * dv) };
   };
   BC.phiVn = function (Vcw, Av_s, dv, phi, fsy) { phi = phi || 0.85; fsy = fsy || 420; return phi * (Vcw + Av_s * fsy * dv); };
-  BC.AvSminTW = function (fc, bw, fsy) { fsy = fsy || 420; return max(0.2 * sqrt(fc) * bw / fsy, 0.35 * bw / fsy); };
+  // 台灣最小腹板鋼筋 Av/s = 0.345·b′/fsy（§8.20.3 3. 式 8-31，原文 kgf 制 3.5；第七章 §7.1.9 1.(2) 同式）。
+  // 🔴 2026-09-20 更正：原寫 max(0.2√f'c·b/fsy, 0.35·b/fsy) 有兩個錯——√f'c 項非台灣規範（ACI／AASHTO），
+  //    且 0.2 是 kgf/cm² 制係數卻餵 MPa（ACI SI 0.062／AASHTO 0.083），f'c=40 時為明文值的 3.7 倍。
+  //    使用者裁示：判定用台灣明文，AASHTO 5.8.2.5 以 AvSminAASHTO 並列參考。fc 參數保留相容。
+  BC.AvSminTW = function (fc, bw, fsy) { fsy = fsy || 420; return 0.345 * bw / fsy; };
+  BC.AvSminAASHTO = function (fc, bw, fy) { fy = fy || 420; return 0.083 * sqrt(fc) * bw / fy; };
 
   // ── 撓度/預拱 C2/C3 ───────────────────────────────────
   BC.deflection = function (L, Ec, sec, w_DL, Pe, e, w_LL, phi, settle) {

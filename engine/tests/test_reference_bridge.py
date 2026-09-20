@@ -1533,6 +1533,54 @@ def test_deviation_force_A4():
     assert r.s_max == 300.0                                            # min(3×100, 600)
 
 
+def test_min_stirrup_TW_no_sqrt_term():
+    """台灣最小腹板鋼筋只有 0.345·b′/fsy（§8.20.3 3.）；√f'c 項非台灣規範（2026-09-20 更正）。"""
+    from bridgecalc import Av_s_min_TW as tw, Av_s_min_AASHTO as aa
+    import math
+    assert abs(tw(40, 250) - 0.345 * 250 / 420) < 1e-12
+    assert tw(28, 250) == tw(80, 250)                       # 與 f'c 無關
+    assert abs(aa(40, 250) - 0.083 * math.sqrt(40) * 250 / 420) < 1e-12
+    assert aa(40, 250) > tw(40, 250)                        # AASHTO 較嚴，供並列參考
+    # 原式（kgf 係數餵 MPa）約為明文值的 3.7 倍——確認已不再使用
+    old = max(0.2 * math.sqrt(40) * 250 / 420, 0.35 * 250 / 420)
+    assert old / tw(40, 250) > 3.5
+
+
+def test_box_slab_thickness_TW():
+    """§8.9.1／§8.9.2：PC 箱梁頂底板同為淨距/30；RC 底板 1/16 不可混用。"""
+    from bridgecalc import box_slab_thickness_TW as f
+    r = f(250, 200, 2400)
+    assert r.top_req == 150 and r.bot_req == 140 and r.top_ok and r.bot_ok   # 下限控制
+    w = f(250, 200, 6000)
+    assert w.top_req == 200 and w.bot_req == 200 and w.bot_ok                # 淨距/30 控制
+    assert not f(150, 150, 6000).top_ok
+    assert f(250, 200, 2400, precast_or_pretensioned=True).bot_req == 130    # 預鑄／先拉例外
+    assert w.rc_bot_req == 375                                               # RC 規則會多要求 87%
+    assert f(250, 200, 2000).rc_bot_req == 140                               # RC 下限同為 14 cm
+
+
+def test_adjacent_duct_A7():
+    """相鄰疊放曲線管互推：F 隨 1/R、疊放累計、路徑一所需淨距、路徑二圍束筋量。"""
+    from bridgecalc import adjacent_duct_radial_check as a
+    import math
+    Pu, Ps = 1.2 * 1395 * 19 * 140, 1115.0 * 19 * 140
+    m = a(Pu, Ps, 180300, 2, 40, 32)
+    assert abs(m.F_each - Pu / 180300) < 1e-9 and abs(m.F_stack - 2 * m.F_each) < 1e-9
+    assert m.applies and m.spacing_ok and m.s_req == 0        # 大半徑：保護層即足夠
+    t = a(Pu, Ps, 26500, 2, 40, 32)
+    assert not t.spacing_ok and t.s_req > 40                  # 小半徑：40 不夠
+    # s_req 代回恰好等號
+    back = a(Pu, Ps, 26500, 2, t.s_req, 32)
+    assert abs(back.F_each - back.Vr_between) < 1e-6
+    # 圍束筋：服務力 × 疊放數 / (0.6f_y)
+    assert abs(t.As_per_mm - (Ps / 26500 * 2) / (0.6 * 420)) < 1e-12
+    assert t.fy_used == 420 and a(Pu, Ps, 26500, 2, 40, 32, fy=500).fy_used == 420   # f_y 上限 420
+    assert t.tie_s_max == 300 and abs(t.As_per_tie - t.As_per_mm * 300) < 1e-9
+    # 單層或直線段不適用
+    assert not a(Pu, Ps, 26500, 1, 40, 32).applies
+    assert not a(Pu, Ps, float("inf"), 2, 40, 32).applies
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

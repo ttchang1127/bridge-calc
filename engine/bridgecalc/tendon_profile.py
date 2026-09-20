@@ -825,3 +825,63 @@ def deviation_force_check(Pu: float, dx: float, dy: float, Lt: float, fci: float
         R_min_ok=min(R_lat, R_vert) >= DUCT_R_MIN - 1e-9,
         Lt_min_lat=lt_min(dx, Vr_l), Lt_min_vert=lt_min(dy, Vr_v),
         s_max=min(3.0 * duct_od, 600.0))
+
+
+# ── 相鄰曲線管道互推（A7，AASHTO 5.10.4.3.1）────────────────────────────
+# 原文：「Where curved ducts for tendons other than those crossing at approximately 90º are located
+#   so that the direction of the radial force from one tendon is toward another, confinement of the
+#   ducts shall be provided by: − Spacing the ducts to ensure adequate nominal shear resistance, as
+#   specified in Eq. 2; − Providing confinement reinforcement to resist the radial force; or
+#   − Specifying that each inner duct be grouted before the adjacent outer duct is stressed.」
+# ⚠ 條文為**定性三擇一**，未給量化式。本函式：
+#   ① 幾何判定——同一列上下疊放且徑向力朝向上方（撓曲段自重側）即成立；
+#   ② 路徑一以 Eq.5.10.4.3.1-3 估算，d_c 取「淨間距 + ½管徑」（**條文未定義管對管之 d_c，此為解釋**）；
+#   ③ 路徑二依 §5.10.4.3「圍束筋服務狀態 f_s ≤ 0.6f_y、f_y ≤ 420」回推鋼筋量（量化有據）；
+#   ④ 路徑三（內側管先灌漿再拉外側）屬施工規定，只列出。
+# 🔴 疊放時上方保護層承受的是**該列下方各管之和**，不是單管力。
+FY_CONFINE_MAX = 420.0
+
+
+@dataclass
+class AdjacentDuctResult:
+    applies: bool           # 徑向力是否朝向相鄰管道
+    n_stack: int            # 該列疊放管數
+    F_each: float           # 單管徑向力 N/mm（factored）
+    F_stack: float          # 疊放累計 N/mm（頂部保護層承受）
+    s_clear: float          # 管間淨間距 mm
+    dc_between: float       # 解釋值：s_clear + od/2
+    Vr_between: float       # φ·0.33√f'ci·d_c
+    spacing_ok: bool        # 路徑一（加大間距）是否已足夠
+    s_req: float            # 路徑一所需淨間距 mm
+    As_per_mm: float        # 路徑二：圍束筋量 mm²/mm（服務狀態 f_s ≤ 0.6f_y）
+    tie_s_max: float        # 圍束筋最大間距 min(3od, 600)
+    As_per_tie: float       # 依最大間距換算每支圍束筋面積 mm²
+    fy_used: float
+
+
+def adjacent_duct_radial_check(Pu: float, Ps: float, R: float, n_stack: int,
+                               s_clear: float, fci: float, duct_od: float = 100.0,
+                               fy: float = 420.0, phi: float = DEV_PHI_SHEAR,
+                               force_toward: bool = True) -> AdjacentDuctResult:
+    """相鄰（上下疊放）曲線管道互推檢核。Pu/Ps[N]：單腱 factored／服務力；R[mm]：曲率半徑。
+
+    n_stack：同一列疊放管數（疊放 ≥2 且徑向力朝向鄰管才適用）；s_clear[mm]：管間淨間距。
+    ⚠ 台灣規範未規定（見公式卡 G1 §7.1.2）。
+    """
+    fy_u = min(fy, FY_CONFINE_MAX)
+    F_each = Pu / R if R and R != float("inf") else 0.0
+    applies = bool(force_toward and n_stack >= 2 and F_each > 0)
+    F_stack = F_each * n_stack
+    dc = s_clear + duct_od / 2
+    vn = lambda d: phi * DEV_VN_COEF * math.sqrt(fci) * d
+    Vr = vn(dc)
+    # 路徑一：使 V_r ≥ 單管徑向力（管對管界面只承受上方那一管以下之力，取單管為下限、疊放和為上限）
+    s_req = max(0.0, F_each / (phi * DEV_VN_COEF * math.sqrt(fci)) - duct_od / 2)
+    # 路徑二：圍束筋承擔全部徑向力（服務狀態 f_s ≤ 0.6f_y）
+    Fs_stack = (Ps / R if R and R != float("inf") else 0.0) * n_stack
+    As_per_mm = Fs_stack / (0.6 * fy_u)
+    s_max = min(3.0 * duct_od, 600.0)
+    return AdjacentDuctResult(
+        applies=applies, n_stack=n_stack, F_each=F_each, F_stack=F_stack, s_clear=s_clear,
+        dc_between=dc, Vr_between=Vr, spacing_ok=F_each <= Vr + 1e-9, s_req=s_req,
+        As_per_mm=As_per_mm, tie_s_max=s_max, As_per_tie=As_per_mm * s_max, fy_used=fy_u)

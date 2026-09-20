@@ -5,13 +5,13 @@
 
 階段 1（本版）：sections / prestress（含非線性損失耦合）/ loads / service / allowables。
 """
-from .model import Section, Tendon
+from .model import Section, Tendon, box_slab_thickness_TW, SlabThicknessResult
 from .blister import (blister_local_bearing, blister_bursting, blister_tieback,
                       blister_spalling, blister_interface_shear,
                       blister_geometry_check, blister_design, BlisterDesign,
                       LocalBearingResult, BurstResult, TiebackResult,
                       SpallResult, InterfaceResult, BlisterGeomResult)
-from .tendon_profile import (duct_layout_bundled, end_zone_duct_check, web_duct_check, deviation_force_check, DeviationForceResult, transition_radius, DUCT_R_MIN, WebDuctResult, AASHTO_WEB_MIN, AASHTO_DUCT_TO_THICKNESS, AASHTO_BV_DEDUCT, EndZoneDuctResult, duct_positions, duct_size_check, DuctSizeResult, TW_DUCT_MAX_ID,
+from .tendon_profile import (duct_layout_bundled, end_zone_duct_check, web_duct_check, deviation_force_check, adjacent_duct_radial_check, AdjacentDuctResult, DeviationForceResult, transition_radius, DUCT_R_MIN, WebDuctResult, AASHTO_WEB_MIN, AASHTO_DUCT_TO_THICKNESS, AASHTO_BV_DEDUCT, EndZoneDuctResult, duct_positions, duct_size_check, DuctSizeResult, TW_DUCT_MAX_ID,
                              DUCT_AREA_RATIO)
 from .durability import (durability_cover, CoverReq, TW_COVER_GENERAL, TW_COVER_SALT,
                          TW_SALT_MAX_WC, TW_SALT_MIN_FC)
@@ -30,7 +30,7 @@ from .prestress import (compute_losses, LossResult, loss_profile,
 from .loads import combinations, lane_live_load
 from .service import stresses, Pe_min_zero_tension
 from .shear import (shear_web, shear_web_at, stirrup_max_spacing_TW, stirrup_pick_spacing,
-                    stirrup_zones, STD_STIRRUP_SPACINGS, ShearResult, phiVn, Av_s_min_TW,
+                    stirrup_zones, STD_STIRRUP_SPACINGS, ShearResult, phiVn, Av_s_min_TW, Av_s_min_AASHTO,
                     principal_tension_limit_TW)
 from .flexure import flexural_strength, FlexureResult, beta1
 from .deflection import deflection_analysis, DeflectionResult
@@ -106,9 +106,9 @@ from .retrofit import (cracked_na_depth, cracked_inertia, initial_concrete_strai
 from . import allowables
 
 __all__ = [
-    "Section", "Tendon", "compute_losses", "LossResult",
+    "Section", "Tendon", "box_slab_thickness_TW", "SlabThicknessResult", "compute_losses", "LossResult",
     "combinations", "lane_live_load", "stresses", "Pe_min_zero_tension",
-    "shear_web", "ShearResult", "phiVn", "Av_s_min_TW",
+    "shear_web", "ShearResult", "phiVn", "Av_s_min_TW", "Av_s_min_AASHTO",
     "principal_tension_limit_TW",
     "flexural_strength", "FlexureResult", "beta1",
     "deflection_analysis", "DeflectionResult",
@@ -179,7 +179,7 @@ __all__ = [
     "aashto_creep", "staging_phi", "box_volume_surface", "timing_sensitivity_aashto",
     "CreepAASHTO", "StagingPhi", "TimingRowAASHTO",
     "RedistFactor", "RedistPoint", "StagingResult", "M2RedistResult", "TimingRow",
-    "duct_layout_bundled", "end_zone_duct_check", "web_duct_check", "deviation_force_check", "DeviationForceResult", "transition_radius", "DUCT_R_MIN", "WebDuctResult", "AASHTO_WEB_MIN", "AASHTO_DUCT_TO_THICKNESS", "AASHTO_BV_DEDUCT", "EndZoneDuctResult", "duct_positions", "duct_size_check", "DuctSizeResult", "TW_DUCT_MAX_ID", "DUCT_AREA_RATIO",
+    "duct_layout_bundled", "end_zone_duct_check", "web_duct_check", "deviation_force_check", "adjacent_duct_radial_check", "AdjacentDuctResult", "DeviationForceResult", "transition_radius", "DUCT_R_MIN", "WebDuctResult", "AASHTO_WEB_MIN", "AASHTO_DUCT_TO_THICKNESS", "AASHTO_BV_DEDUCT", "EndZoneDuctResult", "duct_positions", "duct_size_check", "DuctSizeResult", "TW_DUCT_MAX_ID", "DUCT_AREA_RATIO",
     "durability_cover", "CoverReq", "TW_COVER_GENERAL", "TW_COVER_SALT", "TW_SALT_MAX_WC", "TW_SALT_MIN_FC",
     "allowables",
 ]

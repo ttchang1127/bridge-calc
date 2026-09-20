@@ -546,6 +546,28 @@ function chkEq(name, got, exp) {
   chk('偏折 最小過渡長 側向', dv3.LtMinLat, gdv.Lt_min_lat_mm, 1);
   chk('偏折 最小過渡長 垂直', dv3.LtMinVert, gdv.Lt_min_vert_mm, 1);
   chk('偏折 圍束間距上限', dv3.sMax, gdv.s_max_mm, 1e-9);
+  // 相鄰疊放曲線管互推
+  var gad = g.adjacent_duct_A7, Ps7 = 1115 * 19 * 140,
+      ad1 = BC.adjacentDuctRadialCheck(Pu4, Ps7, 180300, 2, 40, 32),
+      ad2 = BC.adjacentDuctRadialCheck(Pu4, Ps7, 26500, 2, 40, 32);
+  chk('互推 跨中 F', ad1.Feach, gad.F_each_mid, 0.1);
+  chk('互推 疊放累計', ad1.Fstack, gad.F_stack_mid, 0.1);
+  chk('互推 V_r', ad1.VrBetween, gad.Vr_between, 0.1);
+  chkEq('互推 跨中間距足夠', ad1.spacingOk, gad.mid_spacing_ok);
+  chk('互推 過渡段 F', ad2.Feach, gad.F_each_trn, 0.1);
+  chkEq('互推 過渡段間距足夠', ad2.spacingOk, gad.trn_spacing_ok);
+  chk('互推 所需淨距', ad2.sReq, gad.trn_s_req_mm, 0.1);
+  chk('互推 圍束筋每支', ad2.AsPerTie, gad.trn_As_per_tie_mm2, 0.1);
+  // 台灣翼板最小厚度
+  var gst = g.slab_thickness_TW, st1 = BC.boxSlabThicknessTW(250, 200, 2400), st2 = BC.boxSlabThicknessTW(250, 200, 6000);
+  chk('翼板 頂 req 2400', st1.topReq, gst.top_req_2400, 1e-9);
+  chk('翼板 底 req 2400', st1.botReq, gst.bot_req_2400, 1e-9);
+  chk('翼板 RC 底 req 2400', st1.rcBotReq, gst.rc_bot_req_2400, 1e-9);
+  chk('翼板 頂 req 6000', st2.topReq, gst.top_req_6000, 1e-9);
+  chkEq('翼板 底 OK 6000', st2.botOk, gst.bot_ok_6000);
+  // 最小箍筋：台灣無 √f'c 項
+  chk('最小箍筋 台灣', BC.AvSminTW(40, 250), 0.345 * 250 / 420, 1e-9);
+  chk('最小箍筋 AASHTO 參考', BC.AvSminAASHTO(40, 250), 0.083 * Math.sqrt(40) * 250 / 420, 1e-9);
   chkEq('捆紮 300 最佳 可行', db300.best.fits, dbg.w300_best_fits);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);

@@ -71,9 +71,25 @@ def phiVn(Vcw: float, Av_s_provided: float, dv: float,
     return phi * (Vcw + Vs)
 
 
-def Av_s_min_TW(fc: float, bw_eff: float, fsy: float = 420.0) -> float:
-    """台灣最小箍筋 max(0.2√f'c·b/fsy, 0.35·b/fsy)（mm²/mm）。"""
-    return max(0.2 * sqrt(fc) * bw_eff / fsy, 0.35 * bw_eff / fsy)
+def Av_s_min_TW(fc: float = None, bw_eff: float = 0.0, fsy: float = 420.0) -> float:
+    """台灣最小腹板（剪力）鋼筋 Av/s = 0.345·b′/fsy（mm²/mm）。
+
+    原文（2026-09-20 NLM 核）：§8.20.3 3.「腹板鋼筋最小斷面積應為 Av = 3.5·b′s/fsy
+    （b′、s 單位 cm，fsy 單位 kgf/cm²）＝ 0.345·b′s/fsy（MPa 制）」（第八章 p.167，式 8-31）；
+    第七章 §7.1.9 1.(2) RC 同式。**兩章均無含 √f'c 之項**。
+    fc 保留為相容參數（不影響結果），台灣式與混凝土強度無關。
+
+    🔴 2026-09-20 更正：原式 max(0.2√f'c·b/fsy, 0.35·b/fsy) 有兩個錯——①√f'c 項非台灣規範
+    （出自 ACI 318／AASHTO）；②0.2 是 **kgf/cm² 制**係數卻餵 MPa（ACI SI 制為 0.062、
+    AASHTO 5.8.2.5 為 0.083），f'c=40 時要求量為明文值的 3.7 倍。
+    使用者裁示（2026-09-20）：判定用台灣明文，AASHTO 以 Av_s_min_AASHTO 並列參考。
+    """
+    return 0.345 * bw_eff / fsy
+
+
+def Av_s_min_AASHTO(fc: float, bw_eff: float, fy: float = 420.0) -> float:
+    """AASHTO LRFD 5.8.2.5 最小剪力鋼筋 Av/s = 0.083√f'c·b_v/f_y（mm²/mm）。參考用，非台灣規範。"""
+    return 0.083 * sqrt(fc) * bw_eff / fy
 
 
 STD_STIRRUP_SPACINGS = (100, 125, 150, 200, 250, 300, 350, 400, 450, 500, 600)

@@ -8,7 +8,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from bridgecalc import (Section, Tendon, compute_losses, combinations,
+from bridgecalc import (Section, Tendon, box_slab_thickness_TW, compute_losses, combinations,
                         lane_live_load, stresses, Pe_min_zero_tension,
                         shear_web, phiVn, flexural_strength, deflection_analysis,
                         il_moment_peak, abs_max_moment, lane_moment_simple,
@@ -50,7 +50,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         simple_span_tendon_segs, staged_envelope, duct_size_check,
                         positive_moment_connection, durability_cover,
                         aashto_creep, staging_phi, box_volume_surface, timing_sensitivity_aashto)
-from bridgecalc.tendon_profile import duct_layout_bundled, end_zone_duct_check, web_duct_check, deviation_force_check
+from bridgecalc.tendon_profile import duct_layout_bundled, end_zone_duct_check, web_duct_check, deviation_force_check, adjacent_duct_radial_check
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -805,6 +805,30 @@ def _deviation_force_A4():
             "_note": "R=Lt²/(4Δ)（兩段反曲拋物線）。保護層 40 時，僅靠保護層抗拉脫需 Lt ≥ 4.06 m（垂直控制）；"
                      "較短者須配 tie-back／局部圍束。台灣規範未規定偏折力（§8.21.3 6.(2) 僅要求隔梁錨碇處配筋抵抗曲率分力）。"}
 
+
+def _adjacent_duct_A7():
+    """相鄰疊放曲線管道互推（AASHTO 5.10.4.3.1 三擇一）：跨中大半徑 vs 過渡段小半徑。"""
+    Pu, Psv = 1.2 * 1395 * 19 * 140, 1115.0 * 19 * 140
+    mid = adjacent_duct_radial_check(Pu, Psv, 180300, 2, 40, 32)
+    trn = adjacent_duct_radial_check(Pu, Psv, 26500, 2, 40, 32)
+    return {"F_each_mid": round(mid.F_each, 1), "F_stack_mid": round(mid.F_stack, 1),
+            "Vr_between": round(mid.Vr_between, 1), "mid_spacing_ok": mid.spacing_ok,
+            "F_each_trn": round(trn.F_each, 1), "trn_spacing_ok": trn.spacing_ok,
+            "trn_s_req_mm": round(trn.s_req, 1), "trn_As_per_tie_mm2": round(trn.As_per_tie, 1),
+            "tie_s_max": trn.tie_s_max,
+            "_note": "跨中 R=180 m：F 24.7 ≤ V_r 151，淨距 40 已足；過渡段 R=26.5 m：F 168 > 151，"
+                     "須淨距 ≥50 mm 或每 300 mm 配 267 mm² 圍束筋（f_s ≤ 0.6f_y），或內側管先灌漿再拉外側。"}
+
+
+def _slab_thickness_TW():
+    """台灣 §8.9.1／§8.9.2 箱梁翼板最小厚度；對照 RC 第七章 §7.1.22 底板 1/16。"""
+    r = box_slab_thickness_TW(250, 200, 2400)
+    w = box_slab_thickness_TW(250, 200, 6000)
+    return {"top_req_2400": r.top_req, "bot_req_2400": r.bot_req, "rc_bot_req_2400": r.rc_bot_req,
+            "top_req_6000": w.top_req, "bot_req_6000": w.bot_req, "bot_ok_6000": w.bot_ok,
+            "_note": "PC 頂底板同為淨距/30（下限 15/14 cm，預鑄先拉 14/13）；RC 箱梁底板才是淨距/16。"
+                     "淨距 6.0 m 時 PC 底板需 200 恰可，RC 規則會誤要求 375。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -904,6 +928,8 @@ golden = {
     "duct_end_zone_825_3": _duct_end_zone_825_3(),
     "web_duct_A2": _web_duct_A2(),
     "deviation_force_A4": _deviation_force_A4(),
+    "adjacent_duct_A7": _adjacent_duct_A7(),
+    "slab_thickness_TW": _slab_thickness_TW(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

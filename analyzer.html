@@ -196,6 +196,10 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <div class="metric"><div class="l">慣性矩 I</div><div class="v" x-text="R.sec.I.toExponential(3)"></div></div>
       <div class="metric"><div class="l">形心距底 ȳb</div><div class="v" x-text="R.sec.yb.toFixed(0)+' mm'"></div></div>
       <div class="metric"><div class="l">自重 w_sw</div><div class="v" x-text="R.wsw.toFixed(0)+' kN/m'"></div></div>
+      <div class="metric" title="§8.9.1／§8.9.2：最小厚度為腹板（或填角）間淨距之 1/30，且頂板 ≥15 cm、底板 ≥14 cm（廠製預鑄與先拉法可減至 14／13）。⚠ RC 箱梁底板才是淨距/16（第七章 §7.1.22），PC 勿混用">
+        <div class="l">翼板最小厚度（台灣 §8.9）</div>
+        <div class="v" style="font-size:14px" :class="slabT.topOk&&slabT.botOk?'ok':'ng'"
+          x-text="'頂 '+fmt(topT)+'≥'+fmt(slabT.topReq,0)+(slabT.topOk?' ✓':' ✗')+'・底 '+fmt(botT)+'≥'+fmt(slabT.botReq,0)+(slabT.botOk?' ✓':' ✗')+'（淨距 '+fmt(slabT.clearSpan,0)+'）'"></div></div>
     </div>
     <div style="margin-top:12px"><div class="hint">側視（剖切位置 A＝跨中、B＝端部；紅線＝鋼腱合力中心 CGS）</div>
       <div class="figbox"><svg viewBox="0 0 640 146" style="width:100%;max-width:640px;height:auto" x-html="R.svgElevCut"></svg></div></div>
@@ -470,8 +474,13 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         <template x-if="devForce"><tr title="AASHTO 5.10.4.3：F=P_u/R；保護層抗拉脫 V_r=φ·0.33√f'ci·d_c（d_c＝該方向到最近自由面之保護層＋半管徑，故腹板中央之管垂直向 d_c 很大）。⚠ 徑向力若指向相鄰管道，5.10.4.3.1 另要求加大間距／配圍束／內側管先灌漿再拉外側，本列未涵蓋。台灣規範未規定偏折力（§8.21.3 6.(2) 僅要求隔梁錨碇處配筋抵抗曲率分力）">
           <td>過渡段最小長度 L<sub>t,min</sub> <span class="mut">（AASHTO 5.10.4.3 參考；台灣未規定）</span></td>
             <td x-text="fmt(devForce.LtMin/1000,2)+' m（控制：'+devForce.gov+'；管 '+devForce.no+' 移位 '+fmt(devForce.dx,0)+'／'+fmt(devForce.dy,0)+' mm）'"></td>
-            <td x-text="'僅靠保護層抗拉脫：d_c 側 '+fmt(devForce.dcLat,0)+'／垂直 '+fmt(devForce.dcVert,0)+' mm，V_r '+fmt(devForce.VrLat,0)+'／'+fmt(devForce.VrVert,0)+' N/mm'"></td>
+            <td x-text="'d_c 側 '+fmt(devForce.dcLat,0)+'／垂直 '+fmt(devForce.dcVert,0)+' mm'+(devForce.faceIsDuct?'（垂直向弱面＝同列相鄰管，淨距 '+fmt(devForce.sClear,0)+'）':'（垂直向至自由面）')+'，V_r '+fmt(devForce.VrLat,0)+'／'+fmt(devForce.VrVert,0)+' N/mm'"></td>
             <td style="text-align:center" class="mut">—</td><td class="no-print"></td></tr></template>
+        <template x-if="adjDuct&&adjDuct.applies"><tr title="AASHTO 5.10.4.3.1：徑向力朝向相鄰管道時三擇一——加大間距使 V_n 足夠／配圍束筋承擔徑向力／內側管先灌漿再拉外側。條文為定性，管對管 d_c 取「淨間距＋½管徑」屬解釋。台灣規範未規定">
+          <td>相鄰疊放管互推 <span class="mut">（AASHTO 5.10.4.3.1 參考；台灣未規定）</span></td>
+            <td x-text="'F = '+fmt(adjDuct.Feach,0)+' N/mm（R '+fmt(adjDuct.R/1000,1)+' m，'+adjDuct.src+'；疊 '+adjDuct.nStack+' 管累計 '+fmt(adjDuct.Fstack,0)+'）'"></td>
+            <td x-text="adjDuct.spacingOk?('淨距 '+fmt(adjDuct.sClear,0)+' → V_r '+fmt(adjDuct.VrBetween,0)+' N/mm 已足'):('須淨距 ≥ '+fmt(adjDuct.sReq,0)+' mm，或每 '+fmt(adjDuct.tieSmax,0)+' mm 配 '+fmt(adjDuct.AsPerTie,0)+' mm² 圍束筋，或內側管先灌漿再拉外側')"></td>
+            <td style="text-align:center" :class="adjDuct.spacingOk?'ok':'ng'" x-text="adjDuct.spacingOk?'✓':'✗'"></td><td class="no-print"></td></tr></template>
         <tr title="台灣規範未規定腹板最小厚度（§8.9.3 僅規定漸變長度 ≥ 12 倍厚度差）；此列為 AASHTO C5.14.1.5.1c 解說之澆置建議值"><td>腹板最小厚度 <span class="mut">（AASHTO 參考；台灣未規定）</span></td>
             <td x-text="fmt(webT)+' mm'"></td>
             <td x-text="'≥ '+fmt(webDuct.webMin)+' mm（'+(webVertPT?'縱向＋豎向管':'僅縱向管')+'）'+(webDuct.deepNote?'；梁深 > 2,400 應再加大':'')"></td>
@@ -1655,7 +1664,7 @@ var DET={
   'M1 極限彎曲 φMn':{tex:'\\phi M_n = \\phi\\,A_{ps}f_{ps}\\left(d_p-\\dfrac{a}{2}\\right) \\;\\ge\\; M_u',cite:'AASHTO 5.6.3・下限 M_cr（0.97√f\'c[MPa]）'},
   'D1 主拉應力 σ1':{tex:'\\sigma_1 = -\\dfrac{f_{pc}}{2}+\\sqrt{\\left(\\dfrac{f_{pc}}{2}\\right)^2+\\tau^2} \\;\\le\\; 0.3\\sqrt{f\'_c}',cite:'台灣・主拉 0.3√f\'c(kgf/cm²)=0.094√f\'c(MPa)'},
   'D1 設計抗剪 φVn':{tex:'\\phi V_n = \\phi\\,(V_{cw}+V_s) \\;\\ge\\; V_u',cite:'AASHTO 5.7.3・V_cw 含鋼腱垂直分量 V_p'},
-  'D1 最小箍筋':{tex:'\\dfrac{A_v}{s} \\;\\ge\\; \\dfrac{0.35\\,b_w}{f_y}',cite:'台灣・最小剪力鋼筋'},
+  'D1 最小箍筋':{tex:'\\dfrac{A_v}{s} \\;\\ge\\; \\dfrac{0.345\\,b\'}{f_{sy}}',cite:'台灣 §8.20.3 3.（式 8-31，原文 kgf 制 3.5b′s/fsy）；台灣無 √f\'c 項，AASHTO 5.8.2.5 之 0.083√f\'c·b_v/f_y 僅並列參考'},
   'C2/C3 活載撓度 δ_LL':{tex:'\\delta_{LL} \\;\\le\\; \\dfrac{L}{800}',cite:'台灣公路橋梁設計規範 §8.11・活載撓度'},
   'D2 扭力 Tcr':{tex:'T_u \\;\\le\\; \\tfrac{1}{4}\\,T_{cr} \\;\\Rightarrow\\; 可免顯式扭設計',cite:'AASHTO 5.7.2.1・扭力門檻'},
   'D3 橫向 墩面 φMn':{tex:'\\phi M_n \\;\\ge\\; M_u \\quad(\\text{墩面 D22@150})',cite:'台灣・橋面板橫向設計'},
@@ -2549,6 +2558,22 @@ function calc(){
     get DL(){ var yb=this.R.sec.yb;
       return this.layDL(this.ntd,this.nWeb,yb-this.eCtrl,
         {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h,rule:this.ductRule,sideMargin:this.ductSideMargin}); },
+    // 台灣 §8.9.1／§8.9.2 翼板最小厚度：淨距＝腹板間淨距（多腹板取最大一室）
+    get slabT(){ var n=Math.max(1,this.nWeb|0),
+      clear=n>1?(this.botW-n*this.webT)/(n-1):Math.max(0,this.botW-2*this.webT);
+      return window.BC.boxSlabThicknessTW(this.topT,this.botT,clear); },
+    // 相鄰疊放曲線管互推（AASHTO 5.10.4.3.1；台灣未規定）：取最小曲率半徑（跨中線形 vs 過渡段垂直向）
+    get adjDuct(){
+      var B=window.BC, lay=this.DL, nStack=lay.nRow;
+      if(nStack<2) return null;
+      var R=this.ductR.R, dv=this.devForce;
+      if(dv&&dv.RvertAtMin&&dv.RvertAtMin<R) R=dv.RvertAtMin;
+      var ApEach=this.strands*this.strandAp,
+          Pu=1.2*this.R.ten.fpj*ApEach, Ps=this.R.loss.Pe/Math.max(1,this.ntd|0);
+      var sClear=(lay.bundle==='V')?0:this.ductSv;     // 垂直捆紮時上下接觸
+      var r=B.adjacentDuctRadialCheck(Pu,Ps,R,nStack,sClear,this.cFci,this.ductOD);
+      r.R=R; r.src=(dv&&dv.RvertAtMin&&dv.RvertAtMin<this.ductR.R)?'過渡段垂直向（取 L_t,min）':'梁身線形';
+      return r; },
     // 過渡段偏折力（AASHTO 5.10.4.3；台灣未規定）：捆紮→展開的移位造成管道曲率 → F = P_u/R。
     //   R = L_t²/(4Δ)（兩段反曲拋物線）→ 不問使用者 L_t，直接回推「僅靠保護層即足夠」之最小過渡長度。
     //   P_u 依 3.4.3 取 1.2×施拉力（與齒塊 Pd 同慣例）。控制管取移位向量最大者。
@@ -2558,13 +2583,19 @@ function calc(){
       var m=ez.moves.slice().sort(function(a,b){return Math.hypot(b[1],b[2])-Math.hypot(a[1],a[2])})[0];
       var ApEach=this.strands*this.strandAp, Pu=1.2*this.R.ten.fpj*ApEach;
       var lay=ez.layHi, yb=lay.rows[Math.min(lay.rows.length-1,Math.floor((m[0]-1)/lay.nCol))].y;
-      var coverFace=Math.min(yb-this.ductOD/2, this.h-yb-this.ductOD/2);   // 垂直向到最近自由面
+      // 垂直向的抵抗面取「到最近自由面」與「到同列相鄰管」較小者——疊放時管對管淨距才是弱面（5.10.4.3.1）
+      var free=Math.min(yb-this.ductOD/2, this.h-yb-this.ductOD/2),
+          sClr=(this.DL.bundle==='V')?0:this.ductSv,
+          coverFace=(this.DL.nRow>1)?Math.min(free,sClr):free;
       var coverSide=Math.min(this.DL.coverSide, lay.coverSide);
+      // 傳入的 L_t 不影響 L_t,min（後者只由 Δ、P_u、V_r 決定）；R 一律取 L_t,min 下之值
       var r=B.deviationForceCheck(Pu,m[1],m[2],1000,this.cFci,coverSide,coverFace,this.ductOD);
       r.no=m[0]; r.dx=m[1]; r.dy=m[2]; r.coverFace=coverFace; r.coverSide=coverSide;
+      r.free=free; r.sClear=sClr; r.faceIsDuct=(this.DL.nRow>1&&sClr<free);
       r.LtMin=Math.max(r.LtMinLat,r.LtMinVert);
       r.gov=r.LtMinVert>=r.LtMinLat?'垂直（面內）':'橫向（面外）';
       r.RatMin=B.transitionRadius(r.LtMinVert>=r.LtMinLat?m[2]:m[1], r.LtMin);
+      r.RvertAtMin=B.transitionRadius(m[2], r.LtMin);   // 供相鄰管互推用（設計取 L_t,min 時的垂直向 R）
       return r; },
     // 腹板厚與管徑：台灣規範未規定（§8.9.3 僅漸變 12 倍）→ 列 AASHTO 參考值，不改 ⑤ 台灣剪力計算
     get webDuct(){ var L=this.DL, nl=Math.max.apply(null,L.rows.map(function(r){return r.count}));
@@ -3228,7 +3259,7 @@ function calc(){
         PeShear=lpR.at(dv/1000).Pe;
       }
       var sh=B.shearWeb(PeShear,sec,this.e,this.fc,bwEff,dv,VuUse*1e3,dv,this.L*1000,this.nWeb);
-      var phiVn=B.phiVn(sh.Vcw,this.avAuto/this.sv,dv), AvsMin=B.AvSminTW(this.fc,bwEff);
+      var phiVn=B.phiVn(sh.Vcw,this.avAuto/this.sv,dv), AvsMin=B.AvSminTW(this.fc,bwEff), AvsMinA=B.AvSminAASHTO(this.fc,bwEff);
       var compAllow=-0.60*this.fc;
       var df=B.deflection(this.L*1000,29700,sec,wsw+this.wDW,loss.Pe,this.e,perLane*0.01);
       var f=function(n,d){return (+n.toFixed(d==null?0:d)).toLocaleString('en-US')};
@@ -3239,7 +3270,7 @@ function calc(){
         ['M1 極限彎曲 φMn','φMn '+f(flex.phiMn)+' kN·m（CR '+f(flex.CR,2)+'）','≥ Mu '+f(comb.Strength_I)+' 且 ≥下限 '+f(flex.lower),flex.ok,'④'],
         ['D1 主拉應力 σ1',f(sh.sigma1,2)+' MPa',' ≤ '+f(sh.sigma1_limit,2)+'（近支承超→箍筋）',sh.sigma1_ok,'⑤'],
         ['D1 設計抗剪 φVn','φVn '+f(phiVn/1e3)+' kN（Av/s '+(this.avAuto/this.sv).toFixed(2)+'）','≥ Vu '+f(VuUse)+' kN'+(this.VuAuto?'（包絡）':'（手動）'),phiVn>=VuUse*1e3,'⑤'],
-        ['D1 最小箍筋','Av/s '+(this.avAuto/this.sv).toFixed(2)+' mm²/mm','≥ '+AvsMin.toFixed(2),(this.avAuto/this.sv)>=AvsMin,'⑤'],
+        ['D1 最小箍筋','Av/s '+(this.avAuto/this.sv).toFixed(2)+' mm²/mm','≥ '+AvsMin.toFixed(2)+'（台灣 §8.20.3 明文 0.345b′/fsy；AASHTO 5.8.2.5 參考 '+AvsMinA.toFixed(2)+'）',(this.avAuto/this.sv)>=AvsMin,'⑤'],
         ['C2/C3 活載撓度 δ_LL',f(df.d_LL,1)+' mm','≤ L/800 = '+f(this.L*1000/800)+' mm',df.d_LL_ok,'⑤'],
         ['C2/C3 建議預拱',f(df.camber)+' mm（LBR '+f(df.LBR*100,1)+'%）','—',null,'⑤']
       ];

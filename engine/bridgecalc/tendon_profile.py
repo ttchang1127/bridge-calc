@@ -753,3 +753,75 @@ def web_duct_check(web_t: float, duct_od: float, n_level: int, h: float = None,
         bv_grouted=web_t - AASHTO_BV_DEDUCT["grouted"] * s,
         bv_ungrouted=web_t - AASHTO_BV_DEDUCT["ungrouted"] * s,
         taper_min=None if dt_change is None else 12.0 * abs(dt_change))
+
+
+# ── 曲線鋼腱偏折力（A4，AASHTO LRFD 2008 SI Art. 5.10.4.3；2026-09-20 NLM 原文）──────
+# 5.10.4.3.1-1 面內 F_u−in = P_u / R（N/mm）；5.10.4.3.2-1 面外 F_u−out 同式、R 取該平面曲率半徑。
+# 5.10.4.3.1-2/3 保護層抗拉脫：V_r = φV_n、V_n = 0.33√f'ci · d_c（兩個剪力面之每單位長標稱強度，N/mm），
+#   d_c = 套管上之最小保護層 + 半個管徑（mm）、φ = 0.90（5.5.4.2 剪力）、f'ci = 施力時混凝土強度。
+#   不足時 → 面內須配「完全錨定之 tie-back」；面外須沿曲線段配局部圍束（宜用螺旋筋）。
+# 5.10.4.3：圍束鋼筋 f_s ≤ 0.6f_y、f_y ≤ 420 MPa、間距 ≤ min(3×管外徑, 600 mm)；
+#   進入角隅或內孔者，管邊距 ≥ 1.5 倍管徑；兩平面同時彎曲時面內與面外力**向量相加**。
+# 5.4.6.1：套管曲率半徑 ≥ 6,000 mm（錨碇區可 3,600）；PE 管 < 9,000 不得使用。
+DEV_PHI_SHEAR = 0.90
+DEV_VN_COEF = 0.33
+DUCT_R_MIN = 6000.0
+DUCT_R_MIN_ANCHOR = 3600.0
+DUCT_R_MIN_PE = 9000.0
+
+
+def transition_radius(offset: float, length: float) -> float:
+    """過渡段（反向曲線）之曲率半徑 mm：偏移 offset 於長度 length 內完成。
+
+    以兩段等長拋物線反曲組成，各段矢高 offset/2、水平長 length/2 →
+    y = a x²、a = 2·offset/length²，曲率 2a → R = length² / (4·offset)。offset=0 時回 inf。
+    """
+    return float("inf") if abs(offset) < 1e-12 else length * length / (4.0 * abs(offset))
+
+
+@dataclass
+class DeviationForceResult:
+    Pu: float               # 單腱 factored 力 N
+    R_lat: float            # 橫向（面外）曲率半徑 mm
+    R_vert: float           # 垂直（面內）曲率半徑 mm
+    F_out: float            # 面外偏折力 N/mm
+    F_in: float             # 面內偏折力 N/mm
+    F_res: float            # 向量和 N/mm
+    dc_lat: float           # 側向 d_c = 側保護層 + od/2
+    dc_vert: float          # 垂直 d_c = 底（或頂）保護層 + od/2
+    Vr_lat: float           # φ·0.33√f'ci·d_c_lat
+    Vr_vert: float
+    ok_lat: bool
+    ok_vert: bool
+    ok_res: bool            # 向量和 vs 較小之 Vr（保守）
+    R_min_ok: bool          # 兩平面 R 皆 ≥ 6,000（5.4.6.1）
+    Lt_min_lat: float       # 使 F_out ≤ Vr_lat 之最小過渡長度 mm
+    Lt_min_vert: float
+    s_max: float            # 圍束筋最大間距 min(3·od, 600)
+
+
+def deviation_force_check(Pu: float, dx: float, dy: float, Lt: float, fci: float,
+                          cover_side: float, cover_face: float, duct_od: float = 100.0,
+                          phi: float = DEV_PHI_SHEAR) -> DeviationForceResult:
+    """過渡段（捆紮→展開）管道偏折力檢核，AASHTO 5.10.4.3。
+
+    Pu[N]：單腱之 factored 力（依 3.4.3）；dx/dy[mm]：該管橫向／垂直移位；Lt[mm]：過渡段長度。
+    cover_side/cover_face[mm]：移位方向上的淨保護層（側面／底或頂面）；fci[MPa]。
+    ⚠ 台灣規範未規定偏折力（見公式卡 G1 §7.1.2），本檢核為 AASHTO 參考。
+    """
+    R_lat, R_vert = transition_radius(dx, Lt), transition_radius(dy, Lt)
+    F_out = Pu / R_lat if R_lat != float("inf") else 0.0
+    F_in = Pu / R_vert if R_vert != float("inf") else 0.0
+    F_res = math.hypot(F_out, F_in)
+    dc_l, dc_v = cover_side + duct_od / 2, cover_face + duct_od / 2
+    vn = lambda dc: phi * DEV_VN_COEF * math.sqrt(fci) * dc
+    Vr_l, Vr_v = vn(dc_l), vn(dc_v)
+    lt_min = lambda d, Vr: 0.0 if abs(d) < 1e-12 else math.sqrt(4.0 * abs(d) * Pu / Vr)
+    return DeviationForceResult(
+        Pu=Pu, R_lat=R_lat, R_vert=R_vert, F_out=F_out, F_in=F_in, F_res=F_res,
+        dc_lat=dc_l, dc_vert=dc_v, Vr_lat=Vr_l, Vr_vert=Vr_v,
+        ok_lat=F_out <= Vr_l + 1e-9, ok_vert=F_in <= Vr_v + 1e-9,
+        ok_res=F_res <= min(Vr_l, Vr_v) + 1e-9,
+        R_min_ok=min(R_lat, R_vert) >= DUCT_R_MIN - 1e-9,
+        Lt_min_lat=lt_min(dx, Vr_l), Lt_min_vert=lt_min(dy, Vr_v),
+        s_max=min(3.0 * duct_od, 600.0))

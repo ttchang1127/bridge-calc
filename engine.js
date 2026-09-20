@@ -326,7 +326,9 @@
     var b = Math.max(40, 1.5 * dAgg);
     return rule === 'od' ? Math.max(b, od) : b;
   };
-  // 拋物線最小曲率半徑 R = L²/(8a)（mm）；台灣金屬波形管 ≥6,000、日本 ≥100×管道外徑
+  // 拋物線最小曲率半徑 R = L²/(8a)（mm）
+  // ⚠ 最小值 6,000（錨碇區 3,600、PE 管 9,000）是 **AASHTO 5.4.6.1**；日本 ≥100×管道外徑。
+  //   台灣規範未規定最小曲率半徑（2026-09-20 NLM 核第八章，原註解誤標為台灣）。
   BC.radiusOfCurvature = function (a, L) { return L * L / (8 * a); };
   BC.ductLayout = function (nTendons, nWeb, yCgs, o) {
     o = o || {};
@@ -455,6 +457,26 @@
              bundleW: bw, bundleRatio: bw == null ? null : bw / webT, webMin: wmin, webMinOk: webT >= wmin - 1e-9,
              deepNote: h != null && h > 2400, bvGrouted: webT - 0.25 * s, bvUngrouted: webT - 0.5 * s,
              taperMin: dtChange == null ? null : 12 * Math.abs(dtChange) };
+  };
+
+  // 曲線鋼腱偏折力（同 tendon_profile.deviation_force_check）：AASHTO 5.10.4.3。
+  // F_u−in / F_u−out = P_u/R（N/mm）；保護層抗拉脫 V_r = φ·0.33√f'ci·d_c、d_c = 保護層 + od/2；
+  // 不足 → 面內配完全錨定 tie-back、面外沿曲線段配局部圍束（宜螺旋筋）。圍束 f_s ≤ 0.6f_y、f_y ≤ 420、
+  // 間距 ≤ min(3·od, 600)。兩平面同時彎曲時向量相加。R ≥ 6,000（錨碇區 3,600、PE 9,000）＝5.4.6.1。
+  // ⚠ 台灣規範未規定偏折力（§8.21.3 6.(2) 僅要求隔梁錨碇處配筋抵抗曲率分力）。
+  BC.transitionRadius = function (offset, len) { return Math.abs(offset) < 1e-12 ? Infinity : len * len / (4 * Math.abs(offset)); };
+  BC.deviationForceCheck = function (Pu, dx, dy, Lt, fci, coverSide, coverFace, od, phi) {
+    od = od == null ? 100 : od; phi = phi == null ? 0.9 : phi;
+    var Rl = BC.transitionRadius(dx, Lt), Rv = BC.transitionRadius(dy, Lt);
+    var Fo = Rl === Infinity ? 0 : Pu / Rl, Fi = Rv === Infinity ? 0 : Pu / Rv;
+    var dcl = coverSide + od / 2, dcv = coverFace + od / 2,
+        vn = function (dc) { return phi * 0.33 * Math.sqrt(fci) * dc; }, Vl = vn(dcl), Vv = vn(dcv);
+    var ltm = function (d, Vr) { return Math.abs(d) < 1e-12 ? 0 : Math.sqrt(4 * Math.abs(d) * Pu / Vr); };
+    var Fr = Math.sqrt(Fo * Fo + Fi * Fi);
+    return { Pu: Pu, Rlat: Rl, Rvert: Rv, Fout: Fo, Fin: Fi, Fres: Fr, dcLat: dcl, dcVert: dcv,
+             VrLat: Vl, VrVert: Vv, okLat: Fo <= Vl + 1e-9, okVert: Fi <= Vv + 1e-9,
+             okRes: Fr <= Math.min(Vl, Vv) + 1e-9, RminOk: Math.min(Rl, Rv) >= 6000 - 1e-9,
+             LtMinLat: ltm(dx, Vl), LtMinVert: ltm(dy, Vv), sMax: Math.min(3 * od, 600) };
   };
 
   // ── 腹板抗剪 D1 ───────────────────────────────────────

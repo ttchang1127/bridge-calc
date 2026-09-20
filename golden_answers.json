@@ -749,6 +749,21 @@
     "taper_250_mm": 3000.0,
     "_note": "台灣三項均未規定（§8.9.3 僅漸變 12 倍）；以上為 AASHTO 參考值。H 捆紮束寬比 0.67 > 0.4，5.4.6.2 未定義捆紮 size，不判定。"
   },
+  "deviation_force_A4": {
+    "Pu_kN": 4452.8,
+    "Lt3_R_lat_m": 45.0,
+    "Lt3_F_out": 99.0,
+    "Lt3_F_in": 277.1,
+    "Vr_lat": 151.2,
+    "Lt3_ok_lat": true,
+    "Lt3_ok_vert": false,
+    "Lt6_ok_lat": true,
+    "Lt6_ok_vert": true,
+    "Lt_min_lat_mm": 2427,
+    "Lt_min_vert_mm": 4061,
+    "s_max_mm": 300.0,
+    "_note": "R=Lt²/(4Δ)（兩段反曲拋物線）。保護層 40 時，僅靠保護層抗拉脫需 Lt ≥ 4.06 m（垂直控制）；較短者須配 tie-back／局部圍束。台灣規範未規定偏折力（§8.21.3 6.(2) 僅要求隔梁錨碇處配筋抵抗曲率分力）。"
+  },
   "temperature_integrated_T1": {
     "section": "配置A h=2100",
     "Tu_C": 6.91,

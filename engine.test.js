@@ -531,6 +531,21 @@ function chkEq(name, got, exp) {
   chkEq('腹板 300H 最小厚 OK', wd2.webMinOk, gwd.w300H_web_min_ok);
   chk('腹板 300H bv 灌漿', wd2.bvGrouted, gwd.w300H_bv_grouted, 1e-9);
   chk('腹板 漸變 12 倍', wd2.taperMin, gwd.taper_250_mm, 1e-9);
+  // 過渡段偏折力（AASHTO 5.10.4.3）
+  var gdv = g.deviation_force_A4, Pu4 = 1.2 * 1395 * 19 * 140,
+      dv3 = BC.deviationForceCheck(Pu4, 50, 140, 3000, 32, 40, 40),
+      dv6 = BC.deviationForceCheck(Pu4, 50, 140, 6000, 32, 40, 40);
+  chk('偏折 Pu', Pu4 / 1e3, gdv.Pu_kN, 0.1);
+  chk('偏折 R 橫向', dv3.Rlat / 1000, gdv.Lt3_R_lat_m, 0.1);
+  chk('偏折 F_out', dv3.Fout, gdv.Lt3_F_out, 0.1);
+  chk('偏折 F_in', dv3.Fin, gdv.Lt3_F_in, 0.1);
+  chk('偏折 Vr 側向', dv3.VrLat, gdv.Vr_lat, 0.1);
+  chkEq('偏折 Lt3 側向 OK', dv3.okLat, gdv.Lt3_ok_lat);
+  chkEq('偏折 Lt3 垂直 OK', dv3.okVert, gdv.Lt3_ok_vert);
+  chkEq('偏折 Lt6 垂直 OK', dv6.okVert, gdv.Lt6_ok_vert);
+  chk('偏折 最小過渡長 側向', dv3.LtMinLat, gdv.Lt_min_lat_mm, 1);
+  chk('偏折 最小過渡長 垂直', dv3.LtMinVert, gdv.Lt_min_vert_mm, 1);
+  chk('偏折 圍束間距上限', dv3.sMax, gdv.s_max_mm, 1e-9);
   chkEq('捆紮 300 最佳 可行', db300.best.fits, dbg.w300_best_fits);
   // 簡支 d_v 斷面設計剪力（analyzer ⑤ 自動帶入 Vu）
   var ssd = g.simple_shear_dv, rSS = BC.taiwanContShearAt([40], ssd.x_m, 'R', 5.065 * 24.5, 20, 2);

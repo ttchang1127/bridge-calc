@@ -50,7 +50,7 @@ from bridgecalc import (Section, Tendon, compute_losses, combinations,
                         simple_span_tendon_segs, staged_envelope, duct_size_check,
                         positive_moment_connection, durability_cover,
                         aashto_creep, staging_phi, box_volume_surface, timing_sensitivity_aashto)
-from bridgecalc.tendon_profile import duct_layout_bundled, end_zone_duct_check, web_duct_check
+from bridgecalc.tendon_profile import duct_layout_bundled, end_zone_duct_check, web_duct_check, deviation_force_check
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -790,6 +790,21 @@ def _web_duct_A2():
             "w300H_web_min_ok": b.web_min_ok, "w300H_bv_grouted": b.bv_grouted, "taper_250_mm": b.taper_min,
             "_note": "台灣三項均未規定（§8.9.3 僅漸變 12 倍）；以上為 AASHTO 參考值。H 捆紮束寬比 0.67 > 0.4，5.4.6.2 未定義捆紮 size，不判定。"}
 
+
+def _deviation_force_A4():
+    """過渡段偏折力（AASHTO 5.10.4.3）：腹板 300 水平捆→展開，橫移 50／豎移 140。"""
+    Pu = 1.2 * 1395 * 19 * 140                       # 3.4.3：1.2 × 施拉力（19 股）
+    r3 = deviation_force_check(Pu, 50, 140, 3000, 32, cover_side=40, cover_face=40)
+    r6 = deviation_force_check(Pu, 50, 140, 6000, 32, cover_side=40, cover_face=40)
+    return {"Pu_kN": round(Pu / 1e3, 1), "Lt3_R_lat_m": round(r3.R_lat / 1000, 1),
+            "Lt3_F_out": round(r3.F_out, 1), "Lt3_F_in": round(r3.F_in, 1),
+            "Vr_lat": round(r3.Vr_lat, 1), "Lt3_ok_lat": r3.ok_lat, "Lt3_ok_vert": r3.ok_vert,
+            "Lt6_ok_lat": r6.ok_lat, "Lt6_ok_vert": r6.ok_vert,
+            "Lt_min_lat_mm": round(r3.Lt_min_lat), "Lt_min_vert_mm": round(r3.Lt_min_vert),
+            "s_max_mm": r3.s_max,
+            "_note": "R=Lt²/(4Δ)（兩段反曲拋物線）。保護層 40 時，僅靠保護層抗拉脫需 Lt ≥ 4.06 m（垂直控制）；"
+                     "較短者須配 tie-back／局部圍束。台灣規範未規定偏折力（§8.21.3 6.(2) 僅要求隔梁錨碇處配筋抵抗曲率分力）。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -888,6 +903,7 @@ golden = {
     "duct_bundle_825_3": _duct_bundle_825_3(),
     "duct_end_zone_825_3": _duct_end_zone_825_3(),
     "web_duct_A2": _web_duct_A2(),
+    "deviation_force_A4": _deviation_force_A4(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),
         "service_total_MPa": round(thermal_service_check(r.sigma_neg["底板底"], sb, 0.5)[0],2),

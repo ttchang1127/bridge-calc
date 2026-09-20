@@ -366,7 +366,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <div class="metric"><div class="l">Δe 範圍（合力偏移）</div>
         <div class="v" style="font-size:15px" x-text="CB&&CB.rows[0].de!==undefined?(fmt(Math.min.apply(null,CB.rows.map(r=>r.de)),2)+' ～ '+fmt(Math.max.apply(null,CB.rows.map(r=>r.de)),2)+' mm'):''"></div></div>
       <div class="metric"><div class="l">各段最小曲率半徑 R</div>
-            <div class="v" :class="ductR.okTW?'ok':'ng'" style="font-size:15px"
+            <div class="v" :class="ductR.okA?'ok':'ng'" style="font-size:15px"
               x-text="P3D.tp?fmt(P3D.tp.Rmin/1000,1)+' m':'—'"></div></div>
           <div class="metric"><div class="l">反曲點／低點 里程</div>
             <div class="v" style="font-size:14px"
@@ -446,7 +446,8 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
       <span x-show="DL.cands" x-text="DL.cands?'（不捆 '+fmt(DL.cands.none.eMax,0)+(DL.cands.none.fits?'':' ✗')+(DL.cands.H?'、水平捆 '+fmt(DL.cands.H.eMax,0)+(DL.cands.H.fits?'':' ✗'):'')+(DL.cands.V?'、垂直捆 '+fmt(DL.cands.V.eMax,0)+(DL.cands.V.fits?'':' ✗'):'')+'）':''"></span>。
       <b>距構材端部 90 cm 內須回到 §8.25.2 間距</b>（下表「端部 90 cm 排列」）：過渡段單管最大移位
       橫向 <b x-text="fmt(endZone.dxMax,0)"></b> mm、垂直 <b x-text="fmt(endZone.dyMax,0)"></b> mm，
-      須在捆紮段與端部 90 cm 之間完成；移位造成的偏折力（管道側向拉脫）另檢。3D 與縱剖面沿全長沿用本斷面排列，端部僅示意。
+      須在捆紮段與端部 90 cm 之間完成。移位使管道產生曲率 → 偏折力 F = P_u/R（AASHTO 5.10.4.3，台灣未規定）：
+      <b x-show="devForce" x-text="devForce?'過渡段須長於 '+fmt(devForce.LtMin/1000,2)+' m 才能僅靠保護層抵抗（控制：'+devForce.gov+'，此時 R = '+fmt(devForce.RatMin/1000,1)+' m）；較短者須配完全錨定 tie-back 或沿曲線段局部圍束（間距 ≤ '+fmt(devForce.sMax,0)+' mm、f_s ≤ 0.6f_y、f_y ≤ 420）。':''"></b>3D 與縱剖面沿全長沿用本斷面排列，端部僅示意。
       捆紮只處理幾何可行性；腹板最小厚度、剪力等其他限制仍須另檢。
     </div>
     <div class="hint" x-show="!ductSize.od_gt_id" x-cloak style="color:#b45309;margin-bottom:8px">
@@ -466,6 +467,11 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
             <td x-text="endZone.layHi.nCol+' 列 × '+endZone.layHi.nRow+' 層・e '+fmt(endZone.eLo,0)+'～'+fmt(endZone.eHi,0)+' mm（'+endZone.side+'）'"></td>
             <td x-text="'底保護層 '+fmt(Math.min(endZone.layLo.coverBot,endZone.layHi.coverBot),0)+' ≥ '+fmt(ductCover)+'、頂側在斷面內'"></td>
             <td style="text-align:center" :class="endZone.fits?'ok':'ng'" x-text="endZone.fits?'✓':'✗'"></td><td class="no-print"></td></tr>
+        <template x-if="devForce"><tr title="AASHTO 5.10.4.3：F=P_u/R；保護層抗拉脫 V_r=φ·0.33√f'ci·d_c（d_c＝該方向到最近自由面之保護層＋半管徑，故腹板中央之管垂直向 d_c 很大）。⚠ 徑向力若指向相鄰管道，5.10.4.3.1 另要求加大間距／配圍束／內側管先灌漿再拉外側，本列未涵蓋。台灣規範未規定偏折力（§8.21.3 6.(2) 僅要求隔梁錨碇處配筋抵抗曲率分力）">
+          <td>過渡段最小長度 L<sub>t,min</sub> <span class="mut">（AASHTO 5.10.4.3 參考；台灣未規定）</span></td>
+            <td x-text="fmt(devForce.LtMin/1000,2)+' m（控制：'+devForce.gov+'；管 '+devForce.no+' 移位 '+fmt(devForce.dx,0)+'／'+fmt(devForce.dy,0)+' mm）'"></td>
+            <td x-text="'僅靠保護層抗拉脫：d_c 側 '+fmt(devForce.dcLat,0)+'／垂直 '+fmt(devForce.dcVert,0)+' mm，V_r '+fmt(devForce.VrLat,0)+'／'+fmt(devForce.VrVert,0)+' N/mm'"></td>
+            <td style="text-align:center" class="mut">—</td><td class="no-print"></td></tr></template>
         <tr title="台灣規範未規定腹板最小厚度（§8.9.3 僅規定漸變長度 ≥ 12 倍厚度差）；此列為 AASHTO C5.14.1.5.1c 解說之澆置建議值"><td>腹板最小厚度 <span class="mut">（AASHTO 參考；台灣未規定）</span></td>
             <td x-text="fmt(webT)+' mm'"></td>
             <td x-text="'≥ '+fmt(webDuct.webMin)+' mm（'+(webVertPT?'縱向＋豎向管':'僅縱向管')+'）'+(webDuct.deepNote?'；梁深 > 2,400 應再加大':'')"></td>
@@ -496,8 +502,8 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
             <td style="text-align:center" :class="DL.topOk?'ok':'ng'" x-text="DL.topOk?'✓':'✗'"></td><td class="no-print"></td></tr>
         <tr><td x-text="ductR.seg?'最小曲率半徑 R（各段 10⁶/2|c| 取小）':'最小曲率半徑 R ＝ L²/(8a)'"></td>
             <td x-text="fmt(ductR.R/1000,1)+' m'"></td>
-            <td x-text="'≥ 6.0 m（台灣金屬波形管）；日本 ≥ '+fmt(ductR.reqJP/1000,1)+' m（100φ）'"></td>
-            <td style="text-align:center" :class="ductR.okTW?'ok':'ng'" x-text="ductR.okTW?'✓':'✗'"></td><td class="no-print"></td></tr>
+            <td x-text="'≥ 6.0 m（AASHTO 5.4.6.1；錨碇區 3.6 m、PE 管 9.0 m）；日本 ≥ '+fmt(ductR.reqJP/1000,1)+' m（100φ）。台灣未規定'"></td>
+            <td style="text-align:center" :class="ductR.okA?'ok':'ng'" x-text="ductR.okA?'✓':'✗'"></td><td class="no-print"></td></tr>
         <tr><td x-text="contLine?'跨中偏心 e_mid（受實配排列控制）':'偏心 e（受實配排列控制）'"></td>
             <td x-text="fmt(eCtrl)+' mm'+(contLine?'（⑦ 線形）':'')"></td>
             <td x-text="'≤ '+fmt(DL.eMax)+' mm（實配上限）'"></td>
@@ -1045,7 +1051,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
         x-text="CB&&CB.m2?(fmt(Math.max.apply(null,CB.m2.segs.filter(g=>g.kind==='sag').map(g=>g.w)),1)+' ↑ / '+fmt(Math.min.apply(null,CB.m2.segs.filter(g=>g.kind==='hog').map(g=>g.w)),1)+' ↓ kN/m（'+CB.m2.segs.length+' 段）'):''"></div></div>
       <div class="metric"><div class="l">各段最小曲率半徑 R</div>
         <div class="v" style="font-size:15px" :class="CB&&CB.m2?(CB.m2.Rmin>=6000?'ok':'ng'):''"
-          x-text="CB&&CB.m2?(fmt(CB.m2.Rmin/1000,1)+' m（需 ≥6.0 台灣／≥'+fmt(ductOD/10,1)+' 日本 100φ）'):''"></div></div>
+          x-text="CB&&CB.m2?(fmt(CB.m2.Rmin/1000,1)+' m（需 ≥6.0 AASHTO 5.4.6.1／≥'+fmt(ductOD/10,1)+' 日本 100φ；台灣未規定）'):''"></div></div>
       <div class="metric"><div class="l">反曲點／低點 里程</div><div class="v" style="font-size:15px"
         x-text="CB&&CB.m2?(CB.m2.infl.map(v=>fmt(v,1)).join('、')+' ｜ '+CB.m2.lows.map(v=>fmt(v,1)).join('、')+' m'):''"></div></div>
       <div class="metric"><div class="l">中墩 M₁（主彎矩）</div><div class="v" x-text="CB&&CB.pier.M1!=null?fmt(CB.pier.M1)+' kN·m':''"></div></div>
@@ -2543,6 +2549,23 @@ function calc(){
     get DL(){ var yb=this.R.sec.yb;
       return this.layDL(this.ntd,this.nWeb,yb-this.eCtrl,
         {od:this.ductOD,webT:this.webT,cover:this.ductCover,sv:this.ductSv,dAgg:this.dAgg,yb:yb,h:this.h,rule:this.ductRule,sideMargin:this.ductSideMargin}); },
+    // 過渡段偏折力（AASHTO 5.10.4.3；台灣未規定）：捆紮→展開的移位造成管道曲率 → F = P_u/R。
+    //   R = L_t²/(4Δ)（兩段反曲拋物線）→ 不問使用者 L_t，直接回推「僅靠保護層即足夠」之最小過渡長度。
+    //   P_u 依 3.4.3 取 1.2×施拉力（與齒塊 Pd 同慣例）。控制管取移位向量最大者。
+    get devForce(){
+      var ez=this.endZone, B=window.BC;
+      if(!ez.moves.length) return null;
+      var m=ez.moves.slice().sort(function(a,b){return Math.hypot(b[1],b[2])-Math.hypot(a[1],a[2])})[0];
+      var ApEach=this.strands*this.strandAp, Pu=1.2*this.R.ten.fpj*ApEach;
+      var lay=ez.layHi, yb=lay.rows[Math.min(lay.rows.length-1,Math.floor((m[0]-1)/lay.nCol))].y;
+      var coverFace=Math.min(yb-this.ductOD/2, this.h-yb-this.ductOD/2);   // 垂直向到最近自由面
+      var coverSide=Math.min(this.DL.coverSide, lay.coverSide);
+      var r=B.deviationForceCheck(Pu,m[1],m[2],1000,this.cFci,coverSide,coverFace,this.ductOD);
+      r.no=m[0]; r.dx=m[1]; r.dy=m[2]; r.coverFace=coverFace; r.coverSide=coverSide;
+      r.LtMin=Math.max(r.LtMinLat,r.LtMinVert);
+      r.gov=r.LtMinVert>=r.LtMinLat?'垂直（面內）':'橫向（面外）';
+      r.RatMin=B.transitionRadius(r.LtMinVert>=r.LtMinLat?m[2]:m[1], r.LtMin);
+      return r; },
     // 腹板厚與管徑：台灣規範未規定（§8.9.3 僅漸變 12 倍）→ 列 AASHTO 參考值，不改 ⑤ 台灣剪力計算
     get webDuct(){ var L=this.DL, nl=Math.max.apply(null,L.rows.map(function(r){return r.count}));
       return window.BC.webDuctCheck(this.webT,this.ductOD,nl,this.h,this.webVertPT,this.ductBundle?(L.bundle||'none'):'none'); },
@@ -2788,8 +2811,9 @@ function calc(){
     },
     get ductR(){ var q=this.contLine?this.P3D:null;
       var R=(q&&q.tp)?q.tp.Rmin:window.BC.radiusOfCurvature(this.e,this.L*1000);
-      return {R:R, seg:!!(q&&q.tp), reqTW:6000, reqJP:100*this.ductOD,
-              okTW:R>=6000, okJP:R>=100*this.ductOD}; },
+      // ⚠ 6,000／3,600／9,000 是 AASHTO 5.4.6.1，**不是台灣規範**（2026-09-20 NLM 核第八章：台灣未規定最小曲率半徑）
+      return {R:R, seg:!!(q&&q.tp), reqA:6000, reqAnchor:3600, reqJP:100*this.ductOD,
+              okA:R>=6000, okJP:R>=100*this.ductOD}; },
     get key3d(){ return [this.topW,this.topT,this.botW,this.botT,this.webT,this.nWeb,this.h,this.L,this.e,
                          this.ntd,this.ductOD,this.ductSv,this.ductCover,this.ductSideMargin,this.ductBundle,this.dAgg,this.v3d.vz,this.jackEnd,
                          this.contLine,this.contSpans,this.contEEnd,this.contEMid,this.contEPier,

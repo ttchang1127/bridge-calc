@@ -1506,6 +1506,33 @@ def test_web_duct_A2():
     assert w(350, 100, 2).bundle_w is None and w(350, 100, 2).taper_min is None
 
 
+def test_deviation_force_A4():
+    """偏折力 F=P/R（AASHTO 5.10.4.3）、保護層抗拉脫 0.33√f'ci·d_c、最小過渡長度。"""
+    from bridgecalc import deviation_force_check as dv, transition_radius as tr
+    import math
+    assert tr(50, 3000) == 3000 ** 2 / (4 * 50) and tr(0, 3000) == float("inf")
+    Pu = 1.2 * 1395 * 19 * 140
+    r = dv(Pu, 50, 140, 3000, 32, cover_side=40, cover_face=40)
+    assert abs(r.F_out - Pu / tr(50, 3000)) < 1e-9 and abs(r.F_in - Pu / tr(140, 3000)) < 1e-9
+    assert abs(r.F_res - math.hypot(r.F_out, r.F_in)) < 1e-9          # 兩平面向量相加
+    assert abs(r.Vr_lat - 0.9 * 0.33 * math.sqrt(32) * (40 + 50)) < 1e-9   # d_c = 保護層 + od/2
+    # 最小過渡長度代回恰好等號
+    r2 = dv(Pu, 50, 140, r.Lt_min_lat, 32, cover_side=40, cover_face=40)
+    assert abs(r2.F_out - r2.Vr_lat) < 1e-6 and r2.ok_lat
+    r3 = dv(Pu, 50, 140, r.Lt_min_vert, 32, cover_side=40, cover_face=40)
+    assert abs(r3.F_in - r3.Vr_vert) < 1e-6
+    # 過渡越長越安全；Lt 加倍 → F 降為 1/4（R ∝ Lt²）
+    assert abs(dv(Pu, 50, 140, 6000, 32, cover_side=40, cover_face=40).F_out - r.F_out / 4) < 1e-9
+    # 無移位 → 無偏折力，R 無限大
+    z = dv(Pu, 0, 0, 3000, 32, cover_side=40, cover_face=40)
+    assert z.F_out == 0 and z.F_in == 0 and z.ok_lat and z.ok_vert and z.R_min_ok
+    assert z.Lt_min_lat == 0 and z.Lt_min_vert == 0
+    # 5.4.6.1：R < 6,000 要抓得到
+    assert not dv(Pu, 50, 0, 1000, 32, cover_side=40, cover_face=40).R_min_ok
+    assert dv(Pu, 50, 0, 3000, 32, cover_side=40, cover_face=40).R_min_ok
+    assert r.s_max == 300.0                                            # min(3×100, 600)
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

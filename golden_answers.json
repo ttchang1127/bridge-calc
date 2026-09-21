@@ -826,6 +826,23 @@
     "tie_s_max": 300.0,
     "_note": "跨中 R=180 m：F 24.7 ≤ V_r 151，淨距 40 已足；過渡段 R=26.5 m：F 168 > 151，須淨距 ≥50 mm 或每 300 mm 配 267 mm² 圍束筋（f_s ≤ 0.6f_y），或內側管先灌漿再拉外側。"
   },
+  "blister_stm_B1": {
+    "w_s_mm": 247.5,
+    "A_cs_mm2": 49497,
+    "fcu_aashto_MPa": 21.57,
+    "phiFns_aashto_kN": 748,
+    "fcu_aci_MPa": 25.5,
+    "phiFns_aci_kN": 884,
+    "phiFnn_CCC_kN": 1904,
+    "node_ok": false,
+    "A_n_req_mm2": 126050,
+    "A_cs_req_mm2": 198643,
+    "eps1": 0.0062,
+    "fcu_theta30_MPa": 12.32,
+    "node_CCT_aashto_kN": 1890,
+    "node_CCT_aci_kN": 1714,
+    "_note": "AASHTO 2008 無 β_s 表：f_cu=f'c/(0.8+170ε₁)≤0.85f'c、節點 0.85/0.75/0.65·φf'c；ACI β 表(1.00/0.80/0.60)僅 CCC 與 AASHTO 同值，CCT 低 10%。算例齒塊 400×250 於 200 腹板：壓桿與根部節點面積皆不足（與介面面積上限同一結論——須加大齒塊或改連續肋）。"
+  },
   "slab_thickness_TW": {
     "top_req_2400": 150.0,
     "bot_req_2400": 140.0,

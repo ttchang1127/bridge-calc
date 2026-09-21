@@ -21,6 +21,7 @@ from bridgecalc import (Section, Tendon, box_slab_thickness_TW, compute_losses, 
                         ThermalBand, self_equilibrating_stress, thermal_service_check,
                         secondary_moment, primary_moment, flexural_strength_T, pier_service_stress,
                         tendon_profile, general_zone_burst, node_capacity, f_cu,
+                        blister_stm, node_capacity_aashto, strut_fcu_aashto,
                         grout_qc_check, rebar_stress_limit, pc_fatigue_limit, design_life, GROUT,
                         batched_transfer, stage_stress, transfer_tension_limit,
                         variable_depth, cantilever_moment, long_term_deflection,
@@ -829,6 +830,24 @@ def _slab_thickness_TW():
             "_note": "PC 頂底板同為淨距/30（下限 15/14 cm，預鑄先拉 14/13）；RC 箱梁底板才是淨距/16。"
                      "淨距 6.0 m 時 PC 底板需 200 恰可，RC 規則會誤要求 375。"}
 
+
+def _blister_stm_B1():
+    """齒塊 STM 壓桿與節點（AASHTO 5.6.3 應變相容式 vs ACI β 表並列）：對齊算例_外置PT補強_錨固齒塊。"""
+    r = blister_stm(3000, 3000, a_plate=200, b_plate=200, w_tie=150, theta_deg=45,
+                    web_t=200, fc=40, node_type="CCC", A_node=400 * 200)
+    r45 = blister_stm(3000, 3000, theta_deg=30, web_t=200, fc=40, node_type="CCC", A_node=400 * 200)
+    return {"w_s_mm": round(r.w_s, 1), "A_cs_mm2": round(r.A_cs),
+            "fcu_aashto_MPa": round(r.fcu_aashto, 2), "phiFns_aashto_kN": round(r.phiFns_aashto / 1e3),
+            "fcu_aci_MPa": round(r.fcu_aci, 2), "phiFns_aci_kN": round(r.phiFns_aci / 1e3),
+            "phiFnn_CCC_kN": round(r.phiFnn_aashto / 1e3), "node_ok": r.node_ok_aashto,
+            "A_n_req_mm2": round(r.A_n_req), "A_cs_req_mm2": round(r.A_cs_req),
+            "eps1": round(r.eps1, 5), "fcu_theta30_MPa": round(r45.fcu_aashto, 2),
+            "node_CCT_aashto_kN": round(node_capacity_aashto(40, "CCT", 90000) / 1e3),
+            "node_CCT_aci_kN": round(node_capacity(40, "CCT", 90000) / 1e3),
+            "_note": "AASHTO 2008 無 β_s 表：f_cu=f'c/(0.8+170ε₁)≤0.85f'c、節點 0.85/0.75/0.65·φf'c；"
+                     "ACI β 表(1.00/0.80/0.60)僅 CCC 與 AASHTO 同值，CCT 低 10%。"
+                     "算例齒塊 400×250 於 200 腹板：壓桿與根部節點面積皆不足（與介面面積上限同一結論——須加大齒塊或改連續肋）。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -929,6 +948,7 @@ golden = {
     "web_duct_A2": _web_duct_A2(),
     "deviation_force_A4": _deviation_force_A4(),
     "adjacent_duct_A7": _adjacent_duct_A7(),
+    "blister_stm_B1": _blister_stm_B1(),
     "slab_thickness_TW": _slab_thickness_TW(),
     "temperature_integrated_T1": (lambda r: {"section": "配置A h=2100", "Tu_C": round(r.Tu,2), "TL_C": round(r.TL,2),
         "sigSE_bot_neg_MPa": round(r.sigma_neg["底板底"],2), "service_base_MPa": round(sb,2),

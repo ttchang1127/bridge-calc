@@ -696,6 +696,52 @@
              geom: geom, As_total_conservative: tot, governing: gov, A_interface: Aint };
   };
 
+  // ── STM 壓桿／節點（同 bridgecalc.stm）：AASHTO LRFD 2008 SI 原文式 ──────────
+  // 🔴 AASHTO 2008 **沒有 β_s 表**：f_cu = f'c/(0.8+170ε₁) ≤ 0.85f'c（Eq. 5.6.3.3.3-1）、
+  //    ε₁ = ε_s+(ε_s+0.002)cot²α_s（-2）；節點 CCC 0.85／CCT 0.75／CTT 0.65 ×φf'c（5.6.3.5）、φ=0.70。
+  //    ACI 318 式 β 表（節點 1.00/0.80/0.60/0.40、壓桿 0.60/0.75/1.00）另列對照，兩者僅 CCC 同值。
+  BC.NODE_LIMIT_AASHTO = { CCC: 0.85, CCT: 0.75, CTT: 0.65 };
+  BC.BETA_NODE_ACI = { CCC: 1.00, CCT: 0.80, CTT: 0.60, TTT: 0.40 };
+  BC.BETA_STRUT_ACI = { unconfined: 0.60, reinforced: 0.75, confined: 1.00 };
+  BC.EPS_S_YIELD = 420 / 200000;
+  BC.strutEps1 = function (epsS, alphaDeg) {
+    var a = alphaDeg * Math.PI / 180;
+    return epsS + (epsS + 0.002) / (Math.tan(a) * Math.tan(a));
+  };
+  BC.strutFcuAASHTO = function (fc, epsS, alphaDeg) {
+    epsS = epsS == null ? BC.EPS_S_YIELD : epsS; alphaDeg = alphaDeg == null ? 45 : alphaDeg;
+    return Math.min(fc / (0.8 + 170 * BC.strutEps1(epsS, alphaDeg)), 0.85 * fc);
+  };
+  BC.nodeCapacityAASHTO = function (fc, type, An, phi) {
+    return BC.NODE_LIMIT_AASHTO[type] * (phi == null ? 0.70 : phi) * fc * An;
+  };
+  BC.fCuACI = function (fc, beta) { return 0.85 * beta * fc; };
+  BC.nodeCapacityACI = function (fc, type, An, phi) {
+    return (phi == null ? 0.70 : phi) * BC.fCuACI(fc, BC.BETA_NODE_ACI[type]) * An;
+  };
+  // 齒塊 STM（同 blister.blister_stm）：壓桿寬 w_s = l_b·sinθ + w_t·cosθ（CCT 節點幾何）。
+  // ⚠ 錨板面屬局部區（5.10.9.7，見 blisterLocalBearing）；本檢核針對齒塊**根部節點**，A_node 請給實際面積。
+  BC.blisterSTM = function (C_kN, Pnode_kN, o) {
+    o = o || {};
+    var ap = o.a_plate == null ? 200 : o.a_plate, bp = o.b_plate == null ? 200 : o.b_plate,
+        wt = o.w_tie == null ? 150 : o.w_tie, th = o.theta_deg == null ? 45 : o.theta_deg,
+        webT = o.web_t == null ? 350 : o.web_t, fc = o.fc == null ? 40 : o.fc,
+        nt = o.node_type || 'CCT', es = o.eps_s == null ? BC.EPS_S_YIELD : o.eps_s,
+        bs = o.beta_s_aci || 'reinforced', phi = o.phi == null ? 0.70 : o.phi;
+    var r = th * Math.PI / 180, ws = ap * Math.sin(r) + wt * Math.cos(r),
+        bEff = Math.min(bp, webT), Acs = ws * bEff, C = C_kN * 1e3, Pn = Pnode_kN * 1e3;
+    var fcuA = BC.strutFcuAASHTO(fc, es, th), fcuI = BC.fCuACI(fc, BC.BETA_STRUT_ACI[bs]);
+    var An = o.A_node == null ? ap * bEff : o.A_node;
+    var FnnA = BC.nodeCapacityAASHTO(fc, nt, An, phi), FnnI = BC.nodeCapacityACI(fc, nt, An, phi);
+    return { C_strut: C, theta_deg: th, w_s: ws, b_eff: bEff, A_cs: Acs,
+             fcu_aashto: fcuA, phiFns_aashto: phi * fcuA * Acs, strut_ok_aashto: phi * fcuA * Acs >= C,
+             fcu_aci: fcuI, phiFns_aci: phi * fcuI * Acs, strut_ok_aci: phi * fcuI * Acs >= C,
+             A_n: An, A_n_req: Pn / (BC.NODE_LIMIT_AASHTO[nt] * phi * fc), A_cs_req: C / (phi * fcuA),
+             node_type: nt, phiFnn_aashto: FnnA, node_ok_aashto: FnnA >= Pn,
+             phiFnn_aci: FnnI, node_ok_aci: FnnI >= Pn, eps1: BC.strutEps1(es, th),
+             util_strut: C / (phi * fcuA * Acs), util_node: Pn / FnnA };
+  };
+
   // ── 疲勞 P1 ───────────────────────────────────────────
   BC.fatigueCheck = function (sec, Pe, e, M_perm, dM_fat, fc, EpEc, gamma) {
     EpEc = EpEc || 6.6; gamma = gamma || 1.75;

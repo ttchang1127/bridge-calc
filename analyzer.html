@@ -703,6 +703,10 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           <label>f'<sub>ci</sub> (MPa)<input type="number" x-model.number="blFci" step="5" style="width:70px"></label>
           <label title="鋼腱在錨碇處與橋軸的偏折角">偏折角 α (°)<input type="number" x-model.number="blAlpha" step="1" style="width:70px"></label>
           <label title="補強既有橋時既有預壓分布難確認，應關閉（取保守值）"><input type="checkbox" x-model="blTieDeduct"> Tie-back 扣既有預壓</label>
+          <label title="STM 壓桿與拉桿之夾角 α_s；越小 → ε₁ 越大 → 壓桿有效強度越低">壓桿夾角 θ (°)<input type="number" x-model.number="blStmTheta" step="5" style="width:70px"></label>
+          <label title="齒塊根部節點型式">根部節點
+            <select x-model="blStmNode" style="width:80px;height:28px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:13px">
+              <option value="CCC">CCC</option><option value="CCT">CCT</option><option value="CTT">CTT</option></select></label>
         </div>
         <div class="grid">
           <div class="metric"><div class="l">錨碇里程／齒塊數</div>
@@ -737,6 +741,27 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
                 <td x-text="fmt(blister.As_total_conservative,0)"></td><td>—</td></tr>
           </tbody>
         </table>
+        <table style="margin-top:8px" x-show="blisterSTM" x-cloak>
+          <thead><tr><th>STM 檢核（AASHTO 5.6.3；台灣無 STM 專章）</th><th>實有</th><th>需求</th><th style="width:44px">判定</th></tr></thead>
+          <tbody>
+            <tr title="f_cu = f'c/(0.8+170ε₁) ≤ 0.85f'c（Eq.5.6.3.3.3-1）；ε₁ = ε_s+(ε_s+0.002)cot²θ。ACI β 表為對照，兩制僅 CCC 節點同值">
+              <td>壓桿 φF<sub>ns</sub>（w<sub>s</sub> = l<sub>b</sub>sinθ + w<sub>t</sub>cosθ）</td>
+              <td x-text="fmt(blisterSTM.phiFns_aashto/1e3,0)+' kN（A_cs '+fmt(blisterSTM.A_cs/1000,0)+'×10³ mm²、f_cu '+fmt(blisterSTM.fcu_aashto,1)+' MPa、ε₁ '+blisterSTM.eps1.toFixed(4)+'）'"></td>
+              <td x-text="'≥ C '+fmt(blisterSTM.C_strut/1e3,0)+' kN（ACI β 表對照 φF_ns '+fmt(blisterSTM.phiFns_aci/1e3,0)+'）'"></td>
+              <td style="text-align:center" :class="blisterSTM.strut_ok_aashto?'ok':'ng'" x-text="blisterSTM.strut_ok_aashto?'✓':'✗'"></td></tr>
+            <tr title="節點限值 CCC 0.85／CCT 0.75／CTT 0.65 ×φf'c（5.6.3.5）。錨板面屬局部區（5.10.9.7），由上方局部承壓檢核，不適用本列">
+              <td>根部節點 φF<sub>nn</sub>（<span x-text="blStmNode"></span>，A<sub>n</sub> = L<sub>b</sub>×腹板厚）</td>
+              <td x-text="fmt(blisterSTM.phiFnn_aashto/1e3,0)+' kN（A_n '+fmt(blisterSTM.A_n/1000,0)+'×10³ mm²）'"></td>
+              <td x-text="'≥ '+fmt(blisterSTM.C_strut/1e3,0)+' kN（ACI 對照 '+fmt(blisterSTM.phiFnn_aci/1e3,0)+'）'"></td>
+              <td style="text-align:center" :class="blisterSTM.node_ok_aashto?'ok':'ng'" x-text="blisterSTM.node_ok_aashto?'✓':'✗'"></td></tr>
+          </tbody>
+        </table>
+        <div class="hint" x-show="blisterSTM&&(!blisterSTM.strut_ok_aashto||!blisterSTM.node_ok_aashto)" x-cloak style="color:var(--ng);margin-top:6px">
+          ✗ <b>壓桿／節點面積不足——與介面面積同一性質，加鋼筋救不了</b>：需壓桿斷面 ≥
+          <b x-text="fmt(blisterSTM.A_cs_req/1000,0)+'×10³ mm²'"></b>（現 <span x-text="fmt(blisterSTM.A_cs/1000,0)"></span>），
+          根部節點面積 ≥ <b x-text="fmt(blisterSTM.A_n_req/1000,0)+'×10³ mm²'"></b>（現 <span x-text="fmt(blisterSTM.A_n/1000,0)"></span>）。
+          AASHTO 5.10.9.3.4a：<b>齒塊宜設於翼板與腹板交角，或沿全寬／全高延伸成連續肋</b>；孤立齒塊須另計局部剪力、彎曲與直接力效應。
+        </div>
         <div class="hint" x-show="!blister.face.area_ok" x-cloak style="color:var(--ng);margin-top:6px">
           ✗ <b>介面面積不足，加多少鋼筋都沒用</b>：介面剪應力 <b x-text="fmt(blister.face.tau,2)+' MPa'"></b>
           超過上限 <b x-text="fmt(blister.face.tau_cap,2)+' MPa'"></b>（min(0.25f'<sub>c</sub>, 10.3)）。
@@ -2310,7 +2335,7 @@ var PARAM_KEYS=[
   'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSideMargin','ductBundle','webVertPT','envType','envLife','envWC','envZone','ductSv','ductCover','dAgg','ductRule','jackEnd','jackDefV2','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
-  'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct',
+  'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct','blStmTheta','blStmNode',
   'stgOn','stgScheme','stgPhiInf','stgPhiT1','stgChi','stgMethod','stgAge','stgFcD','stgPhiSrc','stgT0','stgH','stgFci',
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
@@ -2770,6 +2795,13 @@ function calc(){
     // ── 中間錨碇齒塊（blister）錨碇區設計（BC.blisterDesign）─────
     // 只在勾選「設中間錨碇段」時有意義：內部錨碇必須靠齒塊把腱力打回腹板，
     // 而齒塊的後方**沒有鋼腱延伸提供回力**——Tie-back 是唯一抵抗後向分離的機制。
+    // 齒塊 STM 壓桿／節點（AASHTO 5.6.3；台灣規範無 STM 專章，§8.21.3 5.(4) 僅要求配筋抵抗曲率彎力）
+    //   C 取係數化錨碇力（與爆裂同一 P_u）、根部節點面積取齒塊長 × 腹板厚；錨板面屬局部區不在此檢。
+    get blisterSTM(){
+      var b=this.blister; if(!b) return null;
+      return window.BC.blisterSTM(b.Pu, b.Pu, {a_plate:this.blAp, b_plate:this.blAp,
+        w_tie:this.blAp*0.75, theta_deg:this.blStmTheta, web_t:this.webT, fc:this.fc,
+        node_type:this.blStmNode, A_node:this.blLb*this.webT}); },
     get blister(){
       if(!this.midAnchorOn) return null;
       var a=this.anchorList;
@@ -3043,7 +3075,7 @@ function calc(){
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, sv:250, Vu:2069, VuAuto:true, midAnchorOn:false, midAnchors:'',   // VuAuto：⑤ Vu 由包絡自動帶入（手動 2,069 為 golden 參考值）
     // 中間錨碇齒塊（blister）：尺寸與錨板；blTieDeduct＝Tie-back 是否扣既有預壓（補強既有橋時應關閉）
-    blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false,
+    blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false, blStmTheta:45, blStmNode:'CCC',
     // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
     stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost', stgAge:28, stgFcD:35, stgPhiSrc:'aashto', stgT0:7, stgH:75, stgFci:32,   // stgPhiSrc：φ 由 AASHTO 5.4.2.3.2 算（台灣規範無 φ(t) 模式）或手填   // stgAge＝合龍時梁齡(天)；stgFcD＝連續橫隔梁 f'c
     ductOD:100, ductID:100, ductAreaRule:'tw', ductSideMargin:0, ductBundle:false, webVertPT:false, envType:'general', envLife:50, envWC:0.45, envZone:'中度', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams

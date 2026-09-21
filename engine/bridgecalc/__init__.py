@@ -8,6 +8,7 @@
 from .model import Section, Tendon, box_slab_thickness_TW, SlabThicknessResult
 from .blister import (blister_local_bearing, blister_bursting, blister_tieback,
                       blister_spalling, blister_interface_shear,
+                      blister_stm, BlisterSTMResult,
                       blister_geometry_check, blister_design, BlisterDesign,
                       LocalBearingResult, BurstResult, TiebackResult,
                       SpallResult, InterfaceResult, BlisterGeomResult)
@@ -77,7 +78,9 @@ from .tendon_profile import (tendon_profile, TendonProfileResult, equivalent_loa
                             tendon_forces, assign_jack, TendonForceResult)
 from .stm import (general_zone_burst, STMResult, burst_force, burst_depth, f_cu,
                  strut_capacity, node_capacity, tie_reinforcement,
-                 BETA_NODE, BETA_STRUT)
+                 BETA_NODE, BETA_STRUT, strut_fcu_aashto, strut_capacity_aashto,
+                 node_capacity_aashto, tie_strength_aashto, strut_eps1,
+                 NODE_LIMIT_AASHTO, EPS_S_YIELD)
 from .durability import (grout_qc_check, GroutQCResult, rebar_stress_limit,
                         rebar_stress_ok, pc_fatigue_limit, design_life,
                         GROUT, REBAR_LIMIT, DESIGN_LIFE)
@@ -108,6 +111,8 @@ from . import allowables
 __all__ = [
     "Section", "Tendon", "box_slab_thickness_TW", "SlabThicknessResult", "compute_losses", "LossResult",
     "combinations", "lane_live_load", "stresses", "Pe_min_zero_tension",
+    "strut_fcu_aashto", "strut_capacity_aashto", "node_capacity_aashto", "tie_strength_aashto",
+    "strut_eps1", "NODE_LIMIT_AASHTO", "blister_stm", "BlisterSTMResult",
     "shear_web", "ShearResult", "phiVn", "Av_s_min_TW", "Av_s_min_AASHTO",
     "principal_tension_limit_TW",
     "flexural_strength", "FlexureResult", "beta1",

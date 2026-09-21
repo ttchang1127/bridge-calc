@@ -245,3 +245,84 @@ def blister_design(Ps_kN: float, Pu_kN: float, Pd_kN: float,
         bearing=bearing, burst=burst, tie=tie, spall=spall, face=face, geom=geom,
         As_total_conservative=sum(items.values()),
         governing=max(items, key=items.get))
+
+
+# ── 齒塊 STM 壓桿與節點（B1，AASHTO 5.6.3＋5.10.9.3.4c；2026-09-21 NLM 核）─────
+# 5.10.9.3.4c 原文：「Reinforcement shall be provided throughout blisters or ribs as required
+#   for shear friction, corbel action, bursting forces, and deviation forces due to tendon
+#   curvature.」——齒塊本體除既有四類配筋外，**壓桿與節點承載力**須另行驗核（corbel action）。
+# ⚠ **STM 的拓樸（壓桿走向、節點型式、拉桿位置）是設計者的選擇**，本函式不替使用者選：
+#   壓桿力 C 與夾角 θ 由呼叫者給定；只負責算幾何寬度、有效強度與判定。
+# 壓桿寬（CCT 節點，公式卡 F2 §3.2）：w_s = l_b·sinθ + w_t·cosθ
+#   l_b＝承壓長度（錨板沿節點面尺寸）、w_t＝拉桿寬度、θ＝壓桿與拉桿夾角。
+@dataclass
+class BlisterSTMResult:
+    C_strut: float        # 壓桿力 N
+    theta_deg: float
+    w_s: float            # 壓桿有效寬 mm
+    b_eff: float          # 壓桿有效厚（取 min(錨板寬, 腹板厚)）mm
+    A_cs: float           # 壓桿有效斷面 mm²
+    fcu_aashto: float     # AASHTO 2008 式 f_cu MPa
+    phiFns_aashto: float  # N
+    strut_ok_aashto: bool
+    fcu_aci: float        # ACI β 表對照 MPa
+    phiFns_aci: float
+    strut_ok_aci: bool
+    A_n: float            # 節點承壓面積 mm²（預設＝錨板×有效厚；根部節點應另給）
+    A_n_req: float        # 達到 φF_nn ≥ P_node 所需之節點面積 mm²（AASHTO 式）
+    A_cs_req: float       # 達到 φF_ns ≥ C 所需之壓桿斷面 mm²（AASHTO 式）
+    node_type: str
+    phiFnn_aashto: float
+    node_ok_aashto: bool
+    phiFnn_aci: float
+    node_ok_aci: bool
+    eps1: float           # 主拉應變（AASHTO 式）
+    util_strut: float     # 壓桿利用率（AASHTO）
+    util_node: float
+
+
+def blister_stm(C_strut_kN: float, P_node_kN: float, a_plate: float = 200.0,
+                b_plate: float = 200.0, w_tie: float = 150.0, theta_deg: float = 45.0,
+                web_t: float = 350.0, fc: float = 40.0, node_type: str = "CCT",
+                eps_s: float = None, beta_s_aci: str = "reinforced",
+                phi: float = 0.70, A_node: float = None) -> BlisterSTMResult:
+    """齒塊壓桿與節點驗核；AASHTO 2008 式與 ACI β 表**兩案並列**（決策 19：不替使用者選規範版本）。
+
+    C_strut_kN：壓桿力（係數化）；P_node_kN：節點承壓力（通常＝係數化錨碇力）；
+    w_tie：拉桿有效寬（CCT 節點背面深度，＝2×外側面至拉桿重心）；θ：壓桿與拉桿夾角。
+    A_node：節點承壓面積，預設＝錨板 × 有效厚。
+
+    🔴 **錨板面屬「局部區」（local zone），不適用一般區之節點限值**——局部區依 AASHTO
+    5.10.9.7（承壓試驗／局部承壓＋螺旋圍束）設計，見 `blister_local_bearing`。
+    本檢核針對**齒塊根部節點**（力進入腹板處），請以 `A_node` 給實際根部面積（如 L_b × 腹板厚）。
+    結果另回傳 `A_n_req`／`A_cs_req`——面積不足時**加鋼筋救不了**，只能加大齒塊；
+    AASHTO 5.10.9.3.4a 亦明示「whenever practical … 擴成連續肋（continuous rib）」。
+    """
+    from .stm import (strut_fcu_aashto, node_capacity_aashto, f_cu, BETA_STRUT,
+                      node_capacity, strut_eps1, EPS_S_YIELD, NODE_LIMIT_AASHTO)
+    es = EPS_S_YIELD if eps_s is None else eps_s
+    th = math.radians(theta_deg)
+    w_s = a_plate * math.sin(th) + w_tie * math.cos(th)
+    b_eff = min(b_plate, web_t)
+    A_cs = w_s * b_eff
+    C = C_strut_kN * 1e3
+    Pn = P_node_kN * 1e3
+    fcu_a = strut_fcu_aashto(fc, es, theta_deg)
+    phiFns_a = phi * fcu_a * A_cs
+    fcu_i = f_cu(fc, BETA_STRUT[beta_s_aci])
+    phiFns_i = phi * fcu_i * A_cs
+    A_n = a_plate * b_eff if A_node is None else A_node
+    phiFnn_a = node_capacity_aashto(fc, node_type, A_n, phi)
+    phiFnn_i = node_capacity(fc, node_type, A_n, phi)
+    return BlisterSTMResult(
+        C_strut=C, theta_deg=theta_deg, w_s=w_s, b_eff=b_eff, A_cs=A_cs,
+        fcu_aashto=fcu_a, phiFns_aashto=phiFns_a, strut_ok_aashto=phiFns_a >= C,
+        fcu_aci=fcu_i, phiFns_aci=phiFns_i, strut_ok_aci=phiFns_i >= C,
+        A_n=A_n,
+        A_n_req=Pn / (NODE_LIMIT_AASHTO[node_type] * phi * fc),
+        A_cs_req=C / (phi * fcu_a),
+        node_type=node_type, phiFnn_aashto=phiFnn_a, node_ok_aashto=phiFnn_a >= Pn,
+        phiFnn_aci=phiFnn_i, node_ok_aci=phiFnn_i >= Pn,
+        eps1=strut_eps1(es, theta_deg),
+        util_strut=C / phiFns_a if phiFns_a else float("inf"),
+        util_node=Pn / phiFnn_a if phiFnn_a else float("inf"))

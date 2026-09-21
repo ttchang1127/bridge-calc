@@ -558,6 +558,23 @@ function chkEq(name, got, exp) {
   chkEq('互推 過渡段間距足夠', ad2.spacingOk, gad.trn_spacing_ok);
   chk('互推 所需淨距', ad2.sReq, gad.trn_s_req_mm, 0.1);
   chk('互推 圍束筋每支', ad2.AsPerTie, gad.trn_As_per_tie_mm2, 0.1);
+  // 齒塊 STM（AASHTO 2008 式 vs ACI β 表）
+  var gbs = g.blister_stm_B1, bs1 = BC.blisterSTM(3000, 3000, { a_plate: 200, b_plate: 200, w_tie: 150,
+        theta_deg: 45, web_t: 200, fc: 40, node_type: 'CCC', A_node: 400 * 200 });
+  chk('齒塊STM 壓桿寬', bs1.w_s, gbs.w_s_mm, 0.1);
+  chk('齒塊STM A_cs', bs1.A_cs, gbs.A_cs_mm2, 1);
+  chk('齒塊STM f_cu AASHTO', bs1.fcu_aashto, gbs.fcu_aashto_MPa, 0.01);
+  chk('齒塊STM φFns AASHTO', bs1.phiFns_aashto / 1e3, gbs.phiFns_aashto_kN, 1);
+  chk('齒塊STM f_cu ACI', bs1.fcu_aci, gbs.fcu_aci_MPa, 0.01);
+  chk('齒塊STM φFnn CCC', bs1.phiFnn_aashto / 1e3, gbs.phiFnn_CCC_kN, 1);
+  chkEq('齒塊STM 節點判定', bs1.node_ok_aashto, gbs.node_ok);
+  chk('齒塊STM 所需節點面積', bs1.A_n_req, gbs.A_n_req_mm2, 1);
+  chk('齒塊STM 所需壓桿面積', bs1.A_cs_req, gbs.A_cs_req_mm2, 1);
+  chk('齒塊STM ε₁', bs1.eps1, gbs.eps1, 1e-5);
+  chk('齒塊STM θ=30 f_cu', BC.blisterSTM(3000, 3000, { theta_deg: 30, web_t: 200, fc: 40,
+        node_type: 'CCC', A_node: 400 * 200 }).fcu_aashto, gbs.fcu_theta30_MPa, 0.01);
+  chk('節點 CCT AASHTO', BC.nodeCapacityAASHTO(40, 'CCT', 90000) / 1e3, gbs.node_CCT_aashto_kN, 1);
+  chk('節點 CCT ACI', BC.nodeCapacityACI(40, 'CCT', 90000) / 1e3, gbs.node_CCT_aci_kN, 1);
   // 台灣翼板最小厚度
   var gst = g.slab_thickness_TW, st1 = BC.boxSlabThicknessTW(250, 200, 2400), st2 = BC.boxSlabThicknessTW(250, 200, 6000);
   chk('翼板 頂 req 2400', st1.topReq, gst.top_req_2400, 1e-9);

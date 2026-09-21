@@ -1581,6 +1581,47 @@ def test_adjacent_duct_A7():
     assert not a(Pu, Ps, float("inf"), 2, 40, 32).applies
 
 
+def test_stm_aashto_vs_aci():
+    """AASHTO 2008 無 β_s 表：壓桿用 ε₁ 軟化式、節點 0.85/0.75/0.65·φf'c（與 ACI β 表不同）。"""
+    from bridgecalc import (strut_fcu_aashto, strut_eps1, node_capacity_aashto,
+                            node_capacity, f_cu, EPS_S_YIELD)
+    import math
+    # ε₁ 定義：α_s=45° → cot²=1
+    assert abs(strut_eps1(0.0021, 45) - (0.0021 + 0.0041)) < 1e-12
+    assert strut_eps1(0.0021, 30) > strut_eps1(0.0021, 60)          # 夾角越小越不利
+    # f_cu 上限 0.85f'c：α_s→90° 且 ε_s→0 時逼近
+    assert abs(strut_fcu_aashto(40, 0.0, 90) - 0.85 * 40) < 1e-9
+    assert strut_fcu_aashto(40, EPS_S_YIELD, 45) < 0.85 * 40
+    # 節點：CCC 兩制同值（0.85×1.00）、CCT 差 10%（0.75 vs 0.85×0.80＝0.68）
+    assert abs(node_capacity_aashto(40, "CCC", 1e5) - node_capacity(40, "CCC", 1e5)) < 1e-6
+    assert node_capacity_aashto(40, "CCT", 1e5) > node_capacity(40, "CCT", 1e5)
+    assert abs(node_capacity_aashto(40, "CCT", 1e5) / node_capacity(40, "CCT", 1e5) - 0.75 / 0.68) < 1e-9
+    assert abs(f_cu(40, 0.80) - 0.85 * 0.80 * 40) < 1e-9
+
+
+def test_blister_stm_B1():
+    """齒塊 STM：壓桿寬幾何、所需面積回推、局部區不適用一般區節點限值。"""
+    from bridgecalc import blister_stm as bs, strut_fcu_aashto
+    import math
+    r = bs(3000, 3000, a_plate=200, b_plate=200, w_tie=150, theta_deg=45,
+           web_t=200, fc=40, node_type="CCC", A_node=400 * 200)
+    # w_s = l_b·sinθ + w_t·cosθ
+    assert abs(r.w_s - (200 * math.sin(math.radians(45)) + 150 * math.cos(math.radians(45)))) < 1e-9
+    assert r.b_eff == 200 and abs(r.A_cs - r.w_s * 200) < 1e-9        # 有效厚受腹板限制
+    # 所需面積代回恰好等號
+    back = bs(3000, 3000, a_plate=200, b_plate=200, w_tie=150, theta_deg=45,
+              web_t=200, fc=40, node_type="CCC", A_node=r.A_n_req)
+    assert back.node_ok_aashto and abs(back.phiFnn_aashto - 3000e3) < 1.0
+    assert abs(r.A_cs_req * 0.70 * strut_fcu_aashto(40, 420 / 200000, 45) - 3000e3) < 1.0
+    # 本案面積不足（與介面面積上限同一結論）
+    assert not r.strut_ok_aashto and not r.node_ok_aashto
+    # 夾角變小 → f_cu 降 → 需求面積增
+    r30 = bs(3000, 3000, theta_deg=30, web_t=200, fc=40, node_type="CCC", A_node=400 * 200)
+    assert r30.fcu_aashto < r.fcu_aashto and r30.A_cs_req > r.A_cs_req
+    # A_node 未給時退回錨板×有效厚（局部區，僅供對照）
+    assert bs(3000, 3000, web_t=200).A_n == 200 * 200
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

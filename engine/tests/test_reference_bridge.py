@@ -1648,6 +1648,30 @@ def test_pos_conn_detail_B2():
     assert st.n_req < rb.n_req
 
 
+def test_neg_conn_B5():
+    """負彎矩接頭：強度配筋、1/3 延伸超過反曲點、服務拉應力限值（f'c 代 f'ci）。"""
+    from bridgecalc import negative_moment_connection as nc, neg_top_tension_limit as lim
+    import math
+    r = nc(13563.0, 2000, 40000, bar_area=387.0, db=22.2, embed_beyond_PI=3000,
+           sigma_top=3.2, fc=40)
+    assert abs(r.As_req - 13563e6 / (0.9 * 420 * 0.9 * 2000)) < 1e-6
+    assert r.n_use >= r.n_req and r.ok_strength
+    # 5.11.1.2.3：max(d, 12db, 0.0625·淨跨)——本例淨跨項控制
+    assert r.embed_req == max(2000, 12 * 22.2, 0.0625 * 40000) == 2500
+    assert r.embed_ok and not nc(13563.0, 2000, 40000, embed_beyond_PI=2000).embed_ok
+    assert r.n_one_third == math.ceil(r.n_use / 3)       # 至少 1/3
+    # 深梁時 d 控制、短跨時 12db 控制
+    assert nc(1000, 3000, 40000, db=22.2, embed_beyond_PI=1).embed_req == 3000
+    assert nc(1000, 200, 3000, db=32.2, embed_beyond_PI=1).embed_req == 12 * 32.2
+    # 5.14.1.4.6：f'c 代 f'ci；有握裹 0.63√f'c、無握裹 min(0.25√f'c, 1.38)
+    assert abs(lim(40) - 0.63 * math.sqrt(40)) < 1e-9
+    assert lim(40, False) == 1.38 and abs(lim(20, False) - 0.25 * math.sqrt(20)) < 1e-9
+    assert nc(1000, 2000, 40000, sigma_top=5.0, fc=40, embed_beyond_PI=3000).service_ok is False
+    # 無複合橋面板 → 梁間接頭為必須（5.14.1.4.8）
+    assert nc(1000, 2000, 40000, composite_deck=False).connection_required
+    assert not nc(1000, 2000, 40000).connection_required
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

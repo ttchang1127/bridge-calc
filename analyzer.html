@@ -1428,6 +1428,40 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
               <b>不計預力</b>（C5.14.1.4.9a：橫隔梁非預力斷面）。C5.14.1.4.2：「the later continuity is formed, the lower the predicted values of positive restraint moment」。
               鋼筋量估算（jd＝0.9d）供對照；實配支數與錨定見上表（5.14.1.4.9b／c／d）。
             </div>
+            <div class="hint" style="margin:10px 0 6px"><b>連續橫隔梁負彎矩接頭</b>（AASHTO 5.14.1.4.8；5.14.1.4.5：正、負接頭<b>兩者都要設</b>，不論連續程度）</div>
+            <div class="grid no-print" style="margin-bottom:8px">
+              <label>橋面板縱向筋 單支面積 (mm²)<input type="number" x-model.number="ncBar" step="10"></label>
+              <label>鋼筋直徑 d<sub>b</sub> (mm)<input type="number" x-model.number="ncDb" step="0.1"></label>
+              <label title="5.11.1.2.3：至少 1/3 負彎矩鋼筋須延伸超過反曲點 ≥ max(d, 12d_b, 0.0625×淨跨)">延伸超過反曲點 (mm)<input type="number" x-model.number="ncEmbed" step="100"></label>
+              <label style="display:flex;gap:6px;align-items:center" title="5.14.1.4.8：無複合橋面板時，梁間跨越橫隔梁之負彎矩接頭為必須（依 5.11.5 續接）">
+                <input type="checkbox" x-model="ncDeck"> 有現場澆置複合橋面板</label>
+            </div>
+            <table x-show="negConn" x-cloak style="margin-bottom:8px">
+              <thead><tr><th>負彎矩接頭檢核</th><th>實配／實有</th><th>需求</th><th style="width:44px">判定</th></tr></thead>
+              <tbody>
+                <tr><td>橋面板縱向鋼筋（強度極限，5.14.1.4.7）</td>
+                  <td x-text="negConn.n_use+' 支・A_s '+fmt(negConn.As_provided,0)+' mm²'"></td>
+                  <td x-text="'≥ '+fmt(negConn.As_req,0)+' mm²（M_u⁻ '+fmt(negConn.Mu_neg,0)+' kN·m）'"></td>
+                  <td style="text-align:center" :class="negConn.ok_strength?'ok':'ng'" x-text="negConn.ok_strength?'✓':'✗'"></td></tr>
+                <tr title="5.11.1.2.3：至少 1/3 之負彎矩拉力鋼筋，其延伸超過反曲點之長度不得小於 max(有效深度, 12d_b, 0.0625×淨跨)">
+                  <td>延伸超過反曲點（至少 <span x-text="negConn.n_one_third"></span> 支）</td>
+                  <td x-text="fmt(negConn.embed_have,0)+' mm'"></td>
+                  <td x-text="'≥ '+fmt(negConn.embed_req,0)+' mm＝max(d, 12d_b, 淨跨/16)'"></td>
+                  <td style="text-align:center" :class="negConn.embed_ok?'ok':'ng'" x-text="negConn.embed_ok?'✓':'✗'"></td></tr>
+                <tr title="5.14.1.4.6：損失後梁頂若於內支承附近出現拉應力，適用 Table 5.9.4.1.2-1 之限值，但以 f'c 代入 f'ci；用 Service III 組合">
+                  <td>梁頂拉應力（Service III，f'<sub>c</sub> 代 f'<sub>ci</sub>）</td>
+                  <td x-text="negConn.sigma_top==null?'—':(fmt(negConn.sigma_top,2)+' MPa')"></td>
+                  <td x-text="'≤ 0.63√f\'c ＝ '+fmt(negConn.sigma_limit,2)+' MPa（無握裹筋時 min(0.25√f\'c, 1.38)）'"></td>
+                  <td style="text-align:center" :class="negConn.service_ok?'ok':'ng'" x-text="negConn.service_ok?'✓':'✗'"></td></tr>
+              </tbody>
+            </table>
+            <div class="hint" x-show="negConn" x-cloak style="margin-bottom:8px">
+              <b>配置規定（5.14.1.4.8）</b>：錨定端<b>須落在強度極限狀態下橋面板受壓的區域</b>；<b>截斷點須錯開</b>；
+              橋面板全部縱向鋼筋皆可計入負彎矩接頭。
+              <b x-show="negConn.connection_required" style="color:var(--ng)">🔴 無複合橋面板 → 梁間跨越橫隔梁之負彎矩接頭為<b>必須</b>（依 5.11.5 續接）。</b>
+              <span x-show="!negConn.connection_required">有複合橋面板時，梁間接頭為「得設置」（permitted）。</span>
+              負彎矩須含時間效應之<b>負束制彎矩</b>（5.14.1.4.1／.4.2），本表 M_u⁻ 已取自 ⑦ 體系轉換包絡。
+            </div>
           </div>
         </template>
         <div class="cite">⑦ 的連續梁包絡在勾選本區時<b>同步改為兩狀態取不利</b>（t₁ 合龍當下：自重＝簡支；∞：重分配後），
@@ -2381,7 +2415,7 @@ var PARAM_KEYS=[
   'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSideMargin','ductBundle','webVertPT','envType','envLife','envWC','envZone','ductSv','ductCover','dAgg','ductRule','jackEnd','jackDefV2','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
-  'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct','blStmTheta','blStmNode','pcType','pcLdsh','pcProj','pcBar','pcLd','pcDev',
+  'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct','blStmTheta','blStmNode','pcType','pcLdsh','pcProj','pcBar','pcLd','pcDev','ncBar','ncDb','ncEmbed','ncDeck',
   'stgOn','stgScheme','stgPhiInf','stgPhiT1','stgChi','stgMethod','stgAge','stgFcD','stgPhiSrc','stgT0','stgH','stgFci',
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
@@ -2832,7 +2866,7 @@ function calc(){
         var M2e=r.m2?env.map(function(q){ return cp.M2At(q.x); }):null;
         var se=B.stagedEnvelope(sp,env,w,r.factor.lam,{M2:M2e,psAtSimple:true});
         var ipe=0; env.forEach(function(q,i){ if(Math.abs(q.x-sp[0])<Math.abs(env[ipe].x-sp[0])) ipe=i; });
-        r.pierMuPos=se[ipe].Mu_pos;
+        r.pierMuPos=se[ipe].Mu_pos; r.pierMuNeg=se[ipe].Mu_neg;
         r.pmc=B.positiveMomentConnection(Math.max(0,r.pierMuPos),sec.I,sec.yb,this.stgFcD,this.stgAge,null,this.h-80);
       }catch(e){ r.pmc=null; }
       memoFn[key]=r;
@@ -2845,6 +2879,15 @@ function calc(){
       return this.pcType==='strand'
         ? B.posConnStrand(M,d,this.pcLdsh,this.strandAp,this.pcProj)
         : B.posConnRebar(M,d,this.pcLd,this.pcDev,this.pcBar); },
+    // 負彎矩接頭（5.14.1.4.8）：橋面板縱向鋼筋依強度極限負彎矩配置；淨跨取最大跨扣墩寬
+    get negConn(){
+      var st=this.staging; if(!st||st.pierMuNeg==null) return null;
+      var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
+      var clear=(Math.max.apply(null,sp)*1000)-(this.seiColD||1500);
+      var pf=this.pierFb, sig=(pf&&pf.st!=null)?Math.max(0,pf.st):null;   // 墩頂斷面梁頂拉應力（拉為正；pierFb 取兩服務彎矩之不利者）
+      return window.BC.negativeMomentConnection(Math.abs(st.pierMuNeg), this.h-100, clear,
+        {bar_area:this.ncBar, db:this.ncDb, embed_beyond_PI:this.ncEmbed,
+         sigma_top:sig, fc:this.fc, composite_deck:this.ncDeck}); },
     // ── 中間錨碇齒塊（blister）錨碇區設計（BC.blisterDesign）─────
     // 只在勾選「設中間錨碇段」時有意義：內部錨碇必須靠齒塊把腱力打回腹板，
     // 而齒塊的後方**沒有鋼腱延伸提供回力**——Tie-back 是唯一抵抗後向分離的機制。
@@ -3128,7 +3171,7 @@ function calc(){
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, sv:250, Vu:2069, VuAuto:true, midAnchorOn:false, midAnchors:'',   // VuAuto：⑤ Vu 由包絡自動帶入（手動 2,069 為 golden 參考值）
     // 中間錨碇齒塊（blister）：尺寸與錨板；blTieDeduct＝Tie-back 是否扣既有預壓（補強既有橋時應關閉）
-    blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false, blStmTheta:45, blStmNode:'CCC', pcType:'rebar', pcLdsh:900, pcProj:250, pcBar:387, pcLd:1200, pcDev:1500,
+    blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false, blStmTheta:45, blStmNode:'CCC', pcType:'rebar', pcLdsh:900, pcProj:250, pcBar:387, pcLd:1200, pcDev:1500, ncBar:387, ncDb:22.2, ncEmbed:3000, ncDeck:true,
     // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
     stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost', stgAge:28, stgFcD:35, stgPhiSrc:'aashto', stgT0:7, stgH:75, stgFci:32,   // stgPhiSrc：φ 由 AASHTO 5.4.2.3.2 算（台灣規範無 φ(t) 模式）或手填   // stgAge＝合龍時梁齡(天)；stgFcD＝連續橫隔梁 f'c
     ductOD:100, ductID:100, ductAreaRule:'tw', ductSideMargin:0, ductBundle:false, webVertPT:false, envType:'general', envLife:50, envWC:0.45, envZone:'中度', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams

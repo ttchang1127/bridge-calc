@@ -589,6 +589,19 @@ function chkEq(name, got, exp) {
   chk('接頭 鋼筋 n_req', pcr.n_req, gpc.rebar_n_req, 0.01);
   chk('接頭 鋼筋 φMn', pcr.phiMn, gpc.rebar_phiMn_kNm, 1);
   chkEq('接頭 鋼筋伸展足夠', pcr.dev_ok, gpc.rebar_dev_ok);
+  // 負彎矩接頭（5.14.1.4.8＋5.11.1.2.3＋5.14.1.4.6）
+  var gnc = g.neg_conn_B5, nc1 = BC.negativeMomentConnection(13563, 2000, 40000,
+        { bar_area: 387, db: 22.2, embed_beyond_PI: 3000, sigma_top: 3.2, fc: 40 });
+  chk('負彎矩 As_req', nc1.As_req, gnc.As_req_mm2, 1);
+  chk('負彎矩 n_req', nc1.n_req, gnc.n_req, 0.01);
+  chk('負彎矩 n_use', nc1.n_use, gnc.n_use, 1e-9);
+  chk('負彎矩 1/3 支數', nc1.n_one_third, gnc.one_third_bars, 1e-9);
+  chk('負彎矩 延伸需求', nc1.embed_req, gnc.embed_req_mm, 1e-9);
+  chkEq('負彎矩 延伸足夠', nc1.embed_ok, gnc.embed_ok);
+  chk('梁頂拉應力限值 有握裹', nc1.sigma_limit, gnc.sigma_limit_bonded_MPa, 0.01);
+  chk('梁頂拉應力限值 無握裹', BC.negTopTensionLimit(40, false), gnc.sigma_limit_unbonded_MPa, 0.01);
+  chkEq('無複合橋面板 接頭必須', BC.negativeMomentConnection(13563, 2000, 40000,
+        { embed_beyond_PI: 1000, composite_deck: false }).connection_required, gnc.no_deck_connection_required);
   // 台灣翼板最小厚度
   var gst = g.slab_thickness_TW, st1 = BC.boxSlabThicknessTW(250, 200, 2400), st2 = BC.boxSlabThicknessTW(250, 200, 6000);
   chk('翼板 頂 req 2400', st1.topReq, gst.top_req_2400, 1e-9);

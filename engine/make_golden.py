@@ -53,7 +53,8 @@ from bridgecalc import (Section, Tendon, box_slab_thickness_TW, compute_losses, 
                         aashto_creep, staging_phi, box_volume_surface, timing_sensitivity_aashto)
 from bridgecalc.tendon_profile import duct_layout_bundled, end_zone_duct_check, web_duct_check, deviation_force_check, adjacent_duct_radial_check
 from bridgecalc.staging import (pos_conn_strand, pos_conn_rebar, strand_stress_extended,
-                                strand_length_required)
+                                strand_length_required, negative_moment_connection,
+                                neg_top_tension_limit)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -870,6 +871,23 @@ def _pos_conn_detail_B2():
                      "0.6M_cr 控制（5,913 kN·m）下：D22 需 24 支、φ15.2 延伸鋼絞線（ℓ_dsh 900）需 24 股——"
                      "兩者支數接近是巧合（鋼絞線應力高 2.8 倍、面積小 2.8 倍）。實際正束制僅 263 kN·m，最小量控制。"}
 
+
+def _neg_conn_B5():
+    """負彎矩接頭（5.14.1.4.8＋5.11.1.2.3＋5.14.1.4.6）：參考橋 40+40，墩頂負彎矩取包絡值。"""
+    Mn = 13563.0            # kN·m，⑦ 兩等跨墩頂 Strength I 負彎矩（含體系轉換）
+    r = negative_moment_connection(Mn, 2000, 40000, bar_area=387.0, db=22.2,
+                                   embed_beyond_PI=3000, sigma_top=3.2, fc=40)
+    nd = negative_moment_connection(Mn, 2000, 40000, embed_beyond_PI=1000, composite_deck=False)
+    return {"As_req_mm2": round(r.As_req), "n_req": round(r.n_req, 2), "n_use": r.n_use,
+            "one_third_bars": r.n_one_third, "embed_req_mm": r.embed_req,
+            "embed_ok": r.embed_ok, "sigma_limit_bonded_MPa": round(r.sigma_limit, 2),
+            "sigma_limit_unbonded_MPa": round(neg_top_tension_limit(40, False), 2),
+            "service_ok": r.service_ok, "no_deck_embed_ok": nd.embed_ok,
+            "no_deck_connection_required": nd.connection_required,
+            "_note": "5.11.1.2.3：至少 1/3 負彎矩鋼筋延伸超過反曲點 ≥ max(d, 12d_b, 0.0625·淨跨)；"
+                     "本例 0.0625×40,000＝2,500 控制（d 2,000、12d_b 266）。"
+                     "5.14.1.4.6 梁頂拉應力用 Table 5.9.4.1.2-1 但以 f'c 代 f'ci → 有握裹 0.63√f'c＝3.98 MPa。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -962,6 +980,7 @@ golden = {
     "cont_envelope_gamma_min": _cont_envelope_gamma_min(),
     "staged_shear_S3": _staged_shear_S3(),
     "pos_conn_detail_B2": _pos_conn_detail_B2(),
+    "neg_conn_B5": _neg_conn_B5(),
     "pos_moment_conn_S4": _pos_moment_conn_S4(),
     "durability_cover_T12": _durability_cover_T12(),
     "duct_side_margin": _duct_side_margin(),

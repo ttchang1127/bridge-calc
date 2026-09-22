@@ -1145,6 +1145,34 @@
              phiMn: nUse * capEach, ok: nUse * capEach >= Mreq };
   };
 
+  // 負彎矩接頭（同 staging.negative_moment_connection；AASHTO 5.14.1.4.5/.6/.7/.8＋5.11.1.2.3）
+  // 5.14.1.4.5：正、負彎矩接頭**兩者都要設**，不論連續程度。
+  // 5.14.1.4.8：橋面板縱向鋼筋依強度極限負彎矩配置；**錨定端須落在強度狀態下受壓之區域**、
+  //   截斷點須錯開；橋面板全部縱向筋皆可計入；**無複合橋面板時梁間接頭為必須**（依 5.11.5）。
+  // 5.11.1.2.3：**至少 1/3** 負彎矩鋼筋延伸超過反曲點 ≥ max(d, 12d_b, 0.0625×淨跨)。
+  // 5.14.1.4.6：梁頂拉應力用 Table 5.9.4.1.2-1，但**以 f'c 代 f'ci**：有握裹 0.63√f'c、
+  //   無握裹 min(0.25√f'c, 1.38 MPa)；以 Service III 計算。
+  BC.negTopTensionLimit = function (fc, bonded) {
+    return bonded === false ? Math.min(0.25 * sqrt(fc), 1.38) : 0.63 * sqrt(fc);
+  };
+  BC.negativeMomentConnection = function (MuNeg, d, clearSpan, o) {
+    o = o || {};
+    var barArea = o.bar_area == null ? 387 : o.bar_area, db = o.db == null ? 22.2 : o.db,
+        fy = o.fy || 420, phi = o.phi == null ? 0.9 : o.phi, jd = o.jd == null ? 0.9 : o.jd,
+        fc = o.fc == null ? 40 : o.fc, bonded = o.bonded !== false,
+        composite = o.composite_deck !== false;
+    var AsReq = MuNeg * 1e6 / (phi * fy * jd * d), nReq = AsReq / barArea, nUse = Math.ceil(nReq);
+    var AsProv = o.As_provided == null ? nUse * barArea : o.As_provided;
+    var embedReq = Math.max(d, 12 * db, 0.0625 * clearSpan),
+        have = o.embed_beyond_PI == null ? 0 : o.embed_beyond_PI,
+        lim = BC.negTopTensionLimit(fc, bonded), st = o.sigma_top;
+    return { Mu_neg: MuNeg, d: d, As_req: AsReq, n_req: nReq, n_use: nUse, As_provided: AsProv,
+             ok_strength: AsProv >= AsReq - 1e-9, embed_req: embedReq, embed_have: have,
+             embed_ok: have >= embedReq - 1e-9, n_one_third: Math.ceil(nUse / 3),
+             sigma_top: st == null ? null : st, sigma_limit: lim,
+             service_ok: st == null || st <= lim + 1e-9, connection_required: !composite };
+  };
+
   // AASHTO LRFD 5.4.2.3.2 潛變係數（台灣規範無 φ(t) 模式；同 staging.aashto_creep）
   BC.aashtoCreep = function (t, ti, H, VS, fci) {
     H = H == null ? 75 : H; VS = VS == null ? 150 : VS; fci = fci == null ? 32 : fci;

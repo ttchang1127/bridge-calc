@@ -629,3 +629,87 @@ def pos_conn_rebar(M_req: float, d: float, ld: float, dev_available: float,
         ld=ld, dev_available=dev_available, dev_ok=dev_available >= ld,
         stagger_note="多支時截斷點須成對錯開且對稱於預鑄梁中心線（5.14.1.4.9b）；"
                      "加在先拉鋼絞線之間時須檢討混凝土搗實與握裹")
+
+
+# ── 負彎矩接頭（B5，AASHTO 5.14.1.4.5/.6/.7/.8＋5.11.1.2.3；2026-09-22 NLM 核）────────
+# 5.14.1.4.5：「Both a positive and negative moment connection … are required for all
+#   continuity diaphragms, **regardless of the degree of continuity**.」→ 兩種接頭都要設。
+# 5.14.1.4.8 原文重點：
+#   - 現場澆置複合橋面板中之鋼筋須依**強度極限**之負設計彎矩配置（5.14.1.4.7 同旨；
+#     5.7.3 之規定適用於橋面板與接頭鋼筋）。
+#   - 「Longitudinal reinforcement … shall be anchored in regions of the slab that are in
+#     compression at strength limit states」——**錨定端必須落在強度狀態下橋面板受壓的區域**，
+#     並須符合 5.11.1.2.3；「The termination of this reinforcement shall be staggered.」
+#   - 橋面板全部縱向鋼筋皆可計入負彎矩接頭。
+#   - 梁間跨越橫隔梁之負彎矩接頭須符合 5.11.5（續接）；有複合橋面板時「permitted」，
+#     **無複合橋面板時為 required**。
+# 5.11.1.2.3：支承處負彎矩拉力鋼筋**至少 1/3** 須延伸超過反曲點，長度 ≥ max(d, 12d_b, 0.0625·淨跨)。
+# 5.14.1.4.6（服務）：損失後若**梁頂於內支承附近出現拉應力**，適用 Table 5.9.4.1.2-1 之限值，
+#   但**以 f'c 代入原式中的 f'ci**，並以 Service III 組合計算：
+#     有握裹鋼筋（鋼筋應力取 0.5f_y ≤ 210 MPa）：0.63√f'c
+#     無握裹鋼筋：min(0.25√f'c, 1.38 MPa)
+NEG_ANCHOR_SPAN_FACTOR = 0.0625      # 1/16 淨跨
+NEG_ONE_THIRD = 1.0 / 3.0
+
+
+def neg_top_tension_limit(fc: float, bonded: bool = True) -> float:
+    """5.14.1.4.6 之梁頂拉應力限值（Table 5.9.4.1.2-1，f'c 代 f'ci），MPa。"""
+    return 0.63 * math.sqrt(fc) if bonded else min(0.25 * math.sqrt(fc), 1.38)
+
+
+@dataclass
+class NegMomentConnResult:
+    Mu_neg: float          # kN·m（取正值輸入）
+    d: float               # mm
+    As_req: float          # mm²
+    n_req: float
+    n_use: int
+    As_provided: float     # mm²（實配；未給則以 n_use 回算）
+    ok_strength: bool
+    # 錨定（5.11.1.2.3）
+    embed_req: float       # mm，max(d, 12d_b, 0.0625·淨跨)
+    embed_have: float      # mm
+    embed_ok: bool
+    n_one_third: int       # 須滿足延伸規定之最少支數（≥1/3 總數）
+    # 服務（5.14.1.4.6）
+    sigma_top: float       # MPa（拉為正；未給則 None）
+    sigma_limit: float
+    service_ok: bool
+    # 構造
+    connection_required: bool   # 無複合橋面板 → 梁間接頭為必須（5.14.1.4.8）
+    note: str = ""
+
+
+def negative_moment_connection(Mu_neg: float, d: float, clear_span: float,
+                               bar_area: float = 387.0, db: float = 22.2,
+                               embed_beyond_PI: float = None,
+                               As_provided: float = None,
+                               sigma_top: float = None, fc: float = 40.0,
+                               bonded: bool = True, composite_deck: bool = True,
+                               fy: float = 420.0, phi: float = 0.9,
+                               jd_ratio: float = 0.9) -> NegMomentConnResult:
+    """連續橫隔梁負彎矩接頭（橋面板縱向鋼筋）。
+
+    Mu_neg[kN·m]：強度極限之負設計彎矩（**須含時間效應之負束制彎矩**，5.14.1.4.1／.4.2）；
+    d[mm]：複合斷面有效深度（橋面板鋼筋至受壓緣）；clear_span[mm]：淨跨；
+    embed_beyond_PI[mm]：實際延伸超過反曲點之長度；sigma_top[MPa]：Service III 之梁頂拉應力（拉為正）。
+    """
+    arm = jd_ratio * d
+    As_req = Mu_neg * 1e6 / (phi * fy * arm)
+    n_req = As_req / bar_area
+    n_use = int(math.ceil(n_req))
+    As_prov = As_provided if As_provided is not None else n_use * bar_area
+    embed_req = max(d, 12.0 * db, NEG_ANCHOR_SPAN_FACTOR * clear_span)
+    have = 0.0 if embed_beyond_PI is None else embed_beyond_PI
+    lim = neg_top_tension_limit(fc, bonded)
+    return NegMomentConnResult(
+        Mu_neg=Mu_neg, d=d, As_req=As_req, n_req=n_req, n_use=n_use, As_provided=As_prov,
+        ok_strength=As_prov >= As_req - 1e-9,
+        embed_req=embed_req, embed_have=have, embed_ok=have >= embed_req - 1e-9,
+        n_one_third=int(math.ceil(n_use * NEG_ONE_THIRD)),
+        sigma_top=sigma_top,
+        sigma_limit=lim,
+        service_ok=(sigma_top is None) or (sigma_top <= lim + 1e-9),
+        connection_required=not composite_deck,
+        note="錨定端須落在強度狀態下橋面板受壓之區域；截斷點須錯開（5.14.1.4.8）。"
+             "橋面板全部縱向鋼筋皆可計入。無複合橋面板時，梁間跨越橫隔梁之接頭為必須（依 5.11.5 續接）。")

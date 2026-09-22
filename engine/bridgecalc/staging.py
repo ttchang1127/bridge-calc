@@ -528,3 +528,104 @@ def timing_sensitivity_aashto(t0: float, t1_list, M_I_pier: float, M_II_pier: fl
                                    lam_exact=ex, lam_approx=ap,
                                    M_pier=M_I_pier + ex * (M_II_pier - M_I_pier)))
     return out
+
+
+# ── 正彎矩接頭之錨定與配置（B2，AASHTO 5.14.1.4.9a~d；2026-09-22 NLM 核）──────────
+# 5.14.1.4.9a 允許三種接頭：①埋入預鑄梁並伸展進橫隔梁之一般鋼筋；②未於梁端解除握裹之
+#   先拉鋼絞線延伸錨入橫隔梁（不得使用 debonded／shielded 者）；③經分析、試驗或業主認可者。
+# 5.14.1.4.9b（一般鋼筋）原文重點：
+#   - 錨定須符合 Art. 5.11，**且鋼筋須伸展至超過支承面內側邊緣**（beyond the inside edge
+#     of the bearing area）——臨界斷面在梁內，不是在橫隔梁面。
+#   - 正彎矩鋼筋若加在先拉鋼絞線之間，須考量**混凝土搗實與握裹**。
+#   - 多支鋼筋時，**截斷點須成對錯開且對稱於預鑄梁中心線**。
+# 5.14.1.4.9c（延伸鋼絞線）：以 90° 彎鉤或依 Art. 5.11.4 之伸展長度錨入橫隔梁；
+#   **彎折前自梁面外伸 ≥ 200 mm**；設計應力上限為延伸總長之函數：
+#     f_psl = (ℓ_dsh − 203)/0.840 （服務，假設斷面開裂）   Eq. 5.14.1.4.9c-1
+#     f_pul = (ℓ_dsh − 203)/0.600 （強度）                Eq. 5.14.1.4.9c-2
+#   🔴 式中**沒有**鋼絞線直徑 d_b（英制對應 (ℓ−8)/0.228、(ℓ−8)/0.163 ksi-in，
+#      換算 1/(0.228×25.4)×6.895 = 1/0.840 ✓）。ℓ_dsh 為延伸鋼絞線之**總長度**。
+# 5.14.1.4.9d：配置須對稱（或儘可能對稱）於斷面中心線；須考量製造與吊裝，
+#   兩側梁伸出之鋼筋須能交錯而不衝突，並留出橫隔梁錨定筋之置放空間。
+STRAND_PROJECT_MIN = 200.0     # mm，彎折前最小外伸
+STRAND_L0 = 203.0              # mm，式中扣除常數（＝8 in.）
+STRAND_K_SERVICE = 0.840
+STRAND_K_STRENGTH = 0.600
+
+
+def strand_stress_extended(l_dsh: float):
+    """延伸鋼絞線之設計應力上限 (f_psl, f_pul)，MPa。l_dsh：延伸鋼絞線總長度 mm。"""
+    eff = max(0.0, l_dsh - STRAND_L0)
+    return eff / STRAND_K_SERVICE, eff / STRAND_K_STRENGTH
+
+
+def strand_length_required(f_target: float, limit: str = "strength") -> float:
+    """達到目標應力所需之延伸總長度 ℓ_dsh，mm（上式反解）。"""
+    k = STRAND_K_STRENGTH if limit == "strength" else STRAND_K_SERVICE
+    return f_target * k + STRAND_L0
+
+
+@dataclass
+class PosConnDetailResult:
+    kind: str              # "strand"／"rebar"
+    M_req: float           # kN·m
+    d: float               # mm，接頭鋼筋至受壓緣之有效深度
+    n_req: float           # 需求支數（未取整）
+    n_use: int             # 採用支數（鋼絞線取偶數以對稱；鋼筋取偶數成對錯開）
+    A_each: float          # mm²
+    f_design: float        # MPa，設計應力（鋼絞線為 f_pul；鋼筋為 f_y）
+    phiMn: float           # kN·m，採用支數之設計彎矩強度
+    ok: bool
+    # 鋼絞線專用
+    l_dsh: float = None            # mm，延伸總長度
+    f_psl: float = None            # MPa，服務狀態上限
+    project_ok: bool = None        # 彎折前外伸 ≥200 mm
+    l_dsh_req: float = None        # mm，若以 f_y 級應力設計所需長度（對照）
+    # 一般鋼筋專用
+    ld: float = None               # mm，需求伸展長度（Art. 5.11）
+    dev_available: float = None    # mm，自臨界斷面可用之伸展長度
+    dev_ok: bool = None            # 是否伸展超過支承面內側邊緣
+    stagger_note: str = ""
+
+
+def pos_conn_strand(M_req: float, d: float, l_dsh: float, A_strand: float = 98.7,
+                    projection: float = 250.0, phi: float = 0.9,
+                    jd_ratio: float = 0.9) -> PosConnDetailResult:
+    """延伸鋼絞線式正彎矩接頭（5.14.1.4.9c）。
+
+    M_req[kN·m] 由 positive_moment_connection() 取得；d[mm]；l_dsh[mm]：延伸總長度；
+    A_strand[mm²]：單股面積（15.2 mm 低鬆弛為 140；12.7 mm 為 98.7）；
+    projection[mm]：彎折前自梁面外伸長度（須 ≥200）。
+    ⚠ 強度以 f_pul 計；**不得使用梁端解除握裹（debonded／shielded）之鋼絞線**。
+    """
+    f_psl, f_pul = strand_stress_extended(l_dsh)
+    arm = jd_ratio * d
+    cap_each = phi * f_pul * A_strand * arm / 1e6      # kN·m／股
+    n_req = M_req / cap_each if cap_each > 0 else float("inf")
+    n_use = int(math.ceil(n_req / 2.0) * 2) if n_req != float("inf") else 0   # 偶數→對稱
+    return PosConnDetailResult(
+        kind="strand", M_req=M_req, d=d, n_req=n_req, n_use=n_use, A_each=A_strand,
+        f_design=f_pul, phiMn=n_use * cap_each, ok=n_use * cap_each >= M_req,
+        l_dsh=l_dsh, f_psl=f_psl, project_ok=projection >= STRAND_PROJECT_MIN,
+        l_dsh_req=strand_length_required(1860 * 0.5),      # 對照：取 0.5f_pu 所需長度
+        stagger_note="配置須對稱於斷面中心線（5.14.1.4.9d），並確認兩側梁鋼筋交錯不衝突")
+
+
+def pos_conn_rebar(M_req: float, d: float, ld: float, dev_available: float,
+                   bar_area: float = 387.0, fy: float = 420.0, phi: float = 0.9,
+                   jd_ratio: float = 0.9) -> PosConnDetailResult:
+    """一般鋼筋式正彎矩接頭（5.14.1.4.9b）。
+
+    ld[mm]：依 Art. 5.11 之伸展長度需求；dev_available[mm]：自**支承面內側邊緣**起算
+    可用之伸展長度——條文要求鋼筋須伸展**超過**該邊緣，臨界斷面在預鑄梁內。
+    bar_area：單支面積（D22＝387、D25＝507）。
+    """
+    arm = jd_ratio * d
+    cap_each = phi * fy * bar_area * arm / 1e6
+    n_req = M_req / cap_each if cap_each > 0 else float("inf")
+    n_use = int(math.ceil(n_req / 2.0) * 2) if n_req != float("inf") else 0
+    return PosConnDetailResult(
+        kind="rebar", M_req=M_req, d=d, n_req=n_req, n_use=n_use, A_each=bar_area,
+        f_design=fy, phiMn=n_use * cap_each, ok=n_use * cap_each >= M_req,
+        ld=ld, dev_available=dev_available, dev_ok=dev_available >= ld,
+        stagger_note="多支時截斷點須成對錯開且對稱於預鑄梁中心線（5.14.1.4.9b）；"
+                     "加在先拉鋼絞線之間時須檢討混凝土搗實與握裹")

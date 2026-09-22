@@ -52,6 +52,8 @@ from bridgecalc import (Section, Tendon, box_slab_thickness_TW, compute_losses, 
                         positive_moment_connection, durability_cover,
                         aashto_creep, staging_phi, box_volume_surface, timing_sensitivity_aashto)
 from bridgecalc.tendon_profile import duct_layout_bundled, end_zone_duct_check, web_duct_check, deviation_force_check, adjacent_duct_radial_check
+from bridgecalc.staging import (pos_conn_strand, pos_conn_rebar, strand_stress_extended,
+                                strand_length_required)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -848,6 +850,26 @@ def _blister_stm_B1():
                      "ACI β 表(1.00/0.80/0.60)僅 CCC 與 AASHTO 同值，CCT 低 10%。"
                      "算例齒塊 400×250 於 200 腹板：壓桿與根部節點面積皆不足（與介面面積上限同一結論——須加大齒塊或改連續肋）。"}
 
+
+def _pos_conn_detail_B2():
+    """正彎矩接頭之錨定與配置（AASHTO 5.14.1.4.9b/c/d）：用 S4 之 M_req 設計兩種接頭。"""
+    M = 5912.8                      # kN·m，0.6M_cr 控制（見 pos_moment_conn_S4）
+    d = 1900.0
+    st = pos_conn_strand(M, d, l_dsh=900, A_strand=140.0, projection=250)
+    rb = pos_conn_rebar(M, d, ld=1200, dev_available=1500, bar_area=387.0)
+    f900 = strand_stress_extended(900)
+    return {"f_psl_600": round(strand_stress_extended(600)[0], 1),
+            "f_pul_600": round(strand_stress_extended(600)[1], 1),
+            "f_psl_900": round(f900[0], 1), "f_pul_900": round(f900[1], 1),
+            "l_dsh_for_930MPa": round(strand_length_required(930), 1),
+            "strand_n_req": round(st.n_req, 2), "strand_n_use": st.n_use,
+            "strand_phiMn_kNm": round(st.phiMn), "strand_ok": st.ok,
+            "rebar_n_req": round(rb.n_req, 2), "rebar_n_use": rb.n_use,
+            "rebar_phiMn_kNm": round(rb.phiMn), "rebar_dev_ok": rb.dev_ok,
+            "_note": "f_psl=(ℓ_dsh−203)/0.840、f_pul=(ℓ_dsh−203)/0.600（Eq.5.14.1.4.9c-1/-2，**式中無 d_b**）。"
+                     "0.6M_cr 控制（5,913 kN·m）下：D22 需 24 支、φ15.2 延伸鋼絞線（ℓ_dsh 900）需 24 股——"
+                     "兩者支數接近是巧合（鋼絞線應力高 2.8 倍、面積小 2.8 倍）。實際正束制僅 263 kN·m，最小量控制。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -939,6 +961,7 @@ golden = {
     "duct_size_T83": _duct_size_T83(),
     "cont_envelope_gamma_min": _cont_envelope_gamma_min(),
     "staged_shear_S3": _staged_shear_S3(),
+    "pos_conn_detail_B2": _pos_conn_detail_B2(),
     "pos_moment_conn_S4": _pos_moment_conn_S4(),
     "durability_cover_T12": _durability_cover_T12(),
     "duct_side_margin": _duct_side_margin(),

@@ -1622,6 +1622,32 @@ def test_blister_stm_B1():
     assert bs(3000, 3000, web_t=200).A_n == 200 * 200
 
 
+def test_pos_conn_detail_B2():
+    """正彎矩接頭錨定：延伸鋼絞線應力式（無 d_b）、英制換算交叉驗算、對稱偶數支。"""
+    from bridgecalc import (strand_stress_extended as ss, strand_length_required as slr,
+                            pos_conn_strand, pos_conn_rebar)
+    # Eq. 5.14.1.4.9c-1/-2：(ℓ−203)/0.840、/0.600
+    assert abs(ss(600)[0] - 397 / 0.840) < 1e-9 and abs(ss(600)[1] - 397 / 0.600) < 1e-9
+    assert ss(203)[0] == 0 and ss(100)[0] == 0          # 短於 203 不得計入
+    # 英制 (ℓ−8)/0.228 ksi-in 換算：1/(0.228×25.4)×6.895 = 1/0.840
+    import math
+    assert abs(6.895 / (0.228 * 25.4) - 1 / 0.840) < 2e-4
+    assert abs(6.895 / (0.163 * 25.4) - 1 / 0.600) < 2e-3
+    # 反解長度代回一致
+    assert abs(ss(slr(930, "strength"))[1] - 930) < 1e-9
+    assert abs(ss(slr(930, "service"))[0] - 930) < 1e-9
+    # 強度式應力恆大於服務式（0.600 < 0.840）
+    assert ss(900)[1] > ss(900)[0]
+    st = pos_conn_strand(5912.8, 1900, l_dsh=900, A_strand=140.0, projection=250)
+    assert st.n_use % 2 == 0 and st.n_use >= st.n_req and st.ok and st.project_ok
+    assert not pos_conn_strand(5912.8, 1900, 900, 140.0, projection=150).project_ok  # <200 mm
+    rb = pos_conn_rebar(5912.8, 1900, ld=1200, dev_available=1500)
+    assert rb.n_use % 2 == 0 and rb.ok and rb.dev_ok
+    assert not pos_conn_rebar(5912.8, 1900, ld=1600, dev_available=1500).dev_ok
+    # 同一 M_req 下，鋼絞線因設計應力較高而支數較少
+    assert st.n_req < rb.n_req
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

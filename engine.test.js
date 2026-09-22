@@ -575,6 +575,20 @@ function chkEq(name, got, exp) {
         node_type: 'CCC', A_node: 400 * 200 }).fcu_aashto, gbs.fcu_theta30_MPa, 0.01);
   chk('節點 CCT AASHTO', BC.nodeCapacityAASHTO(40, 'CCT', 90000) / 1e3, gbs.node_CCT_aashto_kN, 1);
   chk('節點 CCT ACI', BC.nodeCapacityACI(40, 'CCT', 90000) / 1e3, gbs.node_CCT_aci_kN, 1);
+  // 正彎矩接頭錨定與配置（5.14.1.4.9b/c/d）
+  var gpc = g.pos_conn_detail_B2;
+  chk('延伸腱 f_psl 600', BC.strandStressExtended(600).f_psl, gpc.f_psl_600, 0.1);
+  chk('延伸腱 f_pul 600', BC.strandStressExtended(600).f_pul, gpc.f_pul_600, 0.1);
+  chk('延伸腱 f_psl 900', BC.strandStressExtended(900).f_psl, gpc.f_psl_900, 0.1);
+  chk('延伸腱 f_pul 900', BC.strandStressExtended(900).f_pul, gpc.f_pul_900, 0.1);
+  chk('延伸腱 所需長度', BC.strandLengthRequired(930), gpc.l_dsh_for_930MPa, 0.1);
+  var pcs = BC.posConnStrand(5912.8, 1900, 900, 140, 250), pcr = BC.posConnRebar(5912.8, 1900, 1200, 1500, 387);
+  chk('接頭 鋼絞線 n_req', pcs.n_req, gpc.strand_n_req, 0.01);
+  chk('接頭 鋼絞線 n_use', pcs.n_use, gpc.strand_n_use, 1e-9);
+  chk('接頭 鋼絞線 φMn', pcs.phiMn, gpc.strand_phiMn_kNm, 1);
+  chk('接頭 鋼筋 n_req', pcr.n_req, gpc.rebar_n_req, 0.01);
+  chk('接頭 鋼筋 φMn', pcr.phiMn, gpc.rebar_phiMn_kNm, 1);
+  chkEq('接頭 鋼筋伸展足夠', pcr.dev_ok, gpc.rebar_dev_ok);
   // 台灣翼板最小厚度
   var gst = g.slab_thickness_TW, st1 = BC.boxSlabThicknessTW(250, 200, 2400), st2 = BC.boxSlabThicknessTW(250, 200, 6000);
   chk('翼板 頂 req 2400', st1.topReq, gst.top_req_2400, 1e-9);

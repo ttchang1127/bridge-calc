@@ -1112,6 +1112,39 @@
     return { fr: fr, Mcr: Mcr, Mu_pos: MuPos, simplified: simp, M_req: Mreq, governs: gov,
              As_est: d ? Mreq * 1e6 / (phi * fy * 0.9 * d) : null };
   };
+  // 正彎矩接頭之錨定與配置（同 staging；AASHTO 5.14.1.4.9b/c/d，2026-09-22 NLM 核）
+  // 5.14.1.4.9c 延伸鋼絞線設計應力：f_psl=(ℓ_dsh−203)/0.840（服務、斷面開裂）、
+  //   f_pul=(ℓ_dsh−203)/0.600（強度）。🔴 **式中沒有 d_b**（英制 (ℓ−8)/0.228、/0.163 ksi-in，
+  //   換算 6.895/(0.228×25.4)=1/0.840 ✓）；彎折前自梁面外伸 ≥200 mm；debonded 者不得使用。
+  // 5.14.1.4.9b 一般鋼筋：錨定依 Art. 5.11，且須伸展**超過支承面內側邊緣**；多支時截斷點
+  //   成對錯開且對稱於梁中心線。5.14.1.4.9d：配置對稱、兩側梁鋼筋須能交錯不衝突。
+  BC.STRAND_PROJECT_MIN = 200; BC.STRAND_L0 = 203;
+  BC.strandStressExtended = function (l) {
+    var e = Math.max(0, l - BC.STRAND_L0); return { f_psl: e / 0.840, f_pul: e / 0.600 };
+  };
+  BC.strandLengthRequired = function (f, limit) {
+    return f * (limit === 'service' ? 0.840 : 0.600) + BC.STRAND_L0;
+  };
+  BC.posConnStrand = function (Mreq, d, lDsh, Astrand, projection, phi, jd) {
+    Astrand = Astrand == null ? 98.7 : Astrand; projection = projection == null ? 250 : projection;
+    phi = phi == null ? 0.9 : phi; jd = jd == null ? 0.9 : jd;
+    var f = BC.strandStressExtended(lDsh), capEach = phi * f.f_pul * Astrand * jd * d / 1e6;
+    var nReq = capEach > 0 ? Mreq / capEach : Infinity;
+    var nUse = isFinite(nReq) ? Math.ceil(nReq / 2) * 2 : 0;
+    return { kind: 'strand', M_req: Mreq, d: d, n_req: nReq, n_use: nUse, A_each: Astrand,
+             f_design: f.f_pul, f_psl: f.f_psl, l_dsh: lDsh, phiMn: nUse * capEach,
+             ok: nUse * capEach >= Mreq, project_ok: projection >= BC.STRAND_PROJECT_MIN };
+  };
+  BC.posConnRebar = function (Mreq, d, ld, devAvailable, barArea, fy, phi, jd) {
+    barArea = barArea == null ? 387 : barArea; fy = fy || 420;
+    phi = phi == null ? 0.9 : phi; jd = jd == null ? 0.9 : jd;
+    var capEach = phi * fy * barArea * jd * d / 1e6, nReq = capEach > 0 ? Mreq / capEach : Infinity;
+    var nUse = isFinite(nReq) ? Math.ceil(nReq / 2) * 2 : 0;
+    return { kind: 'rebar', M_req: Mreq, d: d, n_req: nReq, n_use: nUse, A_each: barArea,
+             f_design: fy, ld: ld, dev_available: devAvailable, dev_ok: devAvailable >= ld,
+             phiMn: nUse * capEach, ok: nUse * capEach >= Mreq };
+  };
+
   // AASHTO LRFD 5.4.2.3.2 潛變係數（台灣規範無 φ(t) 模式；同 staging.aashto_creep）
   BC.aashtoCreep = function (t, ti, H, VS, fci) {
     H = H == null ? 75 : H; VS = VS == null ? 150 : VS; fci = fci == null ? 32 : fci;

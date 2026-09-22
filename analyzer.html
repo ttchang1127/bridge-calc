@@ -1374,13 +1374,59 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
               <div class="metric"><div class="l">鋼筋估算 A<sub>s</sub>（φ0.9、f<sub>y</sub>420、jd＝0.9d）</div>
                 <div class="v" style="font-size:15px" x-text="fmt(staging.pmc.As_est,0)+' mm²'"></div></div>
             </div>
+            <div class="grid no-print" style="margin:8px 0">
+              <label title="5.14.1.4.9a 允許三種：一般鋼筋、延伸先拉鋼絞線（不得為 debonded 者）、經分析試驗或業主認可者">接頭型式
+                <select x-model="pcType" style="width:100%;height:30px;border:0.5px solid #cbd5e1;border-radius:6px;font-size:13px">
+                  <option value="rebar">一般鋼筋（5.14.1.4.9b）</option>
+                  <option value="strand">延伸先拉鋼絞線（5.14.1.4.9c）</option></select></label>
+              <template x-if="pcType==='strand'">
+                <label title="延伸鋼絞線之總長度 ℓ_dsh；設計應力 f_pul=(ℓ_dsh−203)/0.600">延伸總長 ℓ<sub>dsh</sub> (mm)<input type="number" x-model.number="pcLdsh" step="50"></label></template>
+              <template x-if="pcType==='strand'">
+                <label title="彎折前自梁面外伸長度，規範要求 ≥200 mm">彎折前外伸 (mm)<input type="number" x-model.number="pcProj" step="10"></label></template>
+              <template x-if="pcType==='rebar'">
+                <label>單支面積 (mm²)<input type="number" x-model.number="pcBar" step="10"></label></template>
+              <template x-if="pcType==='rebar'">
+                <label title="依 Art. 5.11 之伸展長度需求">需求伸展長度 ℓ<sub>d</sub> (mm)<input type="number" x-model.number="pcLd" step="50"></label></template>
+              <template x-if="pcType==='rebar'">
+                <label title="自支承面內側邊緣起算可用之伸展長度——條文要求鋼筋須伸展超過該邊緣">可用伸展長度 (mm)<input type="number" x-model.number="pcDev" step="50"></label></template>
+            </div>
+            <table x-show="posConn" x-cloak style="margin-bottom:8px">
+              <thead><tr><th>接頭配置檢核</th><th>實配</th><th>需求</th><th style="width:44px">判定</th></tr></thead>
+              <tbody>
+                <tr><td x-text="pcType==='strand'?'延伸鋼絞線支數（偶數對稱）':'接頭鋼筋支數（偶數成對）'"></td>
+                  <td x-text="posConn.n_use+' 支・φMn '+fmt(posConn.phiMn,0)+' kN·m'"></td>
+                  <td x-text="'≥ M_req '+fmt(posConn.M_req,0)+' kN·m（需求 '+posConn.n_req.toFixed(2)+' 支）'"></td>
+                  <td style="text-align:center" :class="posConn.ok?'ok':'ng'" x-text="posConn.ok?'✓':'✗'"></td></tr>
+                <template x-if="pcType==='strand'">
+                  <tr title="Eq. 5.14.1.4.9c-1／-2：f_psl=(ℓ_dsh−203)/0.840、f_pul=(ℓ_dsh−203)/0.600。⚠ 式中沒有鋼絞線直徑 d_b">
+                    <td>設計應力上限（隨延伸長度）</td>
+                    <td x-text="'f_pul '+fmt(posConn.f_design,0)+'・f_psl '+fmt(posConn.f_psl,0)+' MPa'"></td>
+                    <td x-text="'ℓ_dsh '+fmt(posConn.l_dsh,0)+' mm（扣 203 後 /0.600、/0.840）'"></td>
+                    <td style="text-align:center" class="mut">—</td></tr></template>
+                <template x-if="pcType==='strand'">
+                  <tr><td>彎折前自梁面外伸</td><td x-text="fmt(pcProj,0)+' mm'"></td><td>≥ 200 mm</td>
+                    <td style="text-align:center" :class="posConn.project_ok?'ok':'ng'" x-text="posConn.project_ok?'✓':'✗'"></td></tr></template>
+                <template x-if="pcType==='rebar'">
+                  <tr title="5.14.1.4.9b：臨界斷面在預鑄梁內，鋼筋須伸展超過支承面內側邊緣">
+                    <td>伸展超過支承面內側邊緣</td>
+                    <td x-text="fmt(pcDev,0)+' mm'"></td><td x-text="'≥ ℓ_d '+fmt(pcLd,0)+' mm（Art. 5.11）'"></td>
+                    <td style="text-align:center" :class="posConn.dev_ok?'ok':'ng'" x-text="posConn.dev_ok?'✓':'✗'"></td></tr></template>
+              </tbody>
+            </table>
+            <div class="hint" x-show="posConn" x-cloak style="margin-bottom:8px">
+              <b>配置規定（5.14.1.4.9b／d）</b>：多支時<b>截斷點須成對錯開且對稱於預鑄梁中心線</b>；配置須對稱於斷面中心線；
+              兩側梁伸出之鋼筋須能交錯而不衝突，並留出橫隔梁錨定筋空間。
+              <span x-show="pcType==='rebar'">鋼筋若加在先拉鋼絞線之間，須檢討混凝土搗實與握裹。</span>
+              <span x-show="pcType==='strand'">🔴 <b>梁端解除握裹（debonded／shielded）之鋼絞線不得用作正彎矩接頭鋼筋</b>；
+                延伸鋼絞線以 90° 彎鉤或 Art. 5.11.4 伸展長度錨入橫隔梁。</span>
+            </div>
             <div class="cite">
               <span x-show="!staging.pmc.simplified">5.14.1.4.9a：取 max(係數化正束制彎矩, 0.6M<sub>cr</sub>)。</span>
               <span x-show="staging.pmc.simplified" x-cloak>5.14.1.4.4 簡化（梁齡 ≥ 90 天）：正束制取 0、接頭 ≥ 1.2M<sub>cr</sub>——
                 <b>簡化省的是計算不是鋼筋</b>：實際正束制小時，1.2M<sub>cr</sub> 反而是一般做法 0.6M<sub>cr</sub> 的兩倍。</span>
               M<sub>cr</sub> 依 5.14.1.4.9a 以<b>總毛斷面</b>、<b>橫隔梁混凝土</b>的破裂模數（f<sub>r</sub>＝0.63√f'c，5.4.2.6 基本值；0.97√f'c 為最小鋼筋專用）計算，
               <b>不計預力</b>（C5.14.1.4.9a：橫隔梁非預力斷面）。C5.14.1.4.2：「the later continuity is formed, the lower the predicted values of positive restraint moment」。
-              鋼筋量為估算，實際須依 5.14.1.4.9b 檢核錨定與配置。
+              鋼筋量估算（jd＝0.9d）供對照；實配支數與錨定見上表（5.14.1.4.9b／c／d）。
             </div>
           </div>
         </template>
@@ -2335,7 +2381,7 @@ var PARAM_KEYS=[
   'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSideMargin','ductBundle','webVertPT','envType','envLife','envWC','envZone','ductSv','ductCover','dAgg','ductRule','jackEnd','jackDefV2','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
-  'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct','blStmTheta','blStmNode',
+  'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct','blStmTheta','blStmNode','pcType','pcLdsh','pcProj','pcBar','pcLd','pcDev',
   'stgOn','stgScheme','stgPhiInf','stgPhiT1','stgChi','stgMethod','stgAge','stgFcD','stgPhiSrc','stgT0','stgH','stgFci',
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
@@ -2792,6 +2838,13 @@ function calc(){
       memoFn[key]=r;
       return r;
     },
+    // 正彎矩接頭之錨定與配置（5.14.1.4.9b/c/d）：接頭型式由使用者選，引擎不替他選拓樸
+    get posConn(){
+      var st=this.staging; if(!st||!st.pmc) return null;
+      var d=this.h-200, M=st.pmc.M_req, B=window.BC;
+      return this.pcType==='strand'
+        ? B.posConnStrand(M,d,this.pcLdsh,this.strandAp,this.pcProj)
+        : B.posConnRebar(M,d,this.pcLd,this.pcDev,this.pcBar); },
     // ── 中間錨碇齒塊（blister）錨碇區設計（BC.blisterDesign）─────
     // 只在勾選「設中間錨碇段」時有意義：內部錨碇必須靠齒塊把腱力打回腹板，
     // 而齒塊的後方**沒有鋼腱延伸提供回力**——Tie-back 是唯一抵抗後向分離的機制。
@@ -3075,7 +3128,7 @@ function calc(){
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, sv:250, Vu:2069, VuAuto:true, midAnchorOn:false, midAnchors:'',   // VuAuto：⑤ Vu 由包絡自動帶入（手動 2,069 為 golden 參考值）
     // 中間錨碇齒塊（blister）：尺寸與錨板；blTieDeduct＝Tie-back 是否扣既有預壓（補強既有橋時應關閉）
-    blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false, blStmTheta:45, blStmNode:'CCC',
+    blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false, blStmTheta:45, blStmNode:'CCC', pcType:'rebar', pcLdsh:900, pcProj:250, pcBar:387, pcLd:1200, pcDev:1500,
     // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
     stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost', stgAge:28, stgFcD:35, stgPhiSrc:'aashto', stgT0:7, stgH:75, stgFci:32,   // stgPhiSrc：φ 由 AASHTO 5.4.2.3.2 算（台灣規範無 φ(t) 模式）或手填   // stgAge＝合龍時梁齡(天)；stgFcD＝連續橫隔梁 f'c
     ductOD:100, ductID:100, ductAreaRule:'tw', ductSideMargin:0, ductBundle:false, webVertPT:false, envType:'general', envLife:50, envWC:0.45, envZone:'中度', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams

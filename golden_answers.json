@@ -719,6 +719,22 @@
     ],
     "_note": "逐跨施工剛合龍時自重剪力為簡支 wL/2(>連續 3wL/8)，端支承 d_v Vu/腹板 2,053→2,441(+19%)，端部 0–4.5 m 箍筋 @450→@250。束制剪力 λ(V_II−V_I) 每跨常數(束制彎矩線性)。"
   },
+  "pos_conn_detail_B2": {
+    "f_psl_600": 472.6,
+    "f_pul_600": 661.7,
+    "f_psl_900": 829.8,
+    "f_pul_900": 1161.7,
+    "l_dsh_for_930MPa": 761.0,
+    "strand_n_req": 23.62,
+    "strand_n_use": 24,
+    "strand_phiMn_kNm": 6007,
+    "strand_ok": true,
+    "rebar_n_req": 23.64,
+    "rebar_n_use": 24,
+    "rebar_phiMn_kNm": 6004,
+    "rebar_dev_ok": true,
+    "_note": "f_psl=(ℓ_dsh−203)/0.840、f_pul=(ℓ_dsh−203)/0.600（Eq.5.14.1.4.9c-1/-2，**式中無 d_b**）。0.6M_cr 控制（5,913 kN·m）下：D22 需 24 支、φ15.2 延伸鋼絞線（ℓ_dsh 900）需 24 股——兩者支數接近是巧合（鋼絞線應力高 2.8 倍、面積小 2.8 倍）。實際正束制僅 263 kN·m，最小量控制。"
+  },
   "pos_moment_conn_S4": {
     "fr_MPa": 3.9845,
     "Mcr_kNm": 9854.7,

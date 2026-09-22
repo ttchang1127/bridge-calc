@@ -713,3 +713,128 @@ def negative_moment_connection(Mu_neg: float, d: float, clear_span: float,
         connection_required=not composite_deck,
         note="錨定端須落在強度狀態下橋面板受壓之區域；截斷點須錯開（5.14.1.4.8）。"
              "橋面板全部縱向鋼筋皆可計入。無複合橋面板時，梁間跨越橫隔梁之接頭為必須（依 5.11.5 續接）。")
+
+
+# ── 多階段逐跨施工（C1）：各跨材齡不同 ────────────────────────────────
+# 現行 creep_redistribution 假設**全橋同時轉為連續**（單一 λ）。逐跨施工實際上是
+# 一段一段合龍的：第 k 跨合龍時，先前各跨的自重已在各自的體系上作用了一段時間，
+# 其剩餘潛變也各不相同。做法是**逐階段疊加**——每一階段各有自己的 λ：
+#
+#   M(∞) = Σ_i [ M_I,i + λ_i (M_II,i − M_I,i) ]
+#   λ_i = [ψ(∞, t0_i) − ψ(t_c,i − t0_i, t0_i)] / [1 + χ·ψ(∞, t_c,i)]      （嚴格 AAEM）
+#
+#   M_I,i：第 i 階段之載重作用在**當時體系**上的彎矩
+#   M_II,i：同一載重若作用在**最終體系**上的彎矩
+#   t0_i：該載重之加載材齡；t_c,i：該階段體系轉換（合龍）之材齡
+#
+# 🔴 **便覽 §3.5.4 但書**：「材齡差極大（**1 年以上**）之構件相結合時，標準上應考慮施工中
+#   產生之斷面力及構件間之材齡差」——超過 365 天時，單一 λ 的簡化不適用，本函式回報 `age_gap_warn`。
+# ⚠ 本函式做的是**同一斷面的逐階段疊加**；各階段的 M_I／M_II 由呼叫者以該階段之結構系統算出
+#   （簡支、部分連續、全連續各自的彎矩）。工具不替使用者決定施工順序與體系。
+AGE_GAP_LIMIT_DAYS = 365.0
+
+
+@dataclass
+class StageSpec:
+    name: str
+    t0: float          # 該階段載重之加載材齡（天）
+    t_c: float         # 該階段體系轉換（合龍）之材齡（天）
+    M_I: float         # kN·m，載重作用於當時體系
+    M_II: float        # kN·m，同一載重作用於最終體系
+
+
+@dataclass
+class MultiStageResult:
+    rows: list             # [(name, lam, M_I, M_II, M_final_i)]
+    M_total: float         # kN·m，各階段疊加
+    M_I_total: float
+    M_II_total: float
+    lam_equiv: float       # 等效單一 λ（M_total 落在 M_I_total~M_II_total 之間的比例）
+    age_gap: float         # 天，最大合龍材齡差
+    age_gap_warn: bool     # > 365 天 → 便覽 §3.5.4 但書
+    single_lam: float      # 對照：若以「全部同時連續」單一 λ 計算之結果比例
+    M_single: float        # 對照：單一 λ 之總彎矩
+
+
+def multi_stage_redistribution(stages, chi: float = 0.8, H: float = 75.0,
+                               VS: float = 150.0, fci: float = 32.0,
+                               single_stage_t0: float = None,
+                               single_stage_tc: float = None) -> MultiStageResult:
+    """多階段逐跨施工之潛變重分配（逐階段疊加，各階段自有 λ）。
+
+    stages：StageSpec 串列。single_stage_t0／tc：對照用之「全部同時連續」材齡（不給則取
+    第一階段之 t0 與**最後**一個 t_c——即「等到最後一跨合龍才一次轉換」的簡化）。
+    """
+    rows, M_tot, MI_tot, MII_tot = [], 0.0, 0.0, 0.0
+    for st in stages:
+        sp = staging_phi(st.t0, st.t_c, H, VS, fci)
+        lam = redistribution_factor(sp.dphi_sub, chi, "trost", sp.phi_load_t1).lam
+        Mi = st.M_I + lam * (st.M_II - st.M_I)
+        rows.append((st.name, lam, st.M_I, st.M_II, Mi))
+        M_tot += Mi
+        MI_tot += st.M_I
+        MII_tot += st.M_II
+    tcs = [s.t_c for s in stages]
+    gap = max(tcs) - min(tcs) if tcs else 0.0
+    t0s = single_stage_t0 if single_stage_t0 is not None else stages[0].t0
+    tcs1 = single_stage_tc if single_stage_tc is not None else max(tcs)
+    sp1 = staging_phi(t0s, tcs1, H, VS, fci)
+    lam1 = redistribution_factor(sp1.dphi_sub, chi, "trost", sp1.phi_load_t1).lam
+    M_single = MI_tot + lam1 * (MII_tot - MI_tot)
+    den = MII_tot - MI_tot
+    return MultiStageResult(
+        rows=rows, M_total=M_tot, M_I_total=MI_tot, M_II_total=MII_tot,
+        lam_equiv=(M_tot - MI_tot) / den if abs(den) > 1e-12 else 0.0,
+        age_gap=gap, age_gap_warn=gap > AGE_GAP_LIMIT_DAYS,
+        single_lam=lam1, M_single=M_single)
+
+
+def span_by_span_schedule(n_spans: int, days_per_span: float, t0_offset: float = 28.0,
+                          first_cast_age: float = 28.0):
+    """由「每跨施工天數」產生各跨之 (t0, t_c)：第 k 跨於第 k·days_per_span 天澆置。
+
+    回傳 [(t0_k, t_c_k)]，其中 t_c 以**最後一跨合龍**為全橋連續時點；
+    t0_k＝該跨自重加載材齡（預設澆置後 28 天施拉／落架）。
+    ⚠ 這是最單純的等速施工假設；實際進度應由呼叫者直接給 StageSpec。
+    """
+    out = []
+    last = (n_spans - 1) * days_per_span
+    for k in range(n_spans):
+        cast = k * days_per_span
+        t0 = first_cast_age if k == 0 else t0_offset
+        # 該跨自加載到全橋合龍之間隔 → 換算成該跨材齡
+        t_c = t0 + (last - cast)
+        out.append((t0, max(t_c, t0)))
+    return out
+
+
+def stage_moments_span_by_span(spans, w: float, x: float):
+    """逐跨施工：把各跨自重對斷面 x 的貢獻拆成各階段之 (M_I,k, M_II,k)，kN·m。
+
+    M_I,k：第 k 跨自重作用於**當時體系**——逐跨施工時該跨為簡支，故只在該跨內有彎矩、
+           其他斷面為 0（尚未連續，載重傳不過去）。
+    M_II,k：同一載重作用於**最終連續體系**（對單跨加載解支承彎矩後回推）。
+    💡 自我驗證：Σ M_I,k ＝ 簡支彎矩、Σ M_II,k ＝ 連續彎矩（疊加原理）——測試逐點比對。
+    """
+    from .influence_cont import cont_support_moments_uniform, _supports
+    xs = _supports(spans)
+    res = []
+    for k, L in enumerate(spans):
+        if xs[k] - 1e-9 <= x <= xs[k + 1] + 1e-9:
+            xi = x - xs[k]
+            m1 = w * xi * (L - xi) / 2.0
+        else:
+            m1 = 0.0
+        wv = [0.0] * len(spans)
+        wv[k] = w
+        res.append((m1, _cont_moment_at(spans, xs, wv, x,
+                                        cont_support_moments_uniform(spans, wv))))
+    return res
+
+
+def _cont_moment_at(spans, xs, wv, x, M0):
+    """連續梁支承彎矩 M0、跨內均佈 wv 時，斷面 x 之彎矩（kN·m）：支承彎矩線性內插＋簡支拋物線。"""
+    from .influence_cont import _span_of
+    i = _span_of(xs, x)
+    L, a = spans[i], x - xs[i]
+    return M0[i] + (M0[i + 1] - M0[i]) * a / L + wv[i] * a * (L - a) / 2.0

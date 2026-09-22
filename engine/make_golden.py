@@ -54,7 +54,8 @@ from bridgecalc import (Section, Tendon, box_slab_thickness_TW, compute_losses, 
 from bridgecalc.tendon_profile import duct_layout_bundled, end_zone_duct_check, web_duct_check, deviation_force_check, adjacent_duct_radial_check
 from bridgecalc.staging import (pos_conn_strand, pos_conn_rebar, strand_stress_extended,
                                 strand_length_required, negative_moment_connection,
-                                neg_top_tension_limit)
+                                neg_top_tension_limit, multi_stage_redistribution,
+                                StageSpec, span_by_span_schedule, stage_moments_span_by_span)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -888,6 +889,32 @@ def _neg_conn_B5():
                      "本例 0.0625×40,000＝2,500 控制（d 2,000、12d_b 266）。"
                      "5.14.1.4.6 梁頂拉應力用 Table 5.9.4.1.2-1 但以 f'c 代 f'ci → 有握裹 0.63√f'c＝3.98 MPa。"}
 
+
+def _multi_stage_C1():
+    """多階段逐跨施工：三跨 40 m，每跨 120 天，各跨材齡不同 → 各階段自有 λ。"""
+    spans, wdl = [40.0, 40.0, 40.0], 40.4
+    x = 40.0                                   # 第一中墩
+    pairs = stage_moments_span_by_span(spans, wdl, x)
+    sched = span_by_span_schedule(3, 120)
+    st = [StageSpec(f"span{k+1}", t0, tc, mi, mii)
+          for k, ((mi, mii), (t0, tc)) in enumerate(zip(pairs, sched))]
+    r = multi_stage_redistribution(st)
+    slow = multi_stage_redistribution(
+        [StageSpec(f"span{k+1}", t0, tc, mi, mii)
+         for k, ((mi, mii), (t0, tc)) in enumerate(zip(pairs, span_by_span_schedule(3, 400)))])
+    return {"M_I_total": round(r.M_I_total, 1), "M_II_total": round(r.M_II_total, 1),
+            "lam_per_stage": [round(row[1], 4) for row in r.rows],
+            "M_per_stage": [round(row[4], 1) for row in r.rows],
+            "M_total_multi": round(r.M_total, 1), "lam_equiv": round(r.lam_equiv, 4),
+            "M_single_lam": round(r.M_single, 1), "single_lam": round(r.single_lam, 4),
+            "age_gap_days": r.age_gap, "age_gap_warn": r.age_gap_warn,
+            "slow_age_gap": slow.age_gap, "slow_warn": slow.age_gap_warn,
+            "slow_M_total": round(slow.M_total, 1),
+            "_note": "逐跨施工各跨材齡不同→λ 各異（先建的跨剩餘潛變少、λ 小：0.099／0.167／0.586）。"
+                     "🔴 本例單一 λ 給 −640、逐階段疊加只有 −335——但反向案例（各階段同號）單一 λ 反而偏小，"
+                     "**方向依各階段 M_I／M_II 的正負組合而定，不可假設簡化偏保守**（見測試 test_multi_stage_C1）。"
+                     "每跨 400 天時材齡差 800 天 > 365，便覽 §3.5.4 但書要求分步考慮施工中斷面力與材齡差。"}
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -981,6 +1008,7 @@ golden = {
     "staged_shear_S3": _staged_shear_S3(),
     "pos_conn_detail_B2": _pos_conn_detail_B2(),
     "neg_conn_B5": _neg_conn_B5(),
+    "multi_stage_C1": _multi_stage_C1(),
     "pos_moment_conn_S4": _pos_moment_conn_S4(),
     "durability_cover_T12": _durability_cover_T12(),
     "duct_side_margin": _duct_side_margin(),

@@ -1319,6 +1319,43 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           <div class="metric"><div class="l">重分配係數 λ</div>
             <div class="v" :class="staging.factor.valid?'ok':'ng'" x-text="fmt(staging.factor.lam,3)"></div></div>
         </div>
+        <div class="grid no-print" style="margin:8px 0">
+          <label title="逐跨施工時各跨材齡不同，每跨的剩餘潛變（λ）也不同；勾選後改用逐階段疊加" style="display:flex;gap:6px;align-items:center">
+            <input type="checkbox" x-model="msOn"> 多階段逐跨施工（各跨材齡不同）</label>
+          <template x-if="msOn"><label title="每跨之施工間隔；第 k 跨於 k×此天數澆置，全橋於最後一跨合龍">每跨施工天數<input type="number" x-model.number="msDays" step="10"></label></template>
+        </div>
+        <template x-if="multiStage">
+          <div>
+            <table style="margin-bottom:6px">
+              <thead><tr><th>階段（第一中墩）</th><th>合龍時材齡 t_c</th><th>λ<sub>i</sub></th><th>M<sub>I,i</sub></th><th>M<sub>II,i</sub></th><th>M<sub>i</sub>(∞)</th></tr></thead>
+              <tbody>
+                <template x-for="(row,i) in multiStage.rows" :key="i">
+                  <tr><td x-text="row.name"></td>
+                    <td class="mut" x-text="fmt(window.BC.spanBySpanSchedule(String(contSpans).split(',').filter(v=>parseFloat(v)>0).length,msDays)[i][1],0)+' 天'"></td>
+                    <td x-text="row.lam.toFixed(3)"></td>
+                    <td x-text="fmt(row.M_I,0)"></td><td x-text="fmt(row.M_II,0)"></td>
+                    <td style="font-weight:600" x-text="fmt(row.M,0)"></td></tr>
+                </template>
+                <tr style="border-top:1.5px solid var(--line)"><td>合計</td><td class="mut">—</td>
+                  <td x-text="'等效 '+multiStage.lam_equiv.toFixed(3)"></td>
+                  <td x-text="fmt(multiStage.M_I_total,0)"></td><td x-text="fmt(multiStage.M_II_total,0)"></td>
+                  <td style="font-weight:600" x-text="fmt(multiStage.M_total,0)"></td></tr>
+                <tr><td colspan="2">對照：全部同時連續（單一 λ）</td>
+                  <td x-text="multiStage.single_lam.toFixed(3)"></td><td class="mut">—</td><td class="mut">—</td>
+                  <td x-text="fmt(multiStage.M_single,0)"></td></tr>
+              </tbody>
+            </table>
+            <div class="hint" :style="multiStage.age_gap_warn?'color:var(--ng)':''">
+              <span x-show="multiStage.age_gap_warn">🔴 </span>
+              最大合龍材齡差 <b x-text="fmt(multiStage.age_gap,0)+' 天'"></b>
+              <span x-show="multiStage.age_gap_warn"><b>＞ 365 天</b>——《混凝土道路橋設計便覽》§3.5.4 但書：「材齡差極大（1 年以上）之構件相結合時，標準上應考慮施工中產生之斷面力及構件間之材齡差」，單一 λ 之簡化不適用。</span>
+              <span x-show="!multiStage.age_gap_warn">（未超過便覽 §3.5.4 但書之 1 年）。</span>
+              <b>先建的跨在合龍時材齡大、剩餘潛變少 → λ 小</b>；愈晚建的跨 λ 愈大。
+              ⚠ <b>單一 λ 簡化的偏差方向，依各階段 M<sub>I</sub>／M<sub>II</sub> 的正負組合而定，不可假設偏保守</b>——
+              本例各階段含反號項（遠跨載重在本墩產生反向彎矩）。
+            </div>
+          </div>
+        </template>
         <table style="margin-top:8px">
           <thead><tr><th>斷面</th><th>M<sub>I</sub> 施工體系（簡支）</th><th>M<sub>II</sub> 最終體系（連續）</th><th>M(∞) 實際</th><th>佔連續值</th></tr></thead>
           <tbody>
@@ -2415,7 +2452,7 @@ var PARAM_KEYS=[
   'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSideMargin','ductBundle','webVertPT','envType','envLife','envWC','envZone','ductSv','ductCover','dAgg','ductRule','jackEnd','jackDefV2','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
-  'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct','blStmTheta','blStmNode','pcType','pcLdsh','pcProj','pcBar','pcLd','pcDev','ncBar','ncDb','ncEmbed','ncDeck',
+  'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct','blStmTheta','blStmNode','pcType','pcLdsh','pcProj','pcBar','pcLd','pcDev','ncBar','ncDb','ncEmbed','ncDeck','msOn','msDays',
   'stgOn','stgScheme','stgPhiInf','stgPhiT1','stgChi','stgMethod','stgAge','stgFcD','stgPhiSrc','stgT0','stgH','stgFci',
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
@@ -2879,6 +2916,16 @@ function calc(){
       return this.pcType==='strand'
         ? B.posConnStrand(M,d,this.pcLdsh,this.strandAp,this.pcProj)
         : B.posConnRebar(M,d,this.pcLd,this.pcDev,this.pcBar); },
+    // 多階段逐跨施工（各跨材齡不同）：每跨自有 λ，疊加得 M(∞)。便覽 §3.5.4 但書：材齡差 >365 天須分步。
+    get multiStage(){
+      if(!this.msOn||!this.contLine) return null;
+      var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
+      if(sp.length<2) return null;
+      var B=window.BC, R=this.R, w=R.sec.A/1e6*24.5+this.wDW, x=sp[0];   // 第一中墩
+      var pairs=B.stageMomentsSpanBySpan(sp,w,x), sch=B.spanBySpanSchedule(sp.length,this.msDays);
+      var st=pairs.map(function(p,k){ return {name:'第'+(k+1)+'跨', t0:sch[k][0], t_c:sch[k][1], M_I:p[0], M_II:p[1]}; });
+      var pi=this.stgPhiInfo;
+      return B.multiStageRedistribution(st,{chi:this.stgChi, H:this.stgH, VS:(pi&&pi.vs)||150, fci:this.stgFci}); },
     // 負彎矩接頭（5.14.1.4.8）：橋面板縱向鋼筋依強度極限負彎矩配置；淨跨取最大跨扣墩寬
     get negConn(){
       var st=this.staging; if(!st||st.pierMuNeg==null) return null;
@@ -3171,7 +3218,7 @@ function calc(){
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, sv:250, Vu:2069, VuAuto:true, midAnchorOn:false, midAnchors:'',   // VuAuto：⑤ Vu 由包絡自動帶入（手動 2,069 為 golden 參考值）
     // 中間錨碇齒塊（blister）：尺寸與錨板；blTieDeduct＝Tie-back 是否扣既有預壓（補強既有橋時應關閉）
-    blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false, blStmTheta:45, blStmNode:'CCC', pcType:'rebar', pcLdsh:900, pcProj:250, pcBar:387, pcLd:1200, pcDev:1500, ncBar:387, ncDb:22.2, ncEmbed:3000, ncDeck:true,
+    blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false, blStmTheta:45, blStmNode:'CCC', pcType:'rebar', pcLdsh:900, pcProj:250, pcBar:387, pcLd:1200, pcDev:1500, ncBar:387, ncDb:22.2, ncEmbed:3000, ncDeck:true, msOn:false, msDays:120,
     // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
     stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost', stgAge:28, stgFcD:35, stgPhiSrc:'aashto', stgT0:7, stgH:75, stgFci:32,   // stgPhiSrc：φ 由 AASHTO 5.4.2.3.2 算（台灣規範無 φ(t) 模式）或手填   // stgAge＝合龍時梁齡(天)；stgFcD＝連續橫隔梁 f'c
     ductOD:100, ductID:100, ductAreaRule:'tw', ductSideMargin:0, ductBundle:false, webVertPT:false, envType:'general', envLife:50, envWC:0.45, envZone:'中度', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams

@@ -1145,6 +1145,59 @@
              phiMn: nUse * capEach, ok: nUse * capEach >= Mreq };
   };
 
+  // 多階段逐跨施工（同 staging.multi_stage_redistribution）：各跨材齡不同 → 每階段自有 λ
+  //   M(∞) = Σ_i [ M_I,i + λ_i (M_II,i − M_I,i) ]，λ_i 以該階段之 (t0_i, t_c,i) 求嚴格 AAEM。
+  // 🔴 便覽 §3.5.4 但書：材齡差 > 365 天時，單一 λ 的簡化不適用（回報 age_gap_warn）。
+  // 🔴 簡化的偏差方向**依各階段 M_I／M_II 的正負組合而定**，不可假設單一 λ 偏保守。
+  BC.AGE_GAP_LIMIT_DAYS = 365;
+  BC.multiStageRedistribution = function (stages, o) {
+    o = o || {};
+    var chi = o.chi == null ? 0.8 : o.chi, H = o.H == null ? 75 : o.H,
+        VS = o.VS == null ? 150 : o.VS, fci = o.fci == null ? 32 : o.fci;
+    var rows = [], Mtot = 0, MI = 0, MII = 0, tcs = [];
+    stages.forEach(function (st) {
+      var sp = BC.stagingPhi(st.t0, st.t_c, H, VS, fci);
+      var lam = BC.redistributionFactor(sp.dphi_sub, chi, 'trost', sp.phi_load_t1).lam;
+      var Mi = st.M_I + lam * (st.M_II - st.M_I);
+      rows.push({ name: st.name, lam: lam, M_I: st.M_I, M_II: st.M_II, M: Mi });
+      Mtot += Mi; MI += st.M_I; MII += st.M_II; tcs.push(st.t_c);
+    });
+    var gap = tcs.length ? Math.max.apply(null, tcs) - Math.min.apply(null, tcs) : 0;
+    var t0s = o.single_t0 == null ? stages[0].t0 : o.single_t0,
+        tc1 = o.single_tc == null ? Math.max.apply(null, tcs) : o.single_tc;
+    var sp1 = BC.stagingPhi(t0s, tc1, H, VS, fci),
+        lam1 = BC.redistributionFactor(sp1.dphi_sub, chi, 'trost', sp1.phi_load_t1).lam;
+    var den = MII - MI;
+    return { rows: rows, M_total: Mtot, M_I_total: MI, M_II_total: MII,
+             lam_equiv: Math.abs(den) > 1e-12 ? (Mtot - MI) / den : 0,
+             age_gap: gap, age_gap_warn: gap > BC.AGE_GAP_LIMIT_DAYS,
+             single_lam: lam1, M_single: MI + lam1 * (MII - MI) };
+  };
+  // 逐跨施工之各階段彎矩拆解（同 staging.stage_moments_span_by_span）
+  // 💡 自我驗證：Σ M_I,k ＝簡支、Σ M_II,k ＝連續（疊加原理）
+  BC.stageMomentsSpanBySpan = function (spans, w, x) {
+    var xs = contXs(spans), out = [];
+    spans.forEach(function (L, k) {
+      var m1 = (x >= xs[k] - 1e-9 && x <= xs[k + 1] + 1e-9)
+        ? w * (x - xs[k]) * (L - (x - xs[k])) / 2 : 0;
+      var wv = spans.map(function (_, j) { return j === k ? w : 0; });
+      var M0 = BC.contSupportMomentsUniform(spans, wv), i = contSpanOf(xs, x),
+          a = x - xs[i], Li = spans[i];
+      out.push([m1, M0[i] + (M0[i + 1] - M0[i]) * a / Li + wv[i] * a * (Li - a) / 2]);
+    });
+    return out;
+  };
+  // 逐跨施工排程 → 各跨 (t0, t_c)：第 k 跨於 k·daysPerSpan 天澆置，全橋於最後一跨合龍
+  BC.spanBySpanSchedule = function (nSpans, daysPerSpan, t0Offset, firstCastAge) {
+    t0Offset = t0Offset == null ? 28 : t0Offset; firstCastAge = firstCastAge == null ? 28 : firstCastAge;
+    var last = (nSpans - 1) * daysPerSpan, out = [];
+    for (var k = 0; k < nSpans; k++) {
+      var t0 = k === 0 ? firstCastAge : t0Offset;
+      out.push([t0, Math.max(t0 + (last - k * daysPerSpan), t0)]);
+    }
+    return out;
+  };
+
   // 負彎矩接頭（同 staging.negative_moment_connection；AASHTO 5.14.1.4.5/.6/.7/.8＋5.11.1.2.3）
   // 5.14.1.4.5：正、負彎矩接頭**兩者都要設**，不論連續程度。
   // 5.14.1.4.8：橋面板縱向鋼筋依強度極限負彎矩配置；**錨定端須落在強度狀態下受壓之區域**、

@@ -1672,6 +1672,40 @@ def test_neg_conn_B5():
     assert not nc(1000, 2000, 40000).connection_required
 
 
+def test_multi_stage_C1():
+    """多階段逐跨施工：疊加原理自我驗證、λ 隨材齡遞增、簡化方向不可假設。"""
+    from bridgecalc import (stage_moments_span_by_span as sm, multi_stage_redistribution as ms,
+                            StageSpec, span_by_span_schedule as sch, AGE_GAP_LIMIT_DAYS)
+    from bridgecalc.influence_cont import cont_dl_moment
+    spans, w = [40.0, 40.0, 40.0], 40.4
+    # 疊加原理：各跨貢獻總和 = 整體（連續體系）；簡支側 = wL²/8
+    for x in (0.0, 10.0, 20.0, 40.0, 55.0, 80.0, 100.0, 120.0):
+        pr = sm(spans, w, x)
+        assert abs(sum(b for _, b in pr) - cont_dl_moment(spans, w, x)) < 1e-6
+    assert abs(sum(a for a, _ in sm(spans, w, 20.0)) - w * 40 ** 2 / 8) < 1e-9
+    # 排程：先建的跨在合龍時材齡最大 → 剩餘潛變最少 → λ 最小
+    sched = sch(3, 120)
+    assert sched[0][1] > sched[1][1] > sched[2][1]
+    pairs = sm(spans, w, 40.0)
+    st = [StageSpec(f"s{k}", t0, tc, mi, mii)
+          for k, ((mi, mii), (t0, tc)) in enumerate(zip(pairs, sched))]
+    r = ms(st)
+    lams = [row[1] for row in r.rows]
+    assert lams[0] < lams[1] < lams[2]
+    # 逐跨施工墩頂 M_I = 0（各跨簡支）、M_II = 連續值
+    assert abs(r.M_I_total) < 1e-9 and abs(r.M_II_total - cont_dl_moment(spans, w, 40.0)) < 1e-6
+    # 🔴 簡化方向不可假設：本例單一 λ 比疊加更負；各階段同號時則相反
+    assert r.M_single < r.M_total
+    same = ms([StageSpec("a", 28, 268, -1000.0, -1500.0),
+               StageSpec("b", 28, 148, -1000.0, -1500.0),
+               StageSpec("c", 28, 28, -1000.0, -1500.0)])
+    assert same.M_total < same.M_single
+    # 便覽 §3.5.4 但書：材齡差 > 365 天
+    assert not r.age_gap_warn and ms([StageSpec(f"s{k}", t0, tc, mi, mii)
+        for k, ((mi, mii), (t0, tc)) in enumerate(zip(pairs, sch(3, 400)))]).age_gap_warn
+    assert AGE_GAP_LIMIT_DAYS == 365
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

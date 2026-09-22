@@ -602,6 +602,27 @@ function chkEq(name, got, exp) {
   chk('梁頂拉應力限值 無握裹', BC.negTopTensionLimit(40, false), gnc.sigma_limit_unbonded_MPa, 0.01);
   chkEq('無複合橋面板 接頭必須', BC.negativeMomentConnection(13563, 2000, 40000,
         { embed_beyond_PI: 1000, composite_deck: false }).connection_required, gnc.no_deck_connection_required);
+  // 多階段逐跨施工
+  var gms = g.multi_stage_C1, spansMS = [40, 40, 40], wMS = 40.4;
+  var pairsMS = BC.stageMomentsSpanBySpan(spansMS, wMS, 40), schMS = BC.spanBySpanSchedule(3, 120);
+  var stMS = pairsMS.map(function (p, k) {
+    return { name: 'span' + (k + 1), t0: schMS[k][0], t_c: schMS[k][1], M_I: p[0], M_II: p[1] }; });
+  var rMS = BC.multiStageRedistribution(stMS);
+  chk('多階段 M_I 合計', rMS.M_I_total, gms.M_I_total, 0.1);
+  chk('多階段 M_II 合計', rMS.M_II_total, gms.M_II_total, 0.1);
+  chk('多階段 λ1', rMS.rows[0].lam, gms.lam_per_stage[0], 1e-4);
+  chk('多階段 λ2', rMS.rows[1].lam, gms.lam_per_stage[1], 1e-4);
+  chk('多階段 λ3', rMS.rows[2].lam, gms.lam_per_stage[2], 1e-4);
+  chk('多階段 總彎矩', rMS.M_total, gms.M_total_multi, 0.1);
+  chk('多階段 等效 λ', rMS.lam_equiv, gms.lam_equiv, 1e-4);
+  chk('單一 λ 對照', rMS.M_single, gms.M_single_lam, 0.1);
+  chk('材齡差', rMS.age_gap, gms.age_gap_days, 1e-9);
+  chkEq('材齡差未超限', rMS.age_gap_warn, gms.age_gap_warn);
+  var schSlow = BC.spanBySpanSchedule(3, 400);
+  var rSlow = BC.multiStageRedistribution(pairsMS.map(function (p, k) {
+    return { name: 's' + k, t0: schSlow[k][0], t_c: schSlow[k][1], M_I: p[0], M_II: p[1] }; }));
+  chkEq('材齡差 800 天超限', rSlow.age_gap_warn, gms.slow_warn);
+  chk('材齡差 800 天 M', rSlow.M_total, gms.slow_M_total, 0.1);
   // 台灣翼板最小厚度
   var gst = g.slab_thickness_TW, st1 = BC.boxSlabThicknessTW(250, 200, 2400), st2 = BC.boxSlabThicknessTW(250, 200, 6000);
   chk('翼板 頂 req 2400', st1.topReq, gst.top_req_2400, 1e-9);

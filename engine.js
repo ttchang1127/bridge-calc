@@ -948,6 +948,49 @@
     var f = function (v, gmax, gmin) { return ((v >= 0) === wantPos ? gmax : gmin) * v; };
     return f(dc, gdc, gdcm) + f(dw, gdw, gdwm) + gll * ll;
   };
+  // 部分均布載重（跨內任意區段）：三彎矩右端項由集中載重式對載重長度解析積分
+  //   左端 −(w/L)[L²a² − L a³ + a⁴/4]、右端 −(w/L)[L²a²/2 − a⁴/4]（a1=0、a2=L 時各得 −wL³/4）
+  BC.contSupportMomentsPartial = function (spans, loads) {
+    var xs = contXs(spans), n = spans.length, rhs = [], i, z;
+    if (n < 2) { z = []; for (i = 0; i <= n; i++) z.push(0); return z; }
+    for (i = 0; i < n - 1; i++) rhs.push(0);
+    loads.forEach(function (ld) {
+      var x1 = ld[0], x2 = ld[1], w = ld[2];
+      if (w === 0 || x2 <= x1) return;
+      for (var k = 0; k < n; k++) {
+        var L = spans[k], a1 = min(max(x1 - xs[k], 0), L), a2 = min(max(x2 - xs[k], 0), L);
+        if (a2 <= a1) continue;
+        var tl = -(w / L) * ((L * L * a2 * a2 - L * a2 * a2 * a2 + Math.pow(a2, 4) / 4)
+                             - (L * L * a1 * a1 - L * a1 * a1 * a1 + Math.pow(a1, 4) / 4));
+        var tr = -(w / L) * ((L * L * a2 * a2 / 2 - Math.pow(a2, 4) / 4)
+                             - (L * L * a1 * a1 / 2 - Math.pow(a1, 4) / 4));
+        if (k >= 1) rhs[k - 1] += tl;
+        if (k <= n - 2) rhs[k] += tr;
+      }
+    });
+    return contTridiag(spans, rhs);
+  };
+  function M0Partial(L, a, local) {
+    var m = 0;
+    local.forEach(function (ld) {
+      var a1 = ld[0], a2 = ld[1], w = ld[2];
+      if (a2 <= a1 || w === 0) return;
+      var W = w * (a2 - a1), cg = (a1 + a2) / 2, R = W * (L - cg) / L;
+      if (a <= a1) m += R * a;
+      else if (a >= a2) m += R * a - W * (a - cg);
+      else m += R * a - w * (a - a1) * (a - a1) / 2;
+    });
+    return m;
+  }
+  BC.contMomentPartialUDL = function (spans, loads, x) {
+    var xs = contXs(spans), X = BC.contSupportMomentsPartial(spans, loads),
+        i = contSpanOf(xs, x), L = spans[i], a = x - xs[i], local = [];
+    loads.forEach(function (ld) {
+      var a1 = min(max(ld[0] - xs[i], 0), L), a2 = min(max(ld[1] - xs[i], 0), L);
+      if (a2 > a1) local.push([a1, a2, ld[2]]);
+    });
+    return contMomentAt(spans, xs, X, x, M0Partial(L, a, local));
+  };
   BC.contMomentIL = function (spans, x, p) { var xs = contXs(spans); return contEta(spans, xs, BC.contSupportMomentsPoint(spans, p), x, p); };
   BC.contDLMoment = function (spans, w, x) {
     var xs = contXs(spans), X = BC.contSupportMomentsUniform(spans, spans.map(function () { return w; }));
@@ -1196,6 +1239,161 @@
       out.push([t0, Math.max(t0 + (last - k * daysPerSpan), t0)]);
     }
     return out;
+  };
+
+  // ── 懸臂工法之體系轉換（C2，同 staging 的 cantilever_*）────────────────────
+  // 🔴 符號對照：便覽／H3 卡的 X₁＝M_I（合龍前懸臂體系）、X₀＝M_II（同載重一次完工）
+  //    X_final = X₁ + λ(X₀ − X₁)，與 M(∞) = M_I + λ(M_II − M_I) 同式。
+  // 🔴 X₀ 與 X₁ 必須是**同一組載重**：把合龍後才施加的載重（支架段落架、SDL）塞進 X₀，
+  //    會讓它只拿到 λ 倍而少算 (1−λ) 倍；墩頂負彎矩少算＝**偏不安全**。誤差恰 (λ−1)·M_post。
+  BC.cantileverUnits = function (spans, piers, closures) {
+    var total = spans.reduce(function (a, b) { return a + b; }, 0), units = [];
+    closures.forEach(function (c) { if (c < 0 || c > total) throw new Error('合龍點不在橋長內'); });
+    piers.forEach(function (xp) {
+      var lf = closures.filter(function (c) { return c < xp - 1e-9; }),
+          rt = closures.filter(function (c) { return c > xp + 1e-9; });
+      var aL = lf.length ? xp - Math.max.apply(null, lf) : 0,
+          aR = rt.length ? Math.min.apply(null, rt) - xp : 0;
+      units.push({ x_pier: xp, a_left: aL, a_right: aR, x_tip_left: xp - aL, x_tip_right: xp + aR });
+    });
+    for (var i = 0; i + 1 < units.length; i++)
+      if (units[i].x_tip_right > units[i + 1].x_tip_left + 1e-9) throw new Error('懸臂單元重疊');
+    return units;
+  };
+  // 由跨徑推出各內支承出平衡懸臂之 (piers, closures)：墩間跨合龍於跨中，端跨合龍距墩 endFrac×跨長
+  BC.cantileverLayout = function (spans, endFrac) {
+    endFrac = endFrac == null ? 0.5 : endFrac;
+    var xs = [0]; spans.forEach(function (L) { xs.push(xs[xs.length - 1] + L); });
+    var piers = xs.slice(1, -1);
+    if (!piers.length) return { piers: [], closures: [] };
+    var cl = [piers[0] - endFrac * spans[0]];
+    for (var i = 0; i + 1 < piers.length; i++) cl.push((piers[i] + piers[i + 1]) / 2);
+    cl.push(piers[piers.length - 1] + endFrac * spans[spans.length - 1]);
+    return { piers: piers, closures: cl.sort(function (a, b) { return a - b; }) };
+  };
+  BC.cantileverCovered = function (units) {
+    return units.map(function (u) { return [u.x_tip_left, u.x_tip_right]; });
+  };
+  BC.cantileverFalsework = function (spans, units) {
+    var total = spans.reduce(function (a, b) { return a + b; }, 0), out = [], cur = 0;
+    BC.cantileverCovered(units).slice().sort(function (a, b) { return a[0] - b[0]; })
+      .forEach(function (iv) {
+        if (iv[0] > cur + 1e-9) out.push([cur, iv[0]]);
+        cur = max(cur, iv[1]);
+      });
+    if (cur < total - 1e-9) out.push([cur, total]);
+    return out;
+  };
+  BC.cantileverMI = function (units, w, x, side) {
+    side = side || 'R';
+    for (var i = 0; i < units.length; i++) {
+      var u = units[i];
+      if (x >= u.x_tip_left - 1e-9 && x <= u.x_tip_right + 1e-9) {
+        if (abs(x - u.x_pier) < 1e-9) {
+          var a = side.toUpperCase().charAt(0) === 'R' ? u.a_right : u.a_left;
+          return -w * a * a / 2;
+        }
+        if (x > u.x_pier) return -w * Math.pow(u.x_tip_right - x, 2) / 2;
+        return -w * Math.pow(x - u.x_tip_left, 2) / 2;
+      }
+    }
+    return 0;
+  };
+  // 🔴 overhang：掛籃永遠掛在已澆節塊尖端**之外**，不放寬就會被整個丟掉（初期掛籃項大於節塊自重）
+  BC.cantileverMIPoints = function (units, loads, x, side, overhang) {
+    side = side || 'R'; overhang = overhang || 0;
+    for (var i = 0; i < units.length; i++) {
+      var u = units[i];
+      if (!(x >= u.x_tip_left - 1e-9 && x <= u.x_tip_right + 1e-9)) continue;
+      var right = (x > u.x_pier + 1e-9) ||
+                  (abs(x - u.x_pier) < 1e-9 && side.toUpperCase().charAt(0) === 'R');
+      var lo = u.x_tip_left - overhang, hi = u.x_tip_right + overhang, m = 0;
+      loads.forEach(function (ld) {
+        var p = ld[0], P = ld[1];
+        if (!(p >= lo - 1e-9 && p <= hi + 1e-9)) return;
+        if (right && p >= x - 1e-9) m += -P * (p - x);
+        else if (!right && p <= x + 1e-9) m += -P * (x - p);
+      });
+      return m;
+    }
+    return 0;
+  };
+  BC.cantileverUnbalanced = function (units, w, extras, overhang) {
+    extras = extras || []; overhang = overhang || 0;
+    return units.map(function (u) {
+      var mL = BC.cantileverMI([u], w, u.x_pier, 'L') + BC.cantileverMIPoints([u], extras, u.x_pier, 'L', overhang);
+      var mR = BC.cantileverMI([u], w, u.x_pier, 'R') + BC.cantileverMIPoints([u], extras, u.x_pier, 'R', overhang);
+      return [u.x_pier, mL - mR];
+    });
+  };
+  function cantGrid(spans, units, nPer) {
+    var total = spans.reduce(function (a, b) { return a + b; }, 0), n = nPer * spans.length, xs = [], i;
+    for (i = 0; i <= n; i++) xs.push(total * i / n);
+    var key = [], acc = 0;
+    spans.forEach(function (L) { acc += L; key.push(acc); });
+    units.forEach(function (u) { key.push(u.x_pier); key.push(u.x_tip_left); key.push(u.x_tip_right); });
+    key.forEach(function (k) {
+      if (k >= 0 && k <= total && xs.every(function (v) { return abs(k - v) > 1e-9; })) xs.push(k);
+    });
+    return xs.sort(function (a, b) { return a - b; });
+  }
+  BC.cantileverDeadLoad = function (spans, units, w, nPer, side) {
+    nPer = nPer == null ? 20 : nPer;
+    var loads = BC.cantileverCovered(units).map(function (iv) { return [iv[0], iv[1], w]; });
+    var xs = cantGrid(spans, units, nPer);
+    return { xs: xs,
+      M_I: xs.map(function (x) { return BC.cantileverMI(units, w, x, side); }),
+      M_II: xs.map(function (x) { return BC.contMomentPartialUDL(spans, loads, x); }) };
+  };
+  BC.cantileverX1X0 = function (spans, units, w, dphi, o) {
+    o = o || {};
+    var wSdl = o.w_sdl || 0, nPer = o.n_per_span == null ? 20 : o.n_per_span;
+    var dl = BC.cantileverDeadLoad(spans, units, w, nPer, o.side);
+    var res = BC.creepRedistribution(dl.xs, dl.M_I, dl.M_II, dphi, o.chi, o.method, o.phi_restraint);
+    var lam = res.factor.lam;
+    var post = BC.cantileverFalsework(spans, units).map(function (iv) { return [iv[0], iv[1], w]; });
+    var mPost = dl.xs.map(function (x) {
+      return BC.contMomentPartialUDL(spans, post, x) + (wSdl ? BC.contDLMoment(spans, wSdl, x) : 0);
+    });
+    var mInf = res.pts.map(function (p) { return p.M_inf; });
+    var mTot = mInf.map(function (v, i) { return v + mPost[i]; });
+    var mWrong = dl.M_I.map(function (a, i) { return a + lam * (dl.M_II[i] + mPost[i] - a); });
+    function pick(x) {
+      var bi = 0;
+      dl.xs.forEach(function (v, i) { if (abs(v - x) < abs(dl.xs[bi] - x)) bi = i; });
+      return [dl.xs[bi], dl.M_I[bi], dl.M_II[bi], mInf[bi]];
+    }
+    var cls = [];
+    units.forEach(function (u) { cls.push(u.x_tip_left); cls.push(u.x_tip_right); });
+    cls = cls.filter(function (c, i) { return cls.indexOf(c) === i; })
+             .filter(function (c) { return units.every(function (u) { return abs(c - u.x_pier) > 1e-9; }); })
+             .sort(function (a, b) { return a - b; });
+    var ip = 0;
+    dl.xs.forEach(function (v, i) { if (abs(v - units[0].x_pier) < abs(dl.xs[ip] - units[0].x_pier)) ip = i; });
+    return { lam: lam, xs: dl.xs, M_I: dl.M_I, M_II: dl.M_II, M_inf: mInf,
+             piers: units.map(function (u) { return pick(u.x_pier); }),
+             closures: cls.map(pick),
+             unbalanced: BC.cantileverUnbalanced(units, w),
+             linear_ok: BC.redistributionIsLinear(res, spans),
+             M_post: mPost, M_dead_total: mTot, M_lumped_wrong: mWrong,
+             lumped_err_pier: mWrong[ip] - mTot[ip] };
+  };
+  // 節塊施工循環 → 各節塊 (t0, t_c)：第 k 塊（k=0 最靠墩）於 k·days 澆置、合龍日 n·days+extra
+  BC.cantileverSchedule = function (nSeg, daysPerSeg, t0, daysToClosure) {
+    t0 = t0 == null ? 7 : t0; daysToClosure = daysToClosure || 0;
+    var close = nSeg * daysPerSeg + daysToClosure, out = [];
+    for (var k = 0; k < nSeg; k++) out.push([t0, max(close - k * daysPerSeg, t0)]);
+    return out;
+  };
+  // 各節塊自重 → StageSpec 串列（餵 multiStageRedistribution）；segments=[[name,p,G]]
+  BC.cantileverStages = function (spans, units, segments, x, schedule, side, overhang) {
+    var sch = schedule || BC.cantileverSchedule(segments.length, 7);
+    if (sch.length !== segments.length) throw new Error('schedule 長度須與 segments 相同');
+    return segments.map(function (sg, i) {
+      return { name: sg[0], t0: sch[i][0], t_c: sch[i][1],
+               M_I: BC.cantileverMIPoints(units, [[sg[1], sg[2]]], x, side, overhang),
+               M_II: sg[2] * BC.contMomentIL(spans, x, sg[1]) };
+    });
   };
 
   // 負彎矩接頭（同 staging.negative_moment_connection；AASHTO 5.14.1.4.5/.6/.7/.8＋5.11.1.2.3）

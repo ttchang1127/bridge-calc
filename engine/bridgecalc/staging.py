@@ -838,3 +838,293 @@ def _cont_moment_at(spans, xs, wv, x, M0):
     i = _span_of(xs, x)
     L, a = spans[i], x - xs[i]
     return M0[i] + (M0[i + 1] - M0[i]) * a / L + wv[i] * a * (L - a) / 2.0
+
+
+# ── 懸臂工法之體系轉換（C2）：X₁／X₀ 自動組成 ─────────────────────────────
+# H3 算的是「懸臂體系的斷面力」、H7 算的是「體系轉換後的重分配」，中間那一步——
+# 把懸臂幾何翻成 M_I／M_II 一對彎矩圖——原本要使用者自己手填。本節把它自動組成。
+#
+# 🔴 **符號對照**：便覽／H3 卡用 X₀、X₁，本模組（H7）用 M_II、M_I，是同一組東西：
+#     X₁ ＝ M_I ＝ 合龍前瞬間**懸臂體系**的斷面力
+#     X₀ ＝ M_II ＝ 同一組載重**一次完工**於最終連續體系的斷面力
+#     X_final ＝ X₁ + (X₀ − X₁)·λ   ←── 與 M(∞) = M_I + λ(M_II − M_I) 同式
+#   （便覽 Dischinger 寫成 (1−e^(−φ))，即 method="dischinger"；Trost 解見 §七）
+#
+# 🔴 **最容易錯的一步：X₀ 與 X₁ 必須是「同一組載重」。**
+#   便覽把 X₀ 寫成「一次完工之死載＋預力」，若照字面把**合龍後才施加**的載重
+#   （支架段落架、合龍段自重、鋪裝欄杆 SDL、二期恆載）也算進 X₀ 而 X₁ 沒有，
+#   則 (X₀ − X₁) 會含這些載重的**全量**，再乘 λ(<1) → 只拿到 λ 倍，**少算 (1−λ) 倍**。
+#   這些載重本來就直接作用在最終體系（M_I = M_II），**不重分配、要全額加**。
+#   墩頂為負彎矩者（SDL 幾乎必然）→ 少算的是負彎矩，**偏不安全**。
+#   `cantilever_X1X0` 同時回報正確值與此誤用值供對照（`M_lumped_wrong`）。
+#
+# 幾何模型：每座懸臂墩為一個 `CantileverUnit`（墩心里程＋左右臂長），臂端即合龍點。
+#   未被任何懸臂覆蓋的區段視為**支架上澆置**，其自重於合龍後落架時直接上最終體系。
+#   兩臂不等長時墩頂彎矩圖有階差 ＝ 傳入墩柱的**不平衡彎矩**（H3 §十）。
+
+
+@dataclass
+class CantileverUnit:
+    x_pier: float      # 墩心里程 m
+    a_left: float      # 左臂長 m（墩心至左合龍點）
+    a_right: float     # 右臂長 m
+
+    @property
+    def x_tip_left(self) -> float:
+        return self.x_pier - self.a_left
+
+    @property
+    def x_tip_right(self) -> float:
+        return self.x_pier + self.a_right
+
+
+def cantilever_units(spans: Sequence[float], piers: Sequence[float],
+                     closures: Sequence[float]) -> list:
+    """由墩位與合龍點里程組出各懸臂單元；臂端 = 該墩左右最近的合龍點。
+
+    piers：出懸臂之支承里程（通常是內支承）；closures：合龍點里程。
+    某側無合龍點時該臂長為 0（該側不出懸臂，例如端跨全在支架上）。
+    """
+    total = sum(spans)
+    for c in closures:
+        if not (0.0 <= c <= total):
+            raise ValueError(f"合龍點 {c} 不在橋長內")
+    units = []
+    for xp in piers:
+        left = [c for c in closures if c < xp - 1e-9]
+        right = [c for c in closures if c > xp + 1e-9]
+        a_l = xp - max(left) if left else 0.0
+        a_r = min(right) - xp if right else 0.0
+        units.append(CantileverUnit(x_pier=xp, a_left=a_l, a_right=a_r))
+    for u, v in zip(units[:-1], units[1:]):
+        if u.x_tip_right > v.x_tip_left + 1e-9:
+            raise ValueError(f"懸臂單元重疊：{u.x_tip_right} > {v.x_tip_left}")
+    return units
+
+
+def cantilever_layout(spans: Sequence[float], end_frac: float = 0.5):
+    """由跨徑推出「各內支承出平衡懸臂」之 (piers, closures)。
+
+    內支承之間的跨：兩墩對伸 → 合龍點在該跨**中央**（一條合龍縫）。
+    端跨（僅一側出懸臂）：合龍點距墩 `end_frac`×跨長，其餘為**支架段**。
+    ⚠ 這只是最常見的排法；實際合龍順序與位置由設計者決定，可直接給 `cantilever_units`。
+    """
+    xs = [0.0]
+    for L in spans:
+        xs.append(xs[-1] + L)
+    piers = xs[1:-1]
+    if not piers:
+        return [], []
+    closures = []
+    if len(spans) >= 1:
+        closures.append(piers[0] - end_frac * spans[0])
+    for i in range(len(piers) - 1):
+        closures.append((piers[i] + piers[i + 1]) / 2.0)
+    closures.append(piers[-1] + end_frac * spans[-1])
+    return piers, sorted(closures)
+
+
+def cantilever_covered(units) -> list:
+    """各懸臂單元覆蓋之里程區間 [(x1, x2)]（＝合龍前已上結構的自重範圍）。"""
+    return [(u.x_tip_left, u.x_tip_right) for u in units]
+
+
+def cantilever_falsework(spans: Sequence[float], units) -> list:
+    """未被懸臂覆蓋之區間（支架上澆置，落架時直接作用於最終體系）。"""
+    total = sum(spans)
+    out, cur = [], 0.0
+    for x1, x2 in sorted(cantilever_covered(units)):
+        if x1 > cur + 1e-9:
+            out.append((cur, x1))
+        cur = max(cur, x2)
+    if cur < total - 1e-9:
+        out.append((cur, total))
+    return out
+
+
+def cantilever_M_I(units, w: float, x: float, side: str = "R") -> float:
+    """懸臂體系（靜定）下自重 w 於斷面 x 之彎矩 kN·m（負＝頂緣受拉）。
+
+    自由體取**外伸側**：右臂 M = −w(x_tip_R − x)²/2、左臂 M = −w(x − x_tip_L)²/2。
+    ⚠ x 恰在墩心且兩臂不等長時彎矩圖有階差（差額傳入墩柱），由 `side` 指定取哪一側。
+    """
+    for u in units:
+        if u.x_tip_left - 1e-9 <= x <= u.x_tip_right + 1e-9:
+            if abs(x - u.x_pier) < 1e-9:
+                a = u.a_right if side.upper().startswith("R") else u.a_left
+                return -w * a * a / 2.0
+            if x > u.x_pier:
+                return -w * (u.x_tip_right - x) ** 2 / 2.0
+            return -w * (x - u.x_tip_left) ** 2 / 2.0
+    return 0.0
+
+
+def cantilever_M_I_points(units, loads, x: float, side: str = "R",
+                          overhang: float = 0.0) -> float:
+    """懸臂體系下**集中載重** loads=[(p, P)] 於斷面 x 之彎矩 kN·m。
+
+    只有與 x 同臂、且比 x 更外側的載重才對 x 產生彎矩（內側者走支承傳力）。
+    🔴 `overhang`：**掛籃（Form Traveler）永遠掛在已澆節塊尖端之外**，若以單元臂長
+      硬性過濾就會被整個丟掉（掛籃項在懸臂初期還大於節塊自重，丟掉是嚴重低估）。
+      臂端外 `overhang` 公尺內之載重仍歸該臂承擔——檢核最大懸臂狀態時，臂長取**該
+      步驟已澆範圍**，掛籃伸出量由此參數帶入。
+    """
+    m = 0.0
+    for u in units:
+        if not (u.x_tip_left - 1e-9 <= x <= u.x_tip_right + 1e-9):
+            continue
+        right = (x > u.x_pier + 1e-9) or (abs(x - u.x_pier) < 1e-9
+                                          and side.upper().startswith("R"))
+        lo, hi = u.x_tip_left - overhang, u.x_tip_right + overhang
+        for p, P in loads:
+            if not (lo - 1e-9 <= p <= hi + 1e-9):
+                continue
+            if right and p >= x - 1e-9:
+                m += -P * (p - x)
+            elif (not right) and p <= x + 1e-9:
+                m += -P * (x - p)
+        return m
+    return 0.0
+
+
+def cantilever_unbalanced(units, w: float, extras=None, overhang: float = 0.0) -> list:
+    """各墩之不平衡彎矩 kN·m（＝墩心兩側彎矩階差，傳入墩柱）。
+
+    w：自重；extras=[(p, P)] 供掛籃、不對稱節塊等集中載重。
+    兩臂等長且無 extras 時恆為 0——這是本函式最直接的自我驗證。
+    """
+    extras = list(extras or [])
+    out = []
+    for u in units:
+        mL = cantilever_M_I([u], w, u.x_pier, "L") + cantilever_M_I_points([u], extras, u.x_pier, "L", overhang)
+        mR = cantilever_M_I([u], w, u.x_pier, "R") + cantilever_M_I_points([u], extras, u.x_pier, "R", overhang)
+        out.append((u.x_pier, mL - mR))
+    return out
+
+
+def _cant_grid(spans, units, n_per_span: int = 20):
+    """取樣格點：均分格 ＋ 支承 ＋ 墩心 ＋ 合龍點（折點漏掉會使線性檢查失真）。"""
+    total = sum(spans)
+    n = n_per_span * len(spans)
+    xs = [total * i / n for i in range(n + 1)]
+    key = []
+    acc = 0.0
+    for L in spans:
+        acc += L
+        key.append(acc)
+    for u in units:
+        key += [u.x_pier, u.x_tip_left, u.x_tip_right]
+    for k in key:
+        if 0.0 <= k <= total and all(abs(k - v) > 1e-9 for v in xs):
+            xs.append(k)
+    return sorted(xs)
+
+
+def cantilever_dead_load(spans: Sequence[float], units, w: float,
+                         n_per_span: int = 20, side: str = "R"):
+    """懸臂工法自重之 (xs, M_I, M_II)，可直接餵 `creep_redistribution`。
+
+    M_I：懸臂體系（合龍前瞬間）＝ X₁；只有懸臂覆蓋段的自重已上結構。
+    M_II：**同一組載重**（同樣只有懸臂覆蓋段）作用於最終連續體系 ＝ X₀。
+    ⚠ 支架段自重與合龍後載重不在此列（見模組註解：混進來會被乘 λ 而少算）。
+    """
+    from .influence_cont import cont_moment_partial_udl
+    loads = [(x1, x2, w) for x1, x2 in cantilever_covered(units)]
+    xs = _cant_grid(spans, units, n_per_span)
+    m1 = [cantilever_M_I(units, w, x, side) for x in xs]
+    m2 = [cont_moment_partial_udl(spans, loads, x) for x in xs]
+    return xs, m1, m2
+
+
+@dataclass
+class CantileverXResult:
+    lam: float
+    xs: list
+    M_I: list              # X₁（懸臂體系）
+    M_II: list             # X₀（同載重一次完工）
+    M_inf: list            # X_final = X₁ + λ(X₀ − X₁)
+    piers: list            # [(x, X1, X0, X_final)]
+    closures: list         # [(x, X1, X0, X_final)]
+    unbalanced: list       # [(x_pier, M_unbal)]
+    linear_ok: bool        # 束制彎矩 ΔM 支承間線性（自我驗證）
+    M_post: list           # 合龍後載重（支架段落架＋SDL）於最終體系之彎矩
+    M_dead_total: list     # 正解：M_inf + M_post
+    M_lumped_wrong: list   # 誤用：X₁ + λ(X₀_全載重 − X₁)
+    lumped_err_pier: float # 兩者在（第一座）墩頂之差 kN·m
+
+
+def cantilever_X1X0(spans: Sequence[float], units, w: float, dphi: float,
+                    w_sdl: float = 0.0, chi: float = 0.8, method: str = "trost",
+                    phi_restraint: float = None, n_per_span: int = 20,
+                    side: str = "R") -> CantileverXResult:
+    """懸臂工法 X₁／X₀ 自動組成＋潛變重分配（H3 → H7）。
+
+    w：上部結構自重 kN/m；w_sdl：合龍後施加之二期恆載 kN/m（全長）。
+    支架段自重（未被懸臂覆蓋者）自動歸入「合龍後載重」——落架時體系已連續。
+    """
+    from .influence_cont import cont_moment_partial_udl, cont_dl_moment
+    xs, m1, m2 = cantilever_dead_load(spans, units, w, n_per_span, side)
+    res = creep_redistribution(xs, m1, m2, dphi, chi, method, phi_restraint)
+    lam = res.factor.lam
+    post_loads = [(x1, x2, w) for x1, x2 in cantilever_falsework(spans, units)]
+    m_post = [cont_moment_partial_udl(spans, post_loads, x)
+              + (cont_dl_moment(spans, w_sdl, x) if w_sdl else 0.0) for x in xs]
+    m_inf = [p.M_inf for p in res.pts]
+    m_tot = [a + b for a, b in zip(m_inf, m_post)]
+    # 誤用對照：把合龍後載重一併塞進 X₀
+    m2_all = [a + b for a, b in zip(m2, m_post)]
+    m_wrong = [a + lam * (b - a) for a, b in zip(m1, m2_all)]
+
+    def pick(x):
+        i = min(range(len(xs)), key=lambda k: abs(xs[k] - x))
+        return (xs[i], m1[i], m2[i], m_inf[i])
+
+    piers = [pick(u.x_pier) for u in units]
+    cls = sorted({u.x_tip_left for u in units} | {u.x_tip_right for u in units})
+    closures = [pick(c) for c in cls
+                if any(abs(c - u.x_pier) > 1e-9 for u in units)]
+    ip = min(range(len(xs)), key=lambda k: abs(xs[k] - units[0].x_pier))
+    return CantileverXResult(
+        lam=lam, xs=xs, M_I=m1, M_II=m2, M_inf=m_inf,
+        piers=piers, closures=closures,
+        unbalanced=cantilever_unbalanced(units, w),
+        linear_ok=redistribution_is_linear(res, spans),
+        M_post=m_post, M_dead_total=m_tot, M_lumped_wrong=m_wrong,
+        lumped_err_pier=m_wrong[ip] - m_tot[ip])
+
+
+def cantilever_schedule(n_seg: int, days_per_seg: float, t0: float = 7.0,
+                        days_to_closure: float = 0.0):
+    """由節塊施工循環產生各節塊之 (t0, t_c)：第 k 塊（k=0 最靠墩）於 k·days 澆置。
+
+    t0：掛籃移位（自重上結構）時之材齡；合龍日 ＝ n·days_per_seg + days_to_closure。
+    → 越晚澆的節塊合龍時材齡越小、剩餘潛變越多、λ 越大（與逐跨施工同向）。
+    """
+    close_day = n_seg * days_per_seg + days_to_closure
+    out = []
+    for k in range(n_seg):
+        t_c = close_day - k * days_per_seg
+        out.append((t0, max(t_c, t0)))
+    return out
+
+
+def cantilever_stages(spans: Sequence[float], units, segments, x: float,
+                      schedule=None, side: str = "R", overhang: float = 0.0):
+    """把各節塊自重組成 `StageSpec` 串列（餵 `multi_stage_redistribution`）。
+
+    segments：[(name, p, G)]＝節塊名、形心里程 m、自重 kN（**同一臂由內而外排序**）。
+    schedule：[(t0, t_c)] 與 segments 等長；不給時以 `cantilever_schedule` 之預設。
+    M_I,k：該節塊自重於懸臂體系對斷面 x 之彎矩；M_II,k：同一集中載重於最終連續體系。
+    💡 自我驗證：Σ(M_II,k − M_I,k) 沿梁在支承間線性（束制場自平衡）。
+    """
+    from .influence_cont import cont_moment_il
+    segs = list(segments)
+    sch = list(schedule) if schedule is not None else cantilever_schedule(len(segs), 7.0)
+    if len(sch) != len(segs):
+        raise ValueError("schedule 長度須與 segments 相同")
+    out = []
+    for (name, p, G), (t0, tc) in zip(segs, sch):
+        mi = cantilever_M_I_points(units, [(p, G)], x, side, overhang)
+        mii = G * cont_moment_il(spans, x, p)
+        out.append(StageSpec(name=name, t0=t0, t_c=tc, M_I=mi, M_II=mii))
+    return out

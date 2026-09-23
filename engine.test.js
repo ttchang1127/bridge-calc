@@ -623,6 +623,90 @@ function chkEq(name, got, exp) {
     return { name: 's' + k, t0: schSlow[k][0], t_c: schSlow[k][1], M_I: p[0], M_II: p[1] }; }));
   chkEq('材齡差 800 天超限', rSlow.age_gap_warn, gms.slow_warn);
   chk('材齡差 800 天 M', rSlow.M_total, gms.slow_M_total, 0.1);
+  // 懸臂工法 X₁／X₀ 自動組成（C2）
+  var gcx = g.cantilever_X_C2, spansCX = [80, 80];
+  var H3SEG = [['0號塊', 2.0, 605], ['S1', 6.75, 643], ['S2', 11.25, 599], ['S3', 15.75, 550],
+               ['S4', 20.25, 497], ['S5', 24.75, 439], ['S6', 29.25, 385], ['S7', 33.75, 353],
+               ['S8', 38.25, 341]];
+  var armKN = H3SEG.reduce(function (a, r) { return a + r[2]; }, 0), wCX = 2 * armKN / 80;
+  var uCX = BC.cantileverUnits(spansCX, [80], [40, 120]);
+  chkEq('懸臂 左臂長', uCX[0].a_left, gcx.arms[0][0]);
+  chkEq('懸臂 右臂長', uCX[0].a_right, gcx.arms[0][1]);
+  chkEq('支架段', JSON.stringify(BC.cantileverFalsework(spansCX, uCX)), JSON.stringify(gcx.falsework));
+  chk('等效自重', wCX, gcx.w_eq_kNpm, 0.01);
+  var lay3 = BC.cantileverLayout([40, 50, 40]);
+  chkEq('三跨佈置 墩位', JSON.stringify(lay3.piers), JSON.stringify(gcx.layout_3span[0]));
+  chkEq('三跨佈置 合龍點', JSON.stringify(lay3.closures), JSON.stringify(gcx.layout_3span[1]));
+  var lay4 = BC.cantileverLayout([60, 100, 100, 60]);
+  chkEq('四跨佈置 臂長', JSON.stringify(BC.cantileverUnits([60, 100, 100, 60], lay4.piers, lay4.closures)
+        .map(function (u) { return [u.a_left, u.a_right]; })), JSON.stringify(gcx.layout_4span_arms));
+  var rCX = BC.cantileverX1X0(spansCX, uCX, wCX, 1.0, { w_sdl: 15 });
+  var ipCX = 0;
+  rCX.xs.forEach(function (v, i) { if (Math.abs(v - 80) < Math.abs(rCX.xs[ipCX] - 80)) ipCX = i; });
+  chk('懸臂 λ', rCX.lam, gcx.lam, 1e-4);
+  chk('墩頂 X₁', rCX.piers[0][1], gcx.X1_pier, 0.1);
+  chk('墩頂 X₀', rCX.piers[0][2], gcx.X0_pier, 0.1);
+  chk('墩頂 X_final', rCX.piers[0][3], gcx.Xfinal_pier, 0.1);
+  chk('合龍 X₁', rCX.closures[0][1], gcx.X1_closure, 1e-6);
+  chk('合龍 X₀', rCX.closures[0][2], gcx.X0_closure, 0.1);
+  chk('合龍 X_final', rCX.closures[0][3], gcx.Xfinal_closure, 0.1);
+  chk('不平衡彎矩（等臂）', rCX.unbalanced[0][1], gcx.unbalanced_pier, 1e-6);
+  chkEq('束制彎矩線性', rCX.linear_ok, gcx.linear_ok);
+  chk('合龍後載重 M_post', rCX.M_post[ipCX], gcx.M_post_pier, 0.1);
+  chk('恆載合計（正解）', rCX.M_dead_total[ipCX], gcx.M_dead_total_pier, 0.1);
+  chk('誤用（全塞 X₀）', rCX.M_lumped_wrong[ipCX], gcx.M_lumped_wrong_pier, 0.1);
+  chk('誤用誤差', rCX.lumped_err_pier, gcx.lumped_err_pier, 0.1);
+  chk('誤差閉合解 (λ−1)M_post', rCX.lumped_err_pier, (rCX.lam - 1) * rCX.M_post[ipCX], 1e-6);
+  chk('墩頂 X₁ 閉合解 −wa²/2', rCX.piers[0][1], -wCX * 1600 / 2, 1e-6);
+  // H3 交叉驗證：逐節塊集中載重 + 掛籃（尖端外 0.5 m）
+  var loCX = H3SEG.map(function (r) { return [80 + r[1], r[2]]; }).concat([[120.5, 800]]);
+  chk('H3 交叉驗證 M_cant', BC.cantileverMIPoints(uCX, loCX, 84, 'R', 1),
+      gcx.M_cant_x4_with_traveler, 1e-6);
+  chk('H3 手填力臂對照', CE.cantileverMoment(H3SEG.slice(1).map(function (r) { return r[2]; }),
+      H3SEG.slice(1).map(function (r) { return 80 + r[1] - 84; }), 800, 36.5),
+      -gcx.M_cant_x4_with_traveler, 1e-6);
+  // 逐節塊多階段（兩臂同齡）
+  var segCX = [], schCX = [], baseCX = BC.cantileverSchedule(9, 10, 7, 30);
+  H3SEG.forEach(function (r, i) {
+    segCX.push([r[0] + 'R', 80 + r[1], r[2]]); segCX.push([r[0] + 'L', 80 - r[1], r[2]]);
+    schCX.push(baseCX[i]); schCX.push(baseCX[i]);
+  });
+  var msCX = BC.multiStageRedistribution(BC.cantileverStages(spansCX, uCX, segCX, 80, schCX));
+  chk('逐節塊 ΣM_I', msCX.M_I_total, gcx.stage_M_I_total, 0.1);
+  chk('逐節塊 ΣM_II', msCX.M_II_total, gcx.stage_M_II_total, 0.1);
+  chk('逐節塊 總彎矩', msCX.M_total, gcx.stage_M_total, 0.1);
+  chk('逐節塊 等效 λ', msCX.lam_equiv, gcx.stage_lam_equiv, 1e-4);
+  gcx.stage_lam.forEach(function (v, k) {
+    chk('逐節塊 λ' + (k + 1), msCX.rows[2 * k].lam, v, 1e-4); });
+  var dMCX = function (xx) {
+    return BC.cantileverStages(spansCX, uCX, segCX, xx, schCX)
+             .reduce(function (a, sp) { return a + sp.M_II - sp.M_I; }, 0); };
+  var d80CX = dMCX(80);
+  [10, 20, 40, 60, 70].forEach(function (xx) {
+    chk('ΔM 線性 x=' + xx, dMCX(xx), d80CX * xx / 80, 1e-6); });
+  chk('ΔM 端支承 0', dMCX(0), 0, 1e-9);
+  // 部分均布解：全長恆等、切段疊加
+  var spPU = [40, 50, 40], totPU = 130;
+  [0, 20, 40, 65, 90, 130].forEach(function (x) {
+    chk('部分均布=全長均布 x=' + x, BC.contMomentPartialUDL(spPU, [[0, totPU, 30]], x),
+        BC.contDLMoment(spPU, 30, x), 1e-6);
+    chk('部分均布 切段疊加 x=' + x, BC.contMomentPartialUDL(spPU, [[10, 30, 30]], x),
+        BC.contMomentPartialUDL(spPU, [[10, 22, 30]], x) + BC.contMomentPartialUDL(spPU, [[22, 30, 30]], x), 1e-6);
+  });
+  // 疊加原理：懸臂段 + 支架段 = 全長連續
+  [0, 20, 40, 60, 80, 120, 150].forEach(function (x) {
+    chk('懸臂段+支架段=全長連續 x=' + x,
+        BC.contMomentPartialUDL(spansCX, [[40, 120, wCX]], x)
+        + BC.contMomentPartialUDL(spansCX, [[0, 40, wCX], [120, 160, wCX]], x),
+        BC.contDLMoment(spansCX, wCX, x), 1e-6);
+  });
+  // 不等臂 → 不平衡彎矩 w(a_R²−a_L²)/2
+  var u2CX = BC.cantileverUnits(spansCX, [80], [30, 120]);
+  chk('不等臂 不平衡彎矩', BC.cantileverUnbalanced(u2CX, wCX)[0][1],
+      wCX * (1600 - 2500) / 2, 1e-6);
+  // overhang 未給 → 掛籃落在臂端外會被丟掉（回歸保護）
+  chk('無 overhang 掛籃被丟掉', BC.cantileverMIPoints(uCX, loCX, 84, 'R'),
+      BC.cantileverMIPoints(uCX, loCX.slice(0, 9), 84, 'R'), 1e-9);
   // 台灣翼板最小厚度
   var gst = g.slab_thickness_TW, st1 = BC.boxSlabThicknessTW(250, 200, 2400), st2 = BC.boxSlabThicknessTW(250, 200, 6000);
   chk('翼板 頂 req 2400', st1.topReq, gst.top_req_2400, 1e-9);

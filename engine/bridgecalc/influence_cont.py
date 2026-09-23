@@ -153,6 +153,72 @@ def cont_support_moments_uniform(spans: Sequence[float], w: Sequence[float]) -> 
     return _solve_tridiag(spans, rhs)
 
 
+def cont_support_moments_partial(spans: Sequence[float], loads) -> List[float]:
+    """跨內**部分**均布載重時各支承彎矩（kN·m，兩端 0）。loads=[(x1, x2, w)]，里程制。
+
+    三彎矩式右端項由集中載重式對載重長度**解析積分**而得（P→w·da）：
+        左端  −(w/L)·[L²a² − L a³ + a⁴/4]
+        右端  −(w/L)·[L²a²/2 − a⁴/4]
+    a1=0、a2=L 時各得 −wL³/4，與 `cont_support_moments_uniform` 的 −6wL³/24 相符。
+    """
+    xs = _supports(spans)
+    n = len(spans)
+    rhs = [0.0] * (n - 1)
+    if n < 2:
+        return [0.0] * (n + 1)
+    for x1, x2, w in loads:
+        if w == 0.0 or x2 <= x1:
+            continue
+        for k in range(n):
+            L = spans[k]
+            a1 = min(max(x1 - xs[k], 0.0), L)
+            a2 = min(max(x2 - xs[k], 0.0), L)
+            if a2 <= a1:
+                continue
+            tl = -(w / L) * ((L * L * a2 ** 2 - L * a2 ** 3 + a2 ** 4 / 4)
+                             - (L * L * a1 ** 2 - L * a1 ** 3 + a1 ** 4 / 4))
+            tr = -(w / L) * ((L * L * a2 ** 2 / 2 - a2 ** 4 / 4)
+                             - (L * L * a1 ** 2 / 2 - a1 ** 4 / 4))
+            if k >= 1:
+                rhs[k - 1] += tl
+            if k <= n - 2:
+                rhs[k] += tr
+    return _solve_tridiag(spans, rhs)
+
+
+def _M0_partial(L: float, a: float, loads_local) -> float:
+    """單跨簡支、跨內部分均布 loads_local=[(a1,a2,w)]（局部座標）時斷面 a 之彎矩。"""
+    m = 0.0
+    for a1, a2, w in loads_local:
+        if a2 <= a1 or w == 0.0:
+            continue
+        W = w * (a2 - a1)
+        cg = (a1 + a2) / 2.0
+        R = W * (L - cg) / L
+        if a <= a1:
+            m += R * a
+        elif a >= a2:
+            m += R * a - W * (a - cg)
+        else:
+            m += R * a - w * (a - a1) ** 2 / 2.0
+    return m
+
+
+def cont_moment_partial_udl(spans: Sequence[float], loads, x: float) -> float:
+    """連續梁在部分均布載重 loads=[(x1,x2,w)]（里程制）下，斷面 x 之彎矩 kN·m。"""
+    xs = _supports(spans)
+    X = cont_support_moments_partial(spans, loads)
+    i = _span_of(xs, x)
+    L, a = spans[i], x - xs[i]
+    local = []
+    for x1, x2, w in loads:
+        a1 = min(max(x1 - xs[i], 0.0), L)
+        a2 = min(max(x2 - xs[i], 0.0), L)
+        if a2 > a1:
+            local.append((a1, a2, w))
+    return _moment_at(spans, xs, X, x, _M0_partial(L, a, local))
+
+
 def _moment_at(spans, xs, X, x, M0) -> float:
     i = _span_of(xs, x)
     t = (x - xs[i]) / spans[i]

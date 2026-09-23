@@ -1356,6 +1356,56 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
             </div>
           </div>
         </template>
+        <div class="grid no-print" style="margin:8px 0">
+          <label title="平衡懸臂工法：各內支承兩側對伸節塊，臂端合龍後才成連續。X₁＝合龍前懸臂體系斷面力、X₀＝一次完工值" style="display:flex;gap:6px;align-items:center">
+            <input type="checkbox" x-model="cantOn"> 懸臂工法（平衡懸臂）X₁／X₀ 自動組成</label>
+          <template x-if="cantOn"><label title="端跨之懸臂比例：合龍點距墩 = 此值 × 端跨跨長；其餘為支架段（落架時體系已連續）">端跨懸臂比例<input type="number" x-model.number="cantFrac" step="0.05" min="0.1" max="0.9"></label></template>
+          <template x-if="cantOn"><label title="掛籃（Form Traveler）重量；供最大懸臂狀態驗核">掛籃重 G_FT（kN）<input type="number" x-model.number="cantFT" step="50"></label></template>
+          <template x-if="cantOn"><label title="掛籃位於已澆節塊尖端外之距離；不放寬則掛籃載重會被臂長過濾而整個漏掉">掛籃伸出（m）<input type="number" x-model.number="cantOver" step="0.5"></label></template>
+        </div>
+        <template x-if="cantX">
+          <div>
+            <table style="margin-bottom:6px">
+              <thead><tr><th>斷面</th><th>X₁ 懸臂體系<br><small>（合龍前瞬間）</small></th><th>X₀ 一次完工<br><small>（同載重、最終體系）</small></th><th>X_final<br><small>＝X₁+λ(X₀−X₁)</small></th><th>不平衡彎矩<br><small>（傳入墩柱）</small></th></tr></thead>
+              <tbody>
+                <template x-for="(p,i) in cantX.piers" :key="'cp'+i">
+                  <tr><td>墩頂 x=<span x-text="fmt(p[0],1)"></span> m</td>
+                    <td x-text="fmt(p[1],0)"></td><td x-text="fmt(p[2],0)"></td>
+                    <td style="font-weight:600" x-text="fmt(p[3],0)"></td>
+                    <td :class="Math.abs(cantX.unbalanced[i][1])>1?'ng':'ok'" x-text="fmt(cantX.unbalanced[i][1],0)"></td></tr>
+                </template>
+                <template x-for="(c,i) in cantX.closures" :key="'cc'+i">
+                  <tr><td>合龍點 x=<span x-text="fmt(c[0],1)"></span> m</td>
+                    <td x-text="fmt(c[1],0)"></td><td x-text="fmt(c[2],0)"></td>
+                    <td style="font-weight:600" x-text="fmt(c[3],0)"></td><td class="mut">—</td></tr>
+                </template>
+              </tbody>
+            </table>
+            <table style="margin-bottom:6px">
+              <thead><tr><th>墩頂恆載彙整</th><th>值（kN·m）</th><th>說明</th></tr></thead>
+              <tbody>
+                <tr><td>懸臂自重 X_final</td><td x-text="fmt(cantX.piers[0][3],0)"></td><td class="mut">λ＝<span x-text="cantX.lam.toFixed(3)"></span>；已重分配</td></tr>
+                <tr><td>合龍後載重</td><td x-text="fmt(cantX.MpostPier,0)"></td><td class="mut">支架段落架＋二期恆載，直接作用於最終體系（不重分配）</td></tr>
+                <tr style="border-top:1.5px solid var(--line)"><td><b>恆載合計（正解）</b></td>
+                  <td style="font-weight:600" x-text="fmt(cantX.MdeadPier,0)"></td><td class="mut">—</td></tr>
+                <tr><td>誤用：把合龍後載重併入 X₀</td><td class="ng" x-text="fmt(cantX.MwrongPier,0)"></td>
+                  <td class="ng">少算 <b x-text="fmt(Math.abs(cantX.lumped_err_pier),0)"></b> kN·m（<span x-text="(Math.abs(cantX.lumped_err_pier/cantX.MdeadPier)*100).toFixed(1)"></span>%）</td></tr>
+              </tbody>
+            </table>
+            <div class="hint">
+              <b>X₁／X₀ 由懸臂幾何自動組成</b>：臂長取至合龍點，合龍點 X₁＝0（自由端）→ 潛變<b>生成正束制彎矩</b>；
+              墩頂 X₁＝−w·a²/2 遠比連續值負，重分配只把它<b>部分</b>拉回 X₀，到不了。
+              束制彎矩沿梁在支承間線性：<b x-text="cantX.linear_ok?'✓ 通過':'✗ 未通過'"></b>（自我驗證）。
+              🔴 <b>X₀ 與 X₁ 必須是同一組載重</b>——便覽把 X₀ 寫成「一次完工之死載＋預力」，若照字面把
+              <b>合龍後才施加</b>的載重（支架段落架、鋪裝欄杆）也算進 X₀ 而 X₁ 沒有，(X₀−X₁) 會含其全量、再乘 λ(&lt;1)
+              → 只拿到 λ 倍、少算 (1−λ) 倍，誤差恰 (λ−1)·M_post。墩頂為負彎矩者<b>偏不安全</b>。
+              <template x-if="cantFT>0">
+                <span><br>最大懸臂狀態（含掛籃 <b x-text="fmt(cantFT,0)"></b> kN 於臂端外 <b x-text="fmt(cantOver,1)"></b> m）墩頂 M＝
+                <b x-text="fmt(cantX.MmaxCant,0)"></b> kN·m。⚠ 掛籃在懸臂初期彎矩大於節塊自重，不可略。</span>
+              </template>
+            </div>
+          </div>
+        </template>
         <table style="margin-top:8px">
           <thead><tr><th>斷面</th><th>M<sub>I</sub> 施工體系（簡支）</th><th>M<sub>II</sub> 最終體系（連續）</th><th>M(∞) 實際</th><th>佔連續值</th></tr></thead>
           <tbody>
@@ -2452,7 +2502,7 @@ var PARAM_KEYS=[
   'strandType','customAp','customFpu','ntd','strands','e','ductOD','ductID','ductAreaRule','ductSideMargin','ductBundle','webVertPT','envType','envLife','envWC','envZone','ductSv','ductCover','dAgg','ductRule','jackEnd','jackDefV2','fricMu','fricK','fricX',
   // ⑤ 剪力・撓度
   'stirrupBar','stirrupLegs','customAv','sv','Vu','VuAuto','midAnchorOn','midAnchors',
-  'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct','blStmTheta','blStmNode','pcType','pcLdsh','pcProj','pcBar','pcLd','pcDev','ncBar','ncDb','ncEmbed','ncDeck','msOn','msDays',
+  'blLb','blWb','blDb','blAp','blFci','blAlpha','blTieDeduct','blStmTheta','blStmNode','pcType','pcLdsh','pcProj','pcBar','pcLd','pcDev','ncBar','ncDb','ncEmbed','ncDeck','msOn','msDays','cantOn','cantFrac','cantFT','cantOver',
   'stgOn','stgScheme','stgPhiInf','stgPhiT1','stgChi','stgMethod','stgAge','stgFcD','stgPhiSrc','stgT0','stgH','stgFci',
   // ⑥ 細部檢核
   'Tu','dMfat','deltaS','jointSh',
@@ -2926,6 +2976,25 @@ function calc(){
       var st=pairs.map(function(p,k){ return {name:'第'+(k+1)+'跨', t0:sch[k][0], t_c:sch[k][1], M_I:p[0], M_II:p[1]}; });
       var pi=this.stgPhiInfo;
       return B.multiStageRedistribution(st,{chi:this.stgChi, H:this.stgH, VS:(pi&&pi.vs)||150, fci:this.stgFci}); },
+    // 懸臂工法 X₁／X₀ 自動組成（C2）：X₁＝合龍前懸臂體系、X₀＝同載重一次完工。
+    // 🔴 合龍後才施加的載重（支架段落架、二期恆載）直接作用於最終體系，**不可併入 X₀ 再乘 λ**。
+    get cantX(){
+      if(!this.cantOn||!this.contLine) return null;
+      var sp=String(this.contSpans).split(',').map(function(v){return parseFloat(v)||0}).filter(function(v){return v>0});
+      if(sp.length<2) return null;
+      var B=window.BC, R=this.R, wSelf=R.sec.A/1e6*24.5, st=this.staging;
+      if(!st) return null;
+      var lay=B.cantileverLayout(sp,this.cantFrac), u=B.cantileverUnits(sp,lay.piers,lay.closures);
+      var pi=this.stgPhiInfo;
+      var r=B.cantileverX1X0(sp,u,wSelf,st.factor.dphi,{w_sdl:this.wDW, chi:this.stgChi,
+            method:st.factor.method, phi_restraint:(pi&&pi.phiR)||null});
+      var ip=0; r.xs.forEach(function(v,i){ if(Math.abs(v-u[0].x_pier)<Math.abs(r.xs[ip]-u[0].x_pier)) ip=i; });
+      r.MpostPier=r.M_post[ip]; r.MdeadPier=r.M_dead_total[ip]; r.MwrongPier=r.M_lumped_wrong[ip];
+      // 最大懸臂狀態：自重 + 掛籃（掛在已澆節塊尖端外 cantOver）
+      r.MmaxCant=B.cantileverMI(u,wSelf,u[0].x_pier,'R')
+        + (this.cantFT>0 ? B.cantileverMIPoints(u,[[u[0].x_tip_right+this.cantOver,this.cantFT]],
+             u[0].x_pier,'R',this.cantOver) : 0);
+      return r; },
     // 負彎矩接頭（5.14.1.4.8）：橋面板縱向鋼筋依強度極限負彎矩配置；淨跨取最大跨扣墩寬
     get negConn(){
       var st=this.staging; if(!st||st.pierMuNeg==null) return null;
@@ -3218,7 +3287,7 @@ function calc(){
     topW:11000, topT:250, botW:5800, botT:200, webT:350, nWeb:2, h:2100,
     ntd:8, strands:19, e:1109, sv:250, Vu:2069, VuAuto:true, midAnchorOn:false, midAnchors:'',   // VuAuto：⑤ Vu 由包絡自動帶入（手動 2,069 為 golden 參考值）
     // 中間錨碇齒塊（blister）：尺寸與錨板；blTieDeduct＝Tie-back 是否扣既有預壓（補強既有橋時應關閉）
-    blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false, blStmTheta:45, blStmNode:'CCC', pcType:'rebar', pcLdsh:900, pcProj:250, pcBar:387, pcLd:1200, pcDev:1500, ncBar:387, ncDb:22.2, ncEmbed:3000, ncDeck:true, msOn:false, msDays:120,
+    blLb:400, blWb:300, blDb:250, blAp:200, blFci:35, blAlpha:5, blTieDeduct:false, blStmTheta:45, blStmNode:'CCC', pcType:'rebar', pcLdsh:900, pcProj:250, pcBar:387, pcLd:1200, pcDev:1500, ncBar:387, ncDb:22.2, ncEmbed:3000, ncDeck:true, msOn:false, msDays:120, cantOn:false, cantFrac:0.5, cantFT:800, cantOver:0.5,
     // 施工階段體系轉換：stgPhiInf/stgPhiT1＝φ(∞,t₀)／連續時已發生的 φ(t₁,t₀)；Δφ＝兩者之差
     stgOn:false, stgScheme:'sbs', stgPhiInf:2.0, stgPhiT1:0.55, stgChi:0.8, stgMethod:'trost', stgAge:28, stgFcD:35, stgPhiSrc:'aashto', stgT0:7, stgH:75, stgFci:32,   // stgPhiSrc：φ 由 AASHTO 5.4.2.3.2 算（台灣規範無 φ(t) 模式）或手填   // stgAge＝合龍時梁齡(天)；stgFcD＝連續橫隔梁 f'c
     ductOD:100, ductID:100, ductAreaRule:'tw', ductSideMargin:0, ductBundle:false, webVertPT:false, envType:'general', envLife:50, envWC:0.45, envZone:'中度', ductSv:40, ductCover:40, dAgg:25, ductRule:'tw', jackEnd:'both', jackDefV2:true,   // 預設雙端＝40 m 參考橋定義；jackDefV2 見 migrateParams

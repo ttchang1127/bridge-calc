@@ -55,7 +55,10 @@ from bridgecalc.tendon_profile import duct_layout_bundled, end_zone_duct_check, 
 from bridgecalc.staging import (pos_conn_strand, pos_conn_rebar, strand_stress_extended,
                                 strand_length_required, negative_moment_connection,
                                 neg_top_tension_limit, multi_stage_redistribution,
-                                StageSpec, span_by_span_schedule, stage_moments_span_by_span)
+                                StageSpec, span_by_span_schedule, stage_moments_span_by_span,
+                                cantilever_units, cantilever_layout, cantilever_M_I, cantilever_M_I_points,
+                                cantilever_unbalanced, cantilever_falsework, cantilever_X1X0,
+                                cantilever_schedule, cantilever_stages)
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -915,6 +918,74 @@ def _multi_stage_C1():
                      "**方向依各階段 M_I／M_II 的正負組合而定，不可假設簡化偏保守**（見測試 test_multi_stage_C1）。"
                      "每跨 400 天時材齡差 800 天 > 365，便覽 §3.5.4 但書要求分步考慮施工中斷面力與材齡差。"}
 
+# ── C2：懸臂工法 X₁／X₀ 自動組成（H3 幾何 → H7 重分配）────────────────────
+# 參考橋＝算例_懸臂工法（80+80 m，中墩出平衡懸臂 ±40 m，兩端 40 m 支架段）。
+_H3_SEG = [("0號塊", 2.0, 605.0), ("S1", 6.75, 643.0), ("S2", 11.25, 599.0),
+           ("S3", 15.75, 550.0), ("S4", 20.25, 497.0), ("S5", 24.75, 439.0),
+           ("S6", 29.25, 385.0), ("S7", 33.75, 353.0), ("S8", 38.25, 341.0)]
+
+
+def _cantilever_C2():
+    spans, piers, closures = [80.0, 80.0], [80.0], [40.0, 120.0]
+    units = cantilever_units(spans, piers, closures)
+    arm_kN = sum(g for _, _, g in _H3_SEG)                 # 單臂 4,412 kN
+    w_eq = 2 * arm_kN / 80.0                               # 兩臂等效 110.3 kN/m
+    r = cantilever_X1X0(spans, units, w_eq, dphi=1.0, w_sdl=15.0)
+    ip = min(range(len(r.xs)), key=lambda k: abs(r.xs[k] - 80.0))
+    # H3 交叉驗證：逐節塊集中載重 + 掛籃（尖端外 0.5 m）→ 0 號塊端 x=4 m 斷面
+    lo = [(80.0 + d, g) for _, d, g in _H3_SEG] + [(120.5, 800.0)]
+    M_cant = cantilever_M_I_points(units, lo, 84.0, "R", overhang=1.0)
+    # 逐節塊多階段（各節塊材齡不同）：10 天/節塊、合龍再 30 天
+    # 兩臂同步推進（各節塊左右同齡）；M_I 於墩頂取右側自由體＝只有右臂載重，
+    # M_II 則兩臂皆計——同一組載重的兩個平衡解，故 ΔM 仍為支承間線性。
+    segs, sch = [], []
+    base = cantilever_schedule(9, 10.0, t0=7.0, days_to_closure=30.0)
+    for (nm, d, g), ts in zip(_H3_SEG, base):
+        segs += [(nm + "R", 80.0 + d, g), (nm + "L", 80.0 - d, g)]
+        sch += [ts, ts]
+    st = cantilever_stages(spans, units, segs, 80.0, sch)
+    ms = multi_stage_redistribution(st)
+    dM = lambda xx: sum(sp.M_II - sp.M_I for sp in
+                        cantilever_stages(spans, units, segs, xx, sch))
+    d0, d80 = dM(0.0), dM(80.0)
+    lin_err = max(abs(dM(xx) - (d0 + (d80 - d0) * xx / 80.0))
+                  for xx in (10.0, 20.0, 40.0, 60.0, 70.0))
+    return {
+        "config": "80+80m 中墩平衡懸臂±40m/合龍40,120/支架段2×40m/w_eq110.3/SDL15/Δφ=1.0",
+        "arms": [[u.a_left, u.a_right] for u in units],
+        "layout_3span": [list(cantilever_layout([40.0, 50.0, 40.0])[0]),
+                         list(cantilever_layout([40.0, 50.0, 40.0])[1])],
+        "layout_4span_arms": [[u.a_left, u.a_right] for u in cantilever_units(
+            [60.0, 100.0, 100.0, 60.0], *cantilever_layout([60.0, 100.0, 100.0, 60.0]))],
+        "falsework": [[round(a, 1), round(b, 1)] for a, b in cantilever_falsework(spans, units)],
+        "w_eq_kNpm": round(w_eq, 2),
+        "lam": round(r.lam, 4),
+        "X1_pier": round(r.piers[0][1], 1), "X0_pier": round(r.piers[0][2], 1),
+        "Xfinal_pier": round(r.piers[0][3], 1),
+        "X1_closure": round(r.closures[0][1], 1) + 0.0, "X0_closure": round(r.closures[0][2], 1),
+        "Xfinal_closure": round(r.closures[0][3], 1),
+        "unbalanced_pier": round(r.unbalanced[0][1], 1) + 0.0,
+        "linear_ok": r.linear_ok,
+        "M_post_pier": round(r.M_post[ip], 1),
+        "M_dead_total_pier": round(r.M_dead_total[ip], 1),
+        "M_lumped_wrong_pier": round(r.M_lumped_wrong[ip], 1),
+        "lumped_err_pier": round(r.lumped_err_pier, 1),
+        "M_cant_x4_with_traveler": round(M_cant, 2),
+        "stage_lam": [round(row[1], 4) for row in ms.rows[::2]],
+        "stage_dM_linear_err": round(lin_err, 9),
+        "stage_M_I_total": round(ms.M_I_total, 1),
+        "stage_M_II_total": round(ms.M_II_total, 1),
+        "stage_M_total": round(ms.M_total, 1),
+        "stage_lam_equiv": round(ms.lam_equiv, 4),
+        "_note": "X₁＝懸臂體系（合龍前瞬間）、X₀＝同載重一次完工；X_final=X₁+λ(X₀−X₁)。"
+                 "墩頂 X₁=−88,240＝−w·a²/2 閉合解；合龍點 X₁=0（自由端）→ 潛變生成正束制彎矩。"
+                 "🔴 M_cant_x4_with_traveler=−90,861.25 與 construction.cantilever_moment（手填力臂）"
+                 "逐位元相同——H3 幾何自動組成與既有 H3 算路互為交叉驗證。"
+                 "🔴 lumped_err_pier：把合龍後載重（支架段落架＋SDL）一併塞進 X₀ 再乘 λ，"
+                 "墩頂負彎矩少算 22,491 kN·m（19.2%）、**偏不安全**——X₀ 與 X₁ 必須是同一組載重。"
+                 "stage_dM_linear_err≈0 為逐節塊版之自我驗證（束制場自平衡→支承間線性）。"}
+
+
 golden = {
     "_about": "40m參考橋黃金答案(台灣HS20-44/2車道/8組×19股最小設計)。Python引擎與JS網頁前端共用驗證源。由 make_golden.py 自動產生，請勿手改。",
     "influence_simple_40m": {
@@ -1208,6 +1279,7 @@ golden = {
         "sigma_sp_MPa": round(retro_R2.sigma_sp, 1), "Mu_kNm": round(retro_R2.Mu_kNm, 1),
         "l_p_mm": round(retro.plate_dev_length(305, 800, 2.5, 200), 1),
         "_note": "ε_sp需求1846≫f_sp→鋼板降伏取305;軸力平衡x=161.6;M_u(式6-26)=609(+36%,近40%上限);粘貼延伸l_p(式6-37)=788。對齊算例_外貼鋼板抗彎補強設計"},
+    "cantilever_X_C2": _cantilever_C2(),
     "retrofit_R4_enlargement": {
         "config": "R4 增大截面抗彎(JTG/T J22) 底加100mm(h800→900)+新筋2D25 h02860",
         "h0_mm": round((1964*750+982*860)/2946, 1), "x_mm": round(retro_R4.x, 1),

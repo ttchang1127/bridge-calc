@@ -1199,6 +1199,82 @@
     "l_p_mm": 788.0,
     "_note": "ε_sp需求1846≫f_sp→鋼板降伏取305;軸力平衡x=161.6;M_u(式6-26)=609(+36%,近40%上限);粘貼延伸l_p(式6-37)=788。對齊算例_外貼鋼板抗彎補強設計"
   },
+  "cantilever_X_C2": {
+    "config": "80+80m 中墩平衡懸臂±40m/合龍40,120/支架段2×40m/w_eq110.3/SDL15/Δφ=1.0",
+    "arms": [
+      [
+        40.0,
+        40.0
+      ]
+    ],
+    "layout_3span": [
+      [
+        40.0,
+        90.0
+      ],
+      [
+        20.0,
+        65.0,
+        110.0
+      ]
+    ],
+    "layout_4span_arms": [
+      [
+        30.0,
+        50.0
+      ],
+      [
+        50.0,
+        50.0
+      ],
+      [
+        50.0,
+        30.0
+      ]
+    ],
+    "falsework": [
+      [
+        0.0,
+        40.0
+      ],
+      [
+        120.0,
+        160.0
+      ]
+    ],
+    "w_eq_kNpm": 110.3,
+    "lam": 0.5556,
+    "X1_pier": -88240.0,
+    "X0_pier": -49635.0,
+    "Xfinal_pier": -66792.8,
+    "X1_closure": 0.0,
+    "X0_closure": 19302.5,
+    "Xfinal_closure": 10723.6,
+    "unbalanced_pier": 0.0,
+    "linear_ok": true,
+    "M_post_pier": -50605.0,
+    "M_dead_total_pier": -117397.8,
+    "M_lumped_wrong_pier": -94906.7,
+    "lumped_err_pier": 22491.1,
+    "M_cant_x4_with_traveler": -90861.25,
+    "stage_lam": [
+      0.2037,
+      0.2167,
+      0.2316,
+      0.2487,
+      0.2686,
+      0.292,
+      0.32,
+      0.3541,
+      0.3962
+    ],
+    "stage_dM_linear_err": 0.0,
+    "stage_M_I_total": -78099.2,
+    "stage_M_II_total": -45988.3,
+    "stage_M_total": -67660.5,
+    "stage_lam_equiv": 0.3251,
+    "_note": "X₁＝懸臂體系（合龍前瞬間）、X₀＝同載重一次完工；X_final=X₁+λ(X₀−X₁)。墩頂 X₁=−88,240＝−w·a²/2 閉合解；合龍點 X₁=0（自由端）→ 潛變生成正束制彎矩。🔴 M_cant_x4_with_traveler=−90,861.25 與 construction.cantilever_moment（手填力臂）逐位元相同——H3 幾何自動組成與既有 H3 算路互為交叉驗證。🔴 lumped_err_pier：把合龍後載重（支架段落架＋SDL）一併塞進 X₀ 再乘 λ，墩頂負彎矩少算 22,491 kN·m（19.2%）、**偏不安全**——X₀ 與 X₁ 必須是同一組載重。stage_dM_linear_err≈0 為逐節塊版之自我驗證（束制場自平衡→支承間線性）。"
+  },
   "retrofit_R4_enlargement": {
     "config": "R4 增大截面抗彎(JTG/T J22) 底加100mm(h800→900)+新筋2D25 h02860",
     "h0_mm": 786.7,

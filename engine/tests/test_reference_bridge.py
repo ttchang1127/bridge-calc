@@ -1706,6 +1706,101 @@ def test_multi_stage_C1():
     assert AGE_GAP_LIMIT_DAYS == 365
 
 
+def test_cantilever_partial_udl_solver():
+    """連續梁部分均布解：全長恆等、切段疊加、極短段收斂到集中載重影響線。"""
+    from bridgecalc.influence_cont import (cont_moment_partial_udl as pu, cont_dl_moment,
+                                           cont_moment_il)
+    spans, w = [40.0, 50.0, 40.0], 30.0
+    tot = sum(spans)
+    for i in range(27):
+        x = tot * i / 26
+        assert abs(pu(spans, [(0.0, tot, w)], x) - cont_dl_moment(spans, w, x)) < 1e-7 * max(1.0, tot)
+        a = pu(spans, [(10.0, 30.0, w)], x)
+        b = pu(spans, [(10.0, 22.0, w)], x) + pu(spans, [(22.0, 30.0, w)], x)
+        assert abs(a - b) < 1e-7 * max(1.0, abs(a))
+    # dl→0 時部分均布 → 集中載重（二階收斂：dl 縮 10 倍，誤差縮 ~100 倍）
+    errs = []
+    for dl in (1.0, 0.1):
+        errs.append(abs(pu(spans, [(70.0 - dl / 2, 70.0 + dl / 2, w)], 55.0)
+                        - cont_moment_il(spans, 55.0, 70.0) * w * dl))
+    assert errs[1] < errs[0] / 50
+
+
+def test_cantilever_X1X0_C2():
+    """懸臂工法 X₁／X₀ 自動組成：閉合解、疊加原理、與 H3 既有算路交叉驗證。"""
+    from bridgecalc import (cantilever_units, cantilever_M_I, cantilever_M_I_points,
+                            cantilever_unbalanced, cantilever_falsework, cantilever_covered,
+                            cantilever_X1X0, cantilever_schedule, cantilever_stages,
+                            multi_stage_redistribution, cantilever_moment)
+    from bridgecalc.influence_cont import cont_moment_partial_udl as pu, cont_dl_moment
+    spans, w = [80.0, 80.0], 110.3
+    u = cantilever_units(spans, [80.0], [40.0, 120.0])
+    assert [(x.a_left, x.a_right) for x in u] == [(40.0, 40.0)]
+    # 自動佈置：墩間跨合龍於跨中、端跨合龍距墩 end_frac×跨長、其餘為支架段
+    from bridgecalc import cantilever_layout
+    assert cantilever_layout(spans) == ([80.0], [40.0, 120.0])
+    assert cantilever_layout([40.0, 50.0, 40.0]) == ([40.0, 90.0], [20.0, 65.0, 110.0])
+    sp4 = [60.0, 100.0, 100.0, 60.0]
+    assert [(v.a_left, v.a_right) for v in cantilever_units(sp4, *cantilever_layout(sp4))] == \
+        [(30.0, 50.0), (50.0, 50.0), (50.0, 30.0)]
+    assert cantilever_covered(u) == [(40.0, 120.0)]
+    assert cantilever_falsework(spans, u) == [(0.0, 40.0), (120.0, 160.0)]
+    # 閉合解：墩頂 −w·a²/2、臂端 0、臂上任一點 −w(tip−x)²/2
+    assert abs(cantilever_M_I(u, w, 80.0) - (-w * 40 ** 2 / 2)) < 1e-9
+    assert abs(cantilever_M_I(u, w, 120.0)) < 1e-9 and abs(cantilever_M_I(u, w, 40.0)) < 1e-9
+    assert abs(cantilever_M_I(u, w, 100.0) - (-w * 20 ** 2 / 2)) < 1e-9
+    assert abs(cantilever_M_I(u, w, 20.0)) < 1e-9        # 支架段：自重尚未上結構
+    # 兩臂等長 → 不平衡彎矩 0；不等臂 → w(a_R²−a_L²)/2
+    assert abs(cantilever_unbalanced(u, w)[0][1]) < 1e-9
+    u2 = cantilever_units(spans, [80.0], [30.0, 120.0])
+    assert abs(cantilever_unbalanced(u2, w)[0][1] - w * (40 ** 2 - 50 ** 2) / 2) < 1e-6
+    # 疊加原理：懸臂段 + 支架段 = 全長連續
+    for x in (0.0, 20.0, 40.0, 60.0, 80.0, 120.0, 150.0):
+        both = pu(spans, [(40.0, 120.0, w)], x) + pu(spans, [(0.0, 40.0, w), (120.0, 160.0, w)], x)
+        assert abs(both - cont_dl_moment(spans, w, x)) < 1e-6
+    r = cantilever_X1X0(spans, u, w, dphi=1.0, w_sdl=15.0)
+    assert r.linear_ok and abs(r.lam - 1 / 1.8) < 1e-9
+    assert abs(r.piers[0][1] - (-w * 40 ** 2 / 2)) < 1e-6      # X₁
+    assert abs(r.closures[0][1]) < 1e-9                        # 合龍點 X₁ = 0（自由端）
+    assert r.closures[0][2] > 0 and r.closures[0][3] > 0       # 潛變生成正束制彎矩
+    # X₁ < X_final < X₀（重分配朝一次完工值漂移，但到不了）
+    assert r.piers[0][1] < r.piers[0][3] < r.piers[0][2]
+    # 🔴 誤用閉合解：把合龍後載重塞進 X₀ → 誤差恰 (λ−1)·M_post
+    ip = min(range(len(r.xs)), key=lambda k: abs(r.xs[k] - 80.0))
+    assert abs(r.lumped_err_pier - (r.lam - 1.0) * r.M_post[ip]) < 1e-6
+    assert r.lumped_err_pier > 0 and r.M_dead_total[ip] < 0     # 少算負彎矩＝偏不安全
+    # λ→0 退化：無重分配
+    r0 = cantilever_X1X0(spans, u, w, dphi=0.0)
+    assert all(abs(a - b) < 1e-9 for a, b in zip(r0.M_I, r0.M_inf))
+    # 🔴 與既有 H3 算路交叉驗證：逐節塊集中載重 + 掛籃（尖端外）→ 90,861.25
+    tbl = [("0號塊", 2.0, 605.0), ("S1", 6.75, 643.0), ("S2", 11.25, 599.0),
+           ("S3", 15.75, 550.0), ("S4", 20.25, 497.0), ("S5", 24.75, 439.0),
+           ("S6", 29.25, 385.0), ("S7", 33.75, 353.0), ("S8", 38.25, 341.0)]
+    lo = [(80.0 + d, g) for _, d, g in tbl]
+    m_h3 = cantilever_moment([g for _, _, g in tbl[1:]], [80.0 + d - 84.0 for _, d, _ in tbl[1:]],
+                             800.0, 36.5)
+    assert abs(cantilever_M_I_points(u, lo + [(120.5, 800.0)], 84.0, "R", 1.0) + m_h3) < 1e-9
+    # overhang 未給時掛籃落在臂端外會被丟掉（回歸保護）
+    assert abs(cantilever_M_I_points(u, lo + [(120.5, 800.0)], 84.0, "R")
+               - cantilever_M_I_points(u, lo, 84.0, "R")) < 1e-9
+    # 逐節塊多階段：越晚澆的節塊合龍時材齡越小 → λ 越大
+    segs, sch = [], []
+    for (nm, d, g), ts in zip(tbl, cantilever_schedule(9, 10.0, 7.0, 30.0)):
+        segs += [(nm + "R", 80.0 + d, g), (nm + "L", 80.0 - d, g)]
+        sch += [ts, ts]
+    ms = multi_stage_redistribution(cantilever_stages(spans, u, segs, 80.0, sch))
+    lams = [row[1] for row in ms.rows[::2]]
+    assert all(a < b for a, b in zip(lams, lams[1:]))
+    # 束制場自平衡 → ΔM 支承間線性（逐節塊版；集中載重亦成立）
+    dM = lambda xx: sum(sp.M_II - sp.M_I for sp in cantilever_stages(spans, u, segs, xx, sch))
+    d0, d80 = dM(0.0), dM(80.0)
+    assert abs(d0) < 1e-9
+    assert all(abs(dM(xx) - d80 * xx / 80.0) < 1e-6 for xx in (10.0, 20.0, 40.0, 60.0, 70.0))
+    # 🔴 變深度箱梁：等效均布高估懸臂彎矩（自重集中在墩附近、力臂短）
+    over = cantilever_M_I(u, w, 80.0) / ms.M_I_total
+    assert 1.10 < over < 1.15
+
+
 if __name__ == "__main__":
     L = compute_losses(ten, sec, M_DC, M_DW)
     c = combinations(M_DC, M_DW, M_LL_IM)

@@ -649,7 +649,15 @@
     return { F_spall: F, As_spall: F * 1e3 / (phi * fy) };
   };
   // ⚠ 剪力摩擦有**面積上限**：As_vf 算得出來不代表做得到。介面面積不足時
-  //   加多少鋼筋都沒用，只能加大齒塊。K1/K2 隨規範版次不同。
+  //   加多少鋼筋都沒用，只能加大齒塊。K1/K2 隨規範不同（同 bridgecalc.blister）：
+  //   AASHTO 5.8.4.1（決策 25）＝(0.25, 10.3 MPa)；
+  //   台灣公路橋梁設計規範 §7.3.6 4.(4)d（p.135）「V_n 不得取大於 0.2f'c·A_cv 或
+  //     56.2A_cv (kgf/cm²) (5.52A_cv (MPa))」→ 等效 (0.20, 5.52 MPa)。
+  //   🔴 台灣遠嚴於 AASHTO：f'c=40 MPa 時 5.52 vs 10.0（僅 55%）——以 AASHTO 通過者未必合台灣。
+  //   ⚠ 台灣 μ 四值與建築規範 112 §22.9 相同，但上限式不同（建築分 A/B 級，f'c≥350 kgf/cm²
+  //     起偏高，560 時 +39%），橋梁案不可套建築式。
+  BC.K_INTERFACE_AASHTO = [0.25, 10.3];
+  BC.K_INTERFACE_TW = [0.20, 5.52];
   BC.blisterInterfaceShear = function (Ps, alphaDeg, mu, fsd, Nd, gamma0, A_int, fc, K1, K2) {
     alphaDeg = alphaDeg == null ? 5 : alphaDeg; mu = mu || 1.0; fsd = fsd || 360;
     Nd = Nd || 0; gamma0 = gamma0 || 1.0; A_int = A_int || 0; fc = fc || 40;

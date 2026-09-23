@@ -623,6 +623,17 @@ function chkEq(name, got, exp) {
     return { name: 's' + k, t0: schSlow[k][0], t_c: schSlow[k][1], M_I: p[0], M_II: p[1] }; }));
   chkEq('材齡差 800 天超限', rSlow.age_gap_warn, gms.slow_warn);
   chk('材齡差 800 天 M', rSlow.M_total, gms.slow_M_total, 0.1);
+  // 介面剪應力上限兩制（台灣 §7.3.6 4.(4)d vs AASHTO 5.8.4.1；2026-09-23 NLM 核）
+  chkEq('介面上限常數 AASHTO', JSON.stringify(BC.K_INTERFACE_AASHTO), '[0.25,10.3]');
+  chkEq('介面上限常數 台灣', JSON.stringify(BC.K_INTERFACE_TW), '[0.2,5.52]');
+  var bisD = BC.blisterInterfaceShear(3000, 5, 1.0, 360, 0, 1, 400 * 250, 40);
+  var bisT = BC.blisterInterfaceShear(3000, 5, 1.0, 360, 0, 1, 400 * 250, 40,
+                                      BC.K_INTERFACE_TW[0], BC.K_INTERFACE_TW[1]);
+  chk('介面 τ_cap 預設(AASHTO)', bisD.tau_cap, 10.0, 1e-9);
+  chk('介面 τ_cap 台灣', bisT.tau_cap, 5.52, 1e-9);
+  chk('B1 齒塊 V_cap 台灣', bisT.V_cap, 552.0, 1.0);
+  chk('B1 齒塊 V_cap AASHTO', bisD.V_cap, 1000.0, 1.0);
+  chkEq('台灣上限下仍不足', bisT.area_ok, false);
   // 懸臂工法 X₁／X₀ 自動組成（C2）
   var gcx = g.cantilever_X_C2, spansCX = [80, 80];
   var H3SEG = [['0號塊', 2.0, 605], ['S1', 6.75, 643], ['S2', 11.25, 599], ['S3', 15.75, 550],

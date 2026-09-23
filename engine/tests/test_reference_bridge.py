@@ -1706,6 +1706,26 @@ def test_multi_stage_C1():
     assert AGE_GAP_LIMIT_DAYS == 365
 
 
+def test_interface_shear_K_two_codes():
+    """介面剪應力上限兩制：台灣 §7.3.6 4.(4)d 遠嚴於 AASHTO 5.8.4.1（2026-09-23 NLM 核）。"""
+    from bridgecalc.blister import (K_INTERFACE_TW, K_INTERFACE_AASHTO,
+                                    blister_interface_shear as bis)
+    assert K_INTERFACE_AASHTO == (0.25, 10.3) and K_INTERFACE_TW == (0.20, 5.52)
+    # 原文 56.2 kgf/cm² → 5.52 MPa（1 kgf/cm² = 0.0980665 MPa）
+    assert abs(56.2 * 0.0980665 - 5.512) < 0.02
+    # 預設仍為 AASHTO（golden 不得受影響）
+    assert abs(bis(3000, 5, 1.0, 360, 0, 1.0, 400 * 250, 40).tau_cap - 10.0) < 1e-9
+    tw = bis(3000, 5, 1.0, 360, 0, 1.0, 400 * 250, 40, *K_INTERFACE_TW)
+    assert abs(tw.tau_cap - 5.52) < 1e-9
+    # 🔴 B1 算例齒塊：AASHTO 上限 1,000 kN、台灣只有 552 kN（55%）→ 3,000 kN 需求更不足
+    assert abs(tw.V_cap - 552.0) < 1.0 and not tw.area_ok
+    # f'c 越高差距越大（台灣 K2 先觸頂）；f'c=28 時仍為 AASHTO 較寬
+    for fc, ratio in ((28.0, 5.52 / 7.0), (40.0, 5.52 / 10.0)):
+        a_ = min(K_INTERFACE_AASHTO[0] * fc, K_INTERFACE_AASHTO[1])
+        t_ = min(K_INTERFACE_TW[0] * fc, K_INTERFACE_TW[1])
+        assert abs(t_ / a_ - ratio) < 1e-9 and t_ < a_
+
+
 def test_cantilever_partial_udl_solver():
     """連續梁部分均布解：全長恆等、切段疊加、極短段收斂到集中載重影響線。"""
     from bridgecalc.influence_cont import (cont_moment_partial_udl as pu, cont_dl_moment,

@@ -125,6 +125,18 @@ def blister_spalling(Ps_kN: float, fy: float = 420.0, phi: float = 0.9,
 
 
 # ── (d) 介面剪力摩擦配筋（Interface Shear Friction）────────────
+# 介面剪應力上限 min(K₁·f'c, K₂) 的兩制常數（2026-09-23 稽核線 NLM 核對）：
+#   AASHTO 5.8.4.1（決策 25）：K₁=0.25、K₂=10.3 MPa（整澆與鑿毛面；現澆橋面板於鑿毛預鑄梁頂為 0.30/12.4）
+#   台灣公路橋梁設計規範 §7.3.6 4.(4)d（p.135）：「V_n 不得取大於 0.2f'c·A_cv 或 56.2A_cv (kgf/cm²)
+#     (5.52A_cv (MPa))」→ 等效 K₁=0.20、K₂=5.52 MPa
+# 🔴 **台灣上限遠嚴於 AASHTO**：f'c=40 MPa 時 AASHTO min(10.0,10.3)=10.0、台灣 min(8.0,5.52)=**5.52**
+#   （僅 55%）。齒塊／節塊介面以 AASHTO 值通過者，依台灣規範**未必通過**。
+# ⚠ 台灣μ 四值與建築規範 112 §22.9 相同（1.4λ/1.0λ/0.6λ/0.7λ），但**上限式不同**——
+#   建築分 A/B 兩級（A 級另有 33.6+0.08f'c 與 112 kgf/cm²），橋梁只有單一上限，
+#   f'c≥350 kgf/cm² 起建築式偏高（f'c=560 時 +39%），橋梁案不可套用。
+K_INTERFACE_AASHTO = (0.25, 10.3)
+K_INTERFACE_TW = (0.20, 5.52)
+
 @dataclass
 class InterfaceResult:
     V_int: float        # kN，介面剪力
@@ -154,7 +166,9 @@ def blister_interface_shear(Ps_kN: float, alpha_deg: float = 5.0,
     🔴 **上限檢核不可略**：剪力摩擦的配筋量與介面面積是兩件事——`As_vf` 算得出來不代表
       做得到。介面面積不足時**加多少鋼筋都沒用**，只能加大齒塊。算例常只算配筋而漏掉這項。
 
-    K1/K2 隨規範版本不同（此處預設 0.25 與 10.3 MPa 為常用值），視採用之規範版次調整。
+    K1/K2 隨規範不同：預設 `K_INTERFACE_AASHTO`＝(0.25, 10.3)；台灣公路橋梁規範 §7.3.6 4.(4)d
+    為 `K_INTERFACE_TW`＝(0.20, 5.52)，**遠嚴於 AASHTO**（f'c=40 時 5.52 vs 10.0，僅 55%）。
+    採台灣規範時請明確傳入 `K1, K2 = K_INTERFACE_TW`。
     """
     V = Ps_kN * math.cos(math.radians(alpha_deg))
     As = max(0.0, gamma0 * V * 1e3 / mu + Nd_kN * 1e3) / fsd

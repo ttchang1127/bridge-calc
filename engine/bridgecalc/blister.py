@@ -119,7 +119,14 @@ class SpallResult:
 
 def blister_spalling(Ps_kN: float, fy: float = 420.0, phi: float = 0.9,
                      ratio: float = 0.02) -> SpallResult:
-    """角隅剝裂力與配筋（AASHTO Art. 5.10.9.6.5，約 0.02·P_s）。"""
+    """角隅剝裂力與配筋（現行：0.02·傳入力，blister_design 傳 P_s）。
+
+    🔴 **2026-09-26 稽核發現（待裁示，未改行為）**：兩制皆規定以**乘因數**力計——
+      台灣 §8.21.3 4.(8)（p.170）「剝裂力應不小於**乘因數**預力之2%」；
+      AASHTO 5.10.9.3.2（p.5-138）「2 percent of the total **factored** tendon force」
+      （錨碇區設計力＝1.2×最大張拉力，3.4.3.2）。原註「Art. 5.10.9.6.5，約 0.02·P_s」出處與基準皆不符。
+      `blister_design` 目前傳 P_s，B1 算例少算 41%（P_u/P_s＝1.70）。更正會動 golden blister_B1。
+    """
     F = ratio * Ps_kN
     return SpallResult(F_spall=F, As_spall=F * 1e3 / (phi * fy))
 

@@ -742,7 +742,7 @@ th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:lef
           </tbody>
         </table>
         <table style="margin-top:8px" x-show="blisterSTM" x-cloak>
-          <thead><tr><th>STM 檢核（AASHTO 5.6.3；台灣無 STM 專章）</th><th>實有</th><th>需求</th><th style="width:44px">判定</th></tr></thead>
+          <thead><tr><th>STM 檢核（AASHTO 5.6.3；台灣 §8.21.4 限錨碇區、壓桿 0.7φf'ci 另列待辦）</th><th>實有</th><th>需求</th><th style="width:44px">判定</th></tr></thead>
           <tbody>
             <tr title="f_cu = f'c/(0.8+170ε₁) ≤ 0.85f'c（Eq.5.6.3.3.3-1）；ε₁ = ε_s+(ε_s+0.002)cot²θ。ACI β 表為對照，兩制僅 CCC 節點同值">
               <td>壓桿 φF<sub>ns</sub>（w<sub>s</sub> = l<sub>b</sub>sinθ + w<sub>t</sub>cosθ）</td>
@@ -3007,7 +3007,9 @@ function calc(){
     // ── 中間錨碇齒塊（blister）錨碇區設計（BC.blisterDesign）─────
     // 只在勾選「設中間錨碇段」時有意義：內部錨碇必須靠齒塊把腱力打回腹板，
     // 而齒塊的後方**沒有鋼腱延伸提供回力**——Tie-back 是唯一抵抗後向分離的機制。
-    // 齒塊 STM 壓桿／節點（AASHTO 5.6.3；台灣規範無 STM 專章，§8.21.3 5.(4) 僅要求配筋抵抗曲率彎力）
+    // 齒塊 STM 壓桿／節點（AASHTO 5.6.3）。🔴 2026-09-26 更正：台灣規範**有** STM——§8.21.4「錨碇區設計壓拉桿模型」，
+    //   僅限後拉法錨碇區一般區域，壓桿有效強度 ≤0.7φf'ci（擴大開裂 0.6φf'ci），無最小夾角、無 β 表、節點無算式。
+    //   齒塊屬中間錨碇區故應適用；台灣式待 φ 查明後補。原註「台灣無 STM 專章」不正確。
     //   C 取係數化錨碇力（與爆裂同一 P_u）、根部節點面積取齒塊長 × 腹板厚；錨板面屬局部區不在此檢。
     get blisterSTM(){
       var b=this.blister; if(!b) return null;

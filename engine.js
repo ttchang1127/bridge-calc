@@ -528,13 +528,49 @@
   BC.AvSminTW = function (fc, bw, fsy) { fsy = fsy || 420; return 0.345 * bw / fsy; };
   BC.AvSminAASHTO = function (fc, bw, fy) { fy = fy || 420; return 0.083 * sqrt(fc) * bw / fy; };
 
+  // ── 台灣容許值（同 bridgecalc.allowables；2026-09-24 稽核線 NLM 7d947294 核對）─────
+  // §8.15.2 2.(2)「有效預力加上永久靜載重產生之壓應力應小於 0.40f'c」——🔴 原 Python 寫 0.45（AASHTO 值）已更正
+  BC.compServiceTWPermanent = function (fc) { return -0.40 * fc; };
+  // §8.15.2 2.(3)「(2)所得計算壓應力之半加上活重產生之壓應力應小於 0.40f'c」（台灣獨有第三道）
+  BC.compServiceTWLiveHalf = function (fc) { return -0.40 * fc; };
+  // §8.15.2 2. 預壓拉力區（損失後）：握裹 一般 0.498√f'c／節塊 0.249√f'c；嚴重腐蝕 一般 0.249／節塊 0；無握裹 0
+  BC.tensionPrecompressedTW = function (fc, bonded, segmental, corrosive) {
+    bonded = bonded == null ? true : bonded;
+    if (!bonded) return 0;
+    if (corrosive) return segmental ? 0 : 0.249 * sqrt(fc);
+    return segmental ? 0.249 * sqrt(fc) : 0.498 * sqrt(fc);
+  };
+  // §8.15.2 1. 其他區域拉力（損失前）：無握裹 一般「14 kgf/cm² 或 0.8√f'ci」＝min(0.25√f'ci, 1.3729)、節塊 0；
+  //   有握裹 一般 0.623√f'ci／節塊 0.498√f'ci
+  BC.TW_TRANSFER_TENSION_CAP_MPa = 14.0 * 0.0980665;
+  BC.transferTensionTW = function (fci, bonded, segmental) {
+    if (segmental) return bonded ? 0.498 * sqrt(fci) : 0;
+    if (bonded) return 0.623 * sqrt(fci);
+    return min(0.25 * sqrt(fci), BC.TW_TRANSFER_TENSION_CAP_MPa);
+  };
+  // 撓度限值：RC §7.3.12／PC §8.11.3／鋼 §9.1.7 三章同值（懸臂者 L 傳懸臂長度）
+  BC.TW_DEFLECTION_DENOM = { '一般': 800, '市區人行': 1000, '懸臂': 300, '懸臂人行': 375 };
+  BC.deflectionLimitTW = function (L, cs) {
+    cs = cs || '一般';
+    if (!(cs in BC.TW_DEFLECTION_DENOM)) throw new Error('case 須為 一般／市區人行／懸臂／懸臂人行');
+    return L / BC.TW_DEFLECTION_DENOM[cs];
+  };
+  // §7.1.22 7.(4) RC 長期載重因素：按 Ig 取 4；按 Ie 取 3−1.2(A's/As) ≥ 1.6（🔴 下限不可漏）
+  BC.longTermFactorTW = function (byIg, r) {
+    byIg = byIg == null ? true : byIg;
+    return byIg ? 4.0 : max(3.0 - 1.2 * (r || 0), 1.6);
+  };
+
   // ── 撓度/預拱 C2/C3 ───────────────────────────────────
-  BC.deflection = function (L, Ec, sec, w_DL, Pe, e, w_LL, phi, settle) {
-    phi = phi == null ? 2.0 : phi; settle = settle == null ? 5.0 : settle;
+  // deflCase：'一般'（預設 L/800，維持既有行為）／'市區人行'／'懸臂'／'懸臂人行'
+  BC.deflection = function (L, Ec, sec, w_DL, Pe, e, w_LL, phi, settle, deflCase) {
+    phi = phi == null ? 2.0 : phi; settle = settle == null ? 5.0 : settle; deflCase = deflCase || '一般';
     var K = 5 * Math.pow(L, 4) / (384 * Ec * sec.I), d_DL = K * w_DL, w_eq = 8 * Pe * e / (L * L);
     var d_PT = K * w_eq, net_el = d_DL - d_PT, net_LT = net_el * (1 + phi), d_LL = K * w_LL;
+    var lim = BC.deflectionLimitTW(L, deflCase);
     return { K: K, d_DL: d_DL, w_eq: w_eq, d_PT: d_PT, net_elastic: net_el, LBR: d_PT / d_DL,
-             net_long_term: net_LT, d_LL: d_LL, camber: max(net_LT, 0) + settle, d_LL_ok: d_LL <= L / 800 };
+             net_long_term: net_LT, d_LL: d_LL, camber: max(net_LT, 0) + settle, d_LL_ok: d_LL <= lim,
+             d_LL_limit: lim, defl_case: deflCase };
   };
 
   // ── 扭力 D2 ───────────────────────────────────────────

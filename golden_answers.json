@@ -1275,6 +1275,30 @@
     "stage_lam_equiv": 0.3251,
     "_note": "X₁＝懸臂體系（合龍前瞬間）、X₀＝同載重一次完工；X_final=X₁+λ(X₀−X₁)。墩頂 X₁=−88,240＝−w·a²/2 閉合解；合龍點 X₁=0（自由端）→ 潛變生成正束制彎矩。🔴 M_cant_x4_with_traveler=−90,861.25 與 construction.cantilever_moment（手填力臂）逐位元相同——H3 幾何自動組成與既有 H3 算路互為交叉驗證。🔴 lumped_err_pier：把合龍後載重（支架段落架＋SDL）一併塞進 X₀ 再乘 λ，墩頂負彎矩少算 22,491 kN·m（19.2%）、**偏不安全**——X₀ 與 X₁ 必須是同一組載重。stage_dM_linear_err≈0 為逐節塊版之自我驗證（束制場自平衡→支承間線性）。"
   },
+  "allowables_TW_audit": {
+    "config": "稽核線批4/6（2026-09-24 NLM 7d947294）台灣明文容許值；f'c=40、f'ci=32、L=40000mm",
+    "comp_service_TW_permanent": -16.0,
+    "comp_service_TW_live_half": -16.0,
+    "tension_precomp_bonded_general": 3.1496,
+    "tension_precomp_bonded_segmental": 1.5748,
+    "tension_precomp_corrosive_general": 1.5748,
+    "tension_precomp_corrosive_segmental": 0.0,
+    "tension_precomp_unbonded": 0.0,
+    "transfer_tension_TW_unbonded": 1.3729,
+    "transfer_tension_TW_bonded": 3.5242,
+    "transfer_tension_TW_segmental_unbonded": 0.0,
+    "transfer_tension_current_AASHTO_nocap": 1.4142,
+    "defl_limit": {
+      "一般": 50.0,
+      "市區人行": 40.0,
+      "懸臂": 133.3333,
+      "懸臂人行": 106.6667
+    },
+    "long_term_Ig": 4.0,
+    "long_term_Ie_r05": 2.4,
+    "long_term_Ie_r15_floor": 1.6,
+    "_note": "🔴 comp_service_TW_permanent 原 −0.45f'c（AASHTO 5.9.4.2.1 值）→ 台灣 §8.15.2 2.(2) 明文 −0.40f'c，更正時無呼叫者故既有 golden 不動。transfer_tension（現行 0.25√f'ci 無上限）與 transfer_tension_TW（min(0.25√f'ci, 14 kgf/cm²=1.3729)）並列，f'ci=32 時差 3.0%，是否將上限併入現行式待裁示。長期因素下限 1.6（§7.1.22 7.(4)b）A's/As>1.17 起控制。"
+  },
   "retrofit_R4_enlargement": {
     "config": "R4 增大截面抗彎(JTG/T J22) 底加100mm(h800→900)+新筋2D25 h02860",
     "h0_mm": 786.7,

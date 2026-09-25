@@ -1706,6 +1706,30 @@ def test_multi_stage_C1():
     assert AGE_GAP_LIMIT_DAYS == 365
 
 
+def test_deflection_limits_TW():
+    """台灣撓度限值四情況與 RC 長期載重因素（§7.3.12／8.11.3／9.1.7／7.1.22 7.(4)，2026-09-24 NLM 核）。"""
+    from bridgecalc import allowables as A
+    from bridgecalc.deflection import deflection_analysis
+    assert A.TW_DEFLECTION_DENOM == {"一般": 800, "市區人行": 1000, "懸臂": 300, "懸臂人行": 375}
+    L = 40000.0
+    assert abs(A.deflection_limit_TW(L) - 50.0) < 1e-9
+    assert abs(A.deflection_limit_TW(L, "市區人行") - 40.0) < 1e-9
+    assert abs(A.deflection_limit_TW(L, "懸臂") - L / 300) < 1e-9
+    assert abs(A.deflection_limit_TW(L, "懸臂人行") - L / 375) < 1e-9
+    # 🔴 §7.1.22 7.(4) b 之下限 1.6 不可漏：A's/As > 1.17 時即由下限控制
+    assert A.long_term_factor_TW() == 4.0
+    assert abs(A.long_term_factor_TW(False, 0.5) - 2.4) < 1e-9
+    assert abs(A.long_term_factor_TW(False, 1.0) - 1.8) < 1e-9
+    assert abs(A.long_term_factor_TW(False, 1.5) - 1.6) < 1e-9      # 3−1.8=1.2 → 下限
+    assert A.long_term_factor_TW(False, 5.0) == 1.6                 # 永不低於 1.6
+    # 預設仍為 L/800（既有行為與 golden 不受影響）
+    r = deflection_analysis(L, 30000.0, sec, 40.4, 8e6, 750.0, 20.0)
+    assert r.defl_case == "一般" and abs(r.d_LL_limit - 50.0) < 1e-9
+    # 同一撓度在較嚴情況下可能翻為不通過
+    strict = deflection_analysis(L, 30000.0, sec, 40.4, 8e6, 750.0, 20.0, defl_case="市區人行")
+    assert strict.d_LL_limit < r.d_LL_limit and strict.d_LL == r.d_LL
+
+
 def test_interface_shear_K_two_codes():
     """介面剪應力上限兩制：台灣 §7.3.6 4.(4)d 遠嚴於 AASHTO 5.8.4.1（2026-09-23 NLM 核）。"""
     from bridgecalc.blister import (K_INTERFACE_TW, K_INTERFACE_AASHTO,

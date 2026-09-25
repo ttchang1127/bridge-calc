@@ -6,6 +6,7 @@
 """
 from dataclasses import dataclass
 from .model import Section
+from . import allowables
 
 
 @dataclass
@@ -19,12 +20,18 @@ class DeflectionResult:
     net_long_term: float  # 淨長期（×(1+φ)）mm
     d_LL: float       # 活載即時撓度 mm
     camber: float     # 建議預拱 mm（淨長期下撓 + 沉陷）
-    d_LL_ok: bool     # δ_LL ≤ L/800？
+    d_LL_ok: bool     # δ_LL ≤ 該 case 之限值？
+    d_LL_limit: float # 採用之撓度限值 mm
+    defl_case: str    # 撓度限值情況（allowables.TW_DEFLECTION_DENOM 之鍵）
 
 
 def deflection_analysis(L: float, Ec: float, section: Section,
                         w_DL: float, Pe: float, e: float, w_LL: float,
-                        phi: float = 2.0, settlement: float = 5.0) -> DeflectionResult:
+                        phi: float = 2.0, settlement: float = 5.0,
+                        defl_case: str = "一般") -> DeflectionResult:
+    """撓度與預拱。`defl_case` 依台灣 §7.3.12／§8.11.3／§9.1.7（2026-09-24 NLM 核）：
+    '一般' L/800（預設，維持既有行為）／'市區人行' L/1000／'懸臂' L_c/300／'懸臂人行' L_c/375。
+    ⚠ 懸臂情況請把 L 傳為**懸臂長度**。"""
     K = 5 * L**4 / (384 * Ec * section.I)         # mm/(N/mm)
     d_DL = K * w_DL
     w_eq = 8 * Pe * e / L**2                        # N/mm（= kN/m）
@@ -34,5 +41,6 @@ def deflection_analysis(L: float, Ec: float, section: Section,
     net_LT = net_el * (1 + phi)
     d_LL = K * w_LL
     camber = max(net_LT, 0.0) + settlement
+    lim = allowables.deflection_limit_TW(L, defl_case)
     return DeflectionResult(K, d_DL, w_eq, d_PT, net_el, LBR, net_LT, d_LL,
-                            camber, d_LL <= L / 800)
+                            camber, d_LL <= lim, lim, defl_case)

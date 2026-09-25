@@ -623,6 +623,24 @@ function chkEq(name, got, exp) {
     return { name: 's' + k, t0: schSlow[k][0], t_c: schSlow[k][1], M_I: p[0], M_II: p[1] }; }));
   chkEq('材齡差 800 天超限', rSlow.age_gap_warn, gms.slow_warn);
   chk('材齡差 800 天 M', rSlow.M_total, gms.slow_M_total, 0.1);
+  // 台灣明文容許值（稽核線批 4/6，§8.15.2／§7.3.12／§8.11.3／§9.1.7／§7.1.22 7.(4)）
+  var gat = g.allowables_TW_audit;
+  chk('TW 有效預力+永久靜載壓', BC.compServiceTWPermanent(40), gat.comp_service_TW_permanent, 1e-9);
+  chk('TW 半永久+活載壓', BC.compServiceTWLiveHalf(40), gat.comp_service_TW_live_half, 1e-9);
+  chk('TW 預壓拉 握裹一般', BC.tensionPrecompressedTW(40), gat.tension_precomp_bonded_general, 1e-4);
+  chk('TW 預壓拉 握裹節塊', BC.tensionPrecompressedTW(40, true, true), gat.tension_precomp_bonded_segmental, 1e-4);
+  chk('TW 預壓拉 腐蝕一般', BC.tensionPrecompressedTW(40, true, false, true), gat.tension_precomp_corrosive_general, 1e-4);
+  chk('TW 預壓拉 腐蝕節塊', BC.tensionPrecompressedTW(40, true, true, true), gat.tension_precomp_corrosive_segmental, 1e-9);
+  chk('TW 預壓拉 無握裹', BC.tensionPrecompressedTW(40, false), gat.tension_precomp_unbonded, 1e-9);
+  chk('TW 施拉拉 無握裹(含14kgf上限)', BC.transferTensionTW(32), gat.transfer_tension_TW_unbonded, 1e-4);
+  chk('TW 施拉拉 有握裹', BC.transferTensionTW(32, true), gat.transfer_tension_TW_bonded, 1e-4);
+  chk('TW 施拉拉 節塊無握裹', BC.transferTensionTW(32, false, true), gat.transfer_tension_TW_segmental_unbonded, 1e-9);
+  Object.keys(gat.defl_limit).forEach(function (k) {
+    chk('TW 撓度限值 ' + k, BC.deflectionLimitTW(40000, k), gat.defl_limit[k], 1e-4); });
+  chk('TW 長期因素 Ig', BC.longTermFactorTW(), gat.long_term_Ig, 1e-9);
+  chk('TW 長期因素 Ie r=0.5', BC.longTermFactorTW(false, 0.5), gat.long_term_Ie_r05, 1e-9);
+  chk('TW 長期因素 Ie r=1.5 下限', BC.longTermFactorTW(false, 1.5), gat.long_term_Ie_r15_floor, 1e-9);
+  chkEq('撓度預設 case', BC.deflection(40000, 30000, { I: 3.287e12 }, 40.4, 8e6, 750, 20).defl_case, '一般');
   // 介面剪應力上限兩制（台灣 §7.3.6 4.(4)d vs AASHTO 5.8.4.1；2026-09-23 NLM 核）
   chkEq('介面上限常數 AASHTO', JSON.stringify(BC.K_INTERFACE_AASHTO), '[0.25,10.3]');
   chkEq('介面上限常數 台灣', JSON.stringify(BC.K_INTERFACE_TW), '[0.2,5.52]');

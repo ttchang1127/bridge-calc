@@ -59,6 +59,7 @@ from bridgecalc.staging import (pos_conn_strand, pos_conn_rebar, strand_stress_e
                                 cantilever_units, cantilever_layout, cantilever_M_I, cantilever_M_I_points,
                                 cantilever_unbalanced, cantilever_falsework, cantilever_X1X0,
                                 cantilever_schedule, cantilever_stages)
+from bridgecalc import allowables
 from bridgecalc import seismic as seis
 from bridgecalc import retrofit as retro
 
@@ -1280,6 +1281,28 @@ golden = {
         "l_p_mm": round(retro.plate_dev_length(305, 800, 2.5, 200), 1),
         "_note": "ε_sp需求1846≫f_sp→鋼板降伏取305;軸力平衡x=161.6;M_u(式6-26)=609(+36%,近40%上限);粘貼延伸l_p(式6-37)=788。對齊算例_外貼鋼板抗彎補強設計"},
     "cantilever_X_C2": _cantilever_C2(),
+    "allowables_TW_audit": {
+        "config": "稽核線批4/6（2026-09-24 NLM 7d947294）台灣明文容許值；f'c=40、f'ci=32、L=40000mm",
+        "comp_service_TW_permanent": round(allowables.comp_service_TW_permanent(40.0), 4),
+        "comp_service_TW_live_half": round(allowables.comp_service_TW_live_half(40.0), 4),
+        "tension_precomp_bonded_general": round(allowables.tension_precompressed_TW(40.0), 4),
+        "tension_precomp_bonded_segmental": round(allowables.tension_precompressed_TW(40.0, segmental=True), 4),
+        "tension_precomp_corrosive_general": round(allowables.tension_precompressed_TW(40.0, corrosive=True), 4),
+        "tension_precomp_corrosive_segmental": allowables.tension_precompressed_TW(40.0, segmental=True, corrosive=True),
+        "tension_precomp_unbonded": allowables.tension_precompressed_TW(40.0, bonded=False),
+        "transfer_tension_TW_unbonded": round(allowables.transfer_tension_TW(32.0), 4),
+        "transfer_tension_TW_bonded": round(allowables.transfer_tension_TW(32.0, bonded=True), 4),
+        "transfer_tension_TW_segmental_unbonded": allowables.transfer_tension_TW(32.0, segmental=True),
+        "transfer_tension_current_AASHTO_nocap": round(allowables.transfer_tension(32.0), 4),
+        "defl_limit": {k: round(allowables.deflection_limit_TW(40000.0, k), 4)
+                       for k in allowables.TW_DEFLECTION_DENOM},
+        "long_term_Ig": allowables.long_term_factor_TW(),
+        "long_term_Ie_r05": round(allowables.long_term_factor_TW(False, 0.5), 4),
+        "long_term_Ie_r15_floor": round(allowables.long_term_factor_TW(False, 1.5), 4),
+        "_note": "🔴 comp_service_TW_permanent 原 −0.45f'c（AASHTO 5.9.4.2.1 值）→ 台灣 §8.15.2 2.(2) 明文 −0.40f'c，"
+                 "更正時無呼叫者故既有 golden 不動。transfer_tension（現行 0.25√f'ci 無上限）與 "
+                 "transfer_tension_TW（min(0.25√f'ci, 14 kgf/cm²=1.3729)）並列，f'ci=32 時差 3.0%，"
+                 "是否將上限併入現行式待裁示。長期因素下限 1.6（§7.1.22 7.(4)b）A's/As>1.17 起控制。"},
     "retrofit_R4_enlargement": {
         "config": "R4 增大截面抗彎(JTG/T J22) 底加100mm(h800→900)+新筋2D25 h02860",
         "h0_mm": round((1964*750+982*860)/2946, 1), "x_mm": round(retro_R4.x, 1),

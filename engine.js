@@ -679,9 +679,10 @@
     return { T_req: T, C_precomp: C, fs_allow: fs, As: max(0, T - C) * 1e3 / fs,
              As_conservative: T * 1e3 / fs, max_dist_from_axis: a_plate };
   };
-  BC.blisterSpalling = function (Ps, fy, phi, ratio) {
+  // 剝裂力 F = 0.02·P_u（乘因數）：台 §8.21.3 4.(8)「剝裂力應不小於乘因數預力之2%」／AASHTO 5.10.9.3.2 total factored
+  BC.blisterSpalling = function (Pu, fy, phi, ratio) {
     fy = fy || 420; phi = phi == null ? 0.9 : phi; ratio = ratio == null ? 0.02 : ratio;
-    var F = ratio * Ps;
+    var F = ratio * Pu;
     return { F_spall: F, As_spall: F * 1e3 / (phi * fy) };
   };
   // ⚠ 剪力摩擦有**面積上限**：As_vf 算得出來不代表做得到。介面面積不足時
@@ -729,7 +730,7 @@
     var bearing = BC.blisterLocalBearing(Pd, Aplate, Ab, fci),
         burst = BC.blisterBursting(Pu, ap, Lb, 0, fy),
         tie = BC.blisterTieback(Ps, fcb, Acb, fy, ap),
-        spall = BC.blisterSpalling(Ps, fy),
+        spall = BC.blisterSpalling(Pu, fy),   // 剝裂＝乘因數（台 §8.21.3 4.(8)／AASHTO 5.10.9.3.2）；2026-09-26 由 Ps 更正
         face = BC.blisterInterfaceShear(Ps, al, mu, fsd, 0, 1, Aint, fc),
         geom = BC.blisterGeometryCheck(Lb, Wb, ap, bp, sh);
     var items = { '爆裂': burst.As_burst, 'Tie-back': tie.As_conservative,
@@ -2089,7 +2090,10 @@
 
   // ── H1/H2 支架/托架施拉應力歷程 ──
   // 施拉容許拉 0.25√f'ci [MPa]
-  CE.transferTensionLimit = function (fci) { return 0.25 * Math.sqrt(fci); };
+  // 施拉容許拉 = min(0.25√f'ci, 1.38 MPa)（AASHTO 5.9.4.1.2；台灣 §8.15.2 1. 為 1.3729，見 BC.transferTensionTW）。
+  // 🔴 2026-09-26 更正：原式缺上限（f'ci=32 時 1.414 → 1.38），同 bridgecalc.allowables.transfer_tension。
+  CE.AASHTO_TRANSFER_TENSION_CAP_MPa = 1.38;
+  CE.transferTensionLimit = function (fci) { return Math.min(0.25 * Math.sqrt(fci), CE.AASHTO_TRANSFER_TENSION_CAP_MPa); };
   // 施拉容許壓（壓為負）：一般 0.55f'ci / 節塊 0.60f'ci
   CE.transferCompLimit = function (fci, bridgeType) {
     return -(bridgeType === '節塊' ? 0.60 : 0.55) * fci;

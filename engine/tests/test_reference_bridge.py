@@ -837,7 +837,8 @@ def test_durability_N1():
 def test_construction_stage_H1H2():
     """H1/H2 施工階段（參考橋 8組×19股，對齊算例_40m參考橋施工階段應力歷程）：
     支架上施拉 M_sw=0 → 過平衡頂緣引張；全PT 超限、分批4組通過；脫架自重活化回壓。"""
-    _close(transfer_tension_limit(32), 1.41, 0.01)
+    _close(transfer_tension_limit(32), 1.38, 1e-9)          # 上限控制（0.25√32=1.414 > 1.38）
+    _close(transfer_tension_limit(25), 1.25, 1e-9)          # 上限以下仍為 0.25√f'ci
     s8 = batched_transfer(29700e3, 8, 8, sec, 1109, 32)        # S2 全 PT
     _close(s8.sigma_top, 1.86, 0.02)
     _close(s8.sigma_bot, -19.18, 0.05)
@@ -1125,8 +1126,8 @@ def test_blister_matches_worked_example():
     _close(d.tie.fs_allow, 248.0, 0.05)
     _close(d.tie.As, 488.0, 0.5)
     _close(d.tie.As_conservative, 1778.0, 0.5)
-    _close(d.spall.F_spall, 35.3, 0.05)            # 5.3 剝裂
-    _close(d.spall.As_spall, 93.0, 0.5)
+    _close(d.spall.F_spall, 60.0, 0.05)            # 5.3 剝裂（乘因數 P_u；2026-09-26 由 P_s 更正）
+    _close(d.spall.As_spall, 158.7, 0.5)
     _close(d.face.V_int, 1757.0, 0.5)              # 5.4 介面剪力摩擦
     _close(d.face.As_vf, 4881.0, 1.0)
     assert d.governing == "介面剪力摩擦"            # 齒塊的配筋量由介面控制
@@ -1728,6 +1729,15 @@ def test_deflection_limits_TW():
     # 同一撓度在較嚴情況下可能翻為不通過
     strict = deflection_analysis(L, 30000.0, sec, 40.4, 8e6, 750.0, 20.0, defl_case="市區人行")
     assert strict.d_LL_limit < r.d_LL_limit and strict.d_LL == r.d_LL
+
+
+def test_blister_spalling_factored():
+    """剝裂力以乘因數力計（台 §8.21.3 4.(8)／AASHTO 5.10.9.3.2）；Tie-back 以未乘因數計。"""
+    from bridgecalc.blister import blister_design, blister_spalling
+    d = blister_design(Ps_kN=1764, Pu_kN=3000, Pd_kN=3000)
+    assert abs(d.spall.F_spall - 0.02 * 3000) < 1e-9           # 乘因數 P_u
+    assert abs(d.tie.T_req - 0.25 * 1764) < 1e-9               # 未乘因數 P_s
+    assert abs(blister_spalling(3000).F_spall - 60.0) < 1e-9
 
 
 def test_interface_shear_K_two_codes():

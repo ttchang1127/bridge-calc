@@ -95,18 +95,21 @@ def tension_serviceIII(fc: float) -> float:
 
 # ────────────────────────────── 施拉階段（transfer）──────────────────────────────
 
-def transfer_tension(fci: float) -> float:
-    """施拉階段容許拉應力 ≈ 0.25√f'ci（MPa；AASHTO 5.9.2.3.1b 有黏結近似）。
+# AASHTO 5.9.4.1.2 其他區域無握裹鋼筋之絕對上限（SI）
+AASHTO_TRANSFER_TENSION_CAP_MPa = 1.38
 
-    ⚠ **2026-09-24 稽核發現：本式缺上限。** AASHTO 5.9.4.1.2 與台灣 §8.15.2 1. 對「其他區域·
-      無握裹鋼筋」都是 **min(0.25√f'ci, ≈1.38 MPa)**（台灣原文「14 kgf/cm² 或 0.8√f'ci」，
-      14 kgf/cm²＝1.3729 MPa）。f'ci > 30.1 MPa 時上限才控制——40m 參考橋 f'ci=32 恰落在
-      上限側（1.414 vs 1.373，本式寬鬆 3.0%、偏不安全）。
-      本檔 `neg_top_tension_limit`（staging.py）同一限值**有**帶上限，引擎內部不一致。
-      🔴 加上限會動既有 golden（施拉階段判定），故保留原式待裁示；
-      需要台灣明文值者請用 `transfer_tension_TW()`。
+
+def transfer_tension(fci: float) -> float:
+    """施拉階段容許拉應力 = min(0.25√f'ci, 1.38 MPa)（AASHTO 5.9.4.1.2，其他區域無握裹鋼筋）。
+
+    🔴 **2026-09-26 更正（使用者裁示）**：原式 0.25√f'ci **缺上限**。AASHTO 5.9.4.1.2 與台灣
+      §8.15.2 1.（「14 kgf/cm² 或 0.8√f'ci」＝min(0.25√f'ci, 1.3729)）**都有上限**，引擎內
+      `staging.neg_top_tension_limit` 也早已帶 1.38——唯本式遺漏。f'ci > 30.5 MPa 起上限控制；
+      40m 參考橋 f'ci=32 由 1.414 → **1.38**（golden construction_stage_H1H2 1.41→1.38，
+      S2 全張拉 1.86 仍超、分批 0.93 仍過，判定不變）。
+      台灣明文值（上限 1.3729）見 `transfer_tension_TW()`。
     """
-    return 0.25 * math.sqrt(fci)
+    return min(0.25 * math.sqrt(fci), AASHTO_TRANSFER_TENSION_CAP_MPa)
 
 
 # 施拉階段容許壓應力係數（公式卡_服務性應力限制 C1「施拉壓應力」表；後拉法）

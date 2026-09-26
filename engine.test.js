@@ -847,7 +847,8 @@ function chkEq(name, got, exp) {
   // ── H1/H2 支架施拉應力歷程：40m參考橋 8組×19股、f'ci=32、基準斷面 ──
   var h = g.construction_stage_H1H2;
   var sec = BC.section(5.065e6, 3.287e12, 1329, 2100), e = 1109, Pi = 29700e3, fci = 32;
-  chk('H1/H2 施拉容許拉0.25√f\'ci', CE.transferTensionLimit(fci), h.transfer_tension_limit_MPa, 0.01);
+  chk('H1/H2 施拉容許拉 min(0.25√f\'ci,1.38)', CE.transferTensionLimit(fci), h.transfer_tension_limit_MPa, 0.01);
+  chk('施拉容許拉 上限以下 f\'ci=25', CE.transferTensionLimit(25), 1.25, 1e-9);
 
   var h8 = CE.batchedTransfer(Pi, 8, 8, sec, e, fci);          // 全 PT 一次張拉（過平衡）
   chk('H2 全PT 頂緣σ_t', h8.st, h.S2_fullPT_top_MPa, 0.01);

@@ -1293,16 +1293,15 @@ golden = {
         "transfer_tension_TW_unbonded": round(allowables.transfer_tension_TW(32.0), 4),
         "transfer_tension_TW_bonded": round(allowables.transfer_tension_TW(32.0, bonded=True), 4),
         "transfer_tension_TW_segmental_unbonded": allowables.transfer_tension_TW(32.0, segmental=True),
-        "transfer_tension_current_AASHTO_nocap": round(allowables.transfer_tension(32.0), 4),
+        "transfer_tension_AASHTO_capped": round(allowables.transfer_tension(32.0), 4),
         "defl_limit": {k: round(allowables.deflection_limit_TW(40000.0, k), 4)
                        for k in allowables.TW_DEFLECTION_DENOM},
         "long_term_Ig": allowables.long_term_factor_TW(),
         "long_term_Ie_r05": round(allowables.long_term_factor_TW(False, 0.5), 4),
         "long_term_Ie_r15_floor": round(allowables.long_term_factor_TW(False, 1.5), 4),
         "_note": "🔴 comp_service_TW_permanent 原 −0.45f'c（AASHTO 5.9.4.2.1 值）→ 台灣 §8.15.2 2.(2) 明文 −0.40f'c，"
-                 "更正時無呼叫者故既有 golden 不動。transfer_tension（現行 0.25√f'ci 無上限）與 "
-                 "transfer_tension_TW（min(0.25√f'ci, 14 kgf/cm²=1.3729)）並列，f'ci=32 時差 3.0%，"
-                 "是否將上限併入現行式待裁示。長期因素下限 1.6（§7.1.22 7.(4)b）A's/As>1.17 起控制。"},
+                 "更正時無呼叫者故既有 golden 不動。transfer_tension 已加 AASHTO 上限 1.38（2026-09-26 裁示；原無上限 1.414）；"
+                 "transfer_tension_TW 為台灣 min(0.25√f'ci, 14 kgf/cm²=1.3729)。長期因素下限 1.6（§7.1.22 7.(4)b）A's/As>1.17 起控制。"},
     "retrofit_R4_enlargement": {
         "config": "R4 增大截面抗彎(JTG/T J22) 底加100mm(h800→900)+新筋2D25 h02860",
         "h0_mm": round((1964*750+982*860)/2946, 1), "x_mm": round(retro_R4.x, 1),

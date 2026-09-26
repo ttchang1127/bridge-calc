@@ -248,7 +248,7 @@ sections.append(("十四、溫度梯度自平衡應力（T1，已接引擎服務
 
 r_h2 = row("S2 分批 4 組頂緣（支架上施拉，自重未活化）", r"\sigma_t=-\frac{P}{A}+\frac{P\,e}{S_t}",
            "-2.93+3.86", f"{h_batch.sigma_top:+.2f}{MPa}",
-           f"≤ {tt_lim:.2f}（0.25√f'ci 施拉容許拉）", h_batch.top_ok, "H1/H2")
+           f"≤ {tt_lim:.2f}（min(0.25√f'ci, 1.38) 施拉容許拉，AASHTO 5.9.4.1.2）", h_batch.top_ok, "H1/H2")
 sec15 = f"""<p>梁在支架／托架上施拉時自重彎矩尚未活化（M<sub>sw</sub>=0），預力大偏心 e={ten.e:,.0f} mm 使頂緣淨受拉（過平衡 LBR&gt;1）。同 40m 參考橋（8組×19股、P<sub>i</sub>={ten.Pi/1e3:,.0f} kN、f'ci=32）。</p>
 <table class="props">
 <tr><td>S2 全 PT 頂緣</td><td>{h_full.sigma_top:+.2f} MPa &gt; {tt_lim:.2f} <b>超限</b> {chk(h_full.top_ok)}</td><td>S2 全 PT 底緣</td><td>{h_full.sigma_bot:+.2f} MPa（≥ {tc_lim:.1f}，0.55 f'ci）{chk(h_full.bot_ok)}</td></tr>

@@ -117,17 +117,17 @@ class SpallResult:
     As_spall: float
 
 
-def blister_spalling(Ps_kN: float, fy: float = 420.0, phi: float = 0.9,
+def blister_spalling(Pu_kN: float, fy: float = 420.0, phi: float = 0.9,
                      ratio: float = 0.02) -> SpallResult:
-    """角隅剝裂力與配筋（現行：0.02·傳入力，blister_design 傳 P_s）。
+    """角隅剝裂力與配筋：F = 0.02·P_u（**乘因數**鋼腱力）。
 
-    🔴 **2026-09-26 稽核發現（待裁示，未改行為）**：兩制皆規定以**乘因數**力計——
-      台灣 §8.21.3 4.(8)（p.170）「剝裂力應不小於**乘因數**預力之2%」；
-      AASHTO 5.10.9.3.2（p.5-138）「2 percent of the total **factored** tendon force」
-      （錨碇區設計力＝1.2×最大張拉力，3.4.3.2）。原註「Art. 5.10.9.6.5，約 0.02·P_s」出處與基準皆不符。
-      `blister_design` 目前傳 P_s，B1 算例少算 41%（P_u/P_s＝1.70）。更正會動 golden blister_B1。
+    台灣 §8.21.3 4.(8)（p.170）「剝裂力應不小於**乘因數**預力之2%」；
+    AASHTO 5.10.9.3.2（p.5-138）「2 percent of the total **factored** tendon force」
+    （錨碇區設計力＝1.2×最大張拉力，3.4.3.2）。
+    🔴 **2026-09-26 更正（使用者裁示）**：`blister_design` 原傳 P_s（未乘因數），兩制皆不符，
+      B1 算例少算 41%（P_u/P_s＝1.70）→ 改傳 P_u。原註「Art. 5.10.9.6.5，約 0.02·P_s」出處與基準皆誤。
     """
-    F = ratio * Ps_kN
+    F = ratio * Pu_kN
     return SpallResult(F_spall=F, As_spall=F * 1e3 / (phi * fy))
 
 
@@ -248,8 +248,9 @@ def blister_design(Ps_kN: float, Pu_kN: float, Pd_kN: float,
     """中間錨碇齒塊完整設計（四類配筋＋局部承壓＋幾何）。
 
     三個設計力刻意分開傳，因為**它們的來源與係數都不同**，混用是常見錯誤：
-      P_s：服務狀態鋼腱力 → Tie-back（規範明文以未係數化力計）與剝裂、介面剪力
-      P_u：係數化鋼腱力   → 爆裂（一般區 STM）
+      P_s：服務狀態鋼腱力 → Tie-back（台 §8.21.3 5.(2)／AASHTO 5.10.9.3.4b 皆明文「未加乘因數」）、介面剪力
+      P_u：係數化鋼腱力   → 爆裂（一般區 STM）與**剝裂**（台 §8.21.3 4.(8)／AASHTO 5.10.9.3.2 皆「乘因數」；
+                            2026-09-26 由 P_s 更正）
       P_d：張拉工況設計力 → 局部區承壓（螺旋筋設計）
     """
     A_plate = a_plate * b_plate
@@ -257,7 +258,7 @@ def blister_design(Ps_kN: float, Pu_kN: float, Pd_kN: float,
     bearing = blister_local_bearing(Pd_kN, A_plate, A_bearing, fci)
     burst = blister_bursting(Pu_kN, a_plate, L_b, 0.0, fy)
     tie = blister_tieback(Ps_kN, f_cb, A_cb, fy, a_plate)
-    spall = blister_spalling(Ps_kN, fy)
+    spall = blister_spalling(Pu_kN, fy)
     face = blister_interface_shear(Ps_kN, alpha_deg, mu, fsd, 0.0, 1.0, A_int, fc)
     geom = blister_geometry_check(L_b, W_b, a_plate, b_plate, straight_have)
     items = {"爆裂": burst.As_burst, "Tie-back": tie.As_conservative,

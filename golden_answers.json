@@ -514,8 +514,8 @@
     "fs_allow_MPa": 248.0,
     "As_tie_mm2": 487.9,
     "As_tie_conservative_mm2": 1778.2,
-    "F_spall_kN": 35.28,
-    "As_spall_mm2": 93.3,
+    "F_spall_kN": 60.0,
+    "As_spall_mm2": 158.7,
     "V_interface_kN": 1757.3,
     "As_vf_mm2": 4881.4,
     "tau_interface_MPa": 17.573,
@@ -524,7 +524,7 @@
     "interface_area_ok": false,
     "A_interface_req_mm2": 175729.0,
     "governing": "介面剪力摩擦",
-    "As_total_conservative_mm2": 7745.0,
+    "As_total_conservative_mm2": 7810.4,
     "geom_ok": true,
     "_note": "局部承壓 75.0 > 25.5 不通過 → 必須配錨具螺旋筋(需提升2.94倍)，這是齒塊錨板面積受限的必然結果不是錯誤。配筋由介面剪力摩擦控制(4,881mm²)——齒塊傳 P·cos5°=1,757kN，轉向塊只傳 P·sin5°=154kN，差11倍。Tie-back 兩值並列：含既有預壓抵扣 488、不抵扣 1,778；補強既有橋時預壓分布難確認應取後者，引擎不替使用者選邊。🔴算例漏檢介面面積上限：τ=17.57 > min(0.25f'c,10.3)=10.0 MPa，400×250 的介面差1.76倍，加多少鋼筋都沒用只能加大齒塊(600×300 即通過，且配筋需求完全不變)。K1/K2 隨規範版次不同。"
   },
@@ -1078,7 +1078,7 @@
   },
   "construction_stage_H1H2": {
     "config": "40m參考橋 8組×19股，支架/托架上施拉 fci=32",
-    "transfer_tension_limit_MPa": 1.41,
+    "transfer_tension_limit_MPa": 1.38,
     "S2_fullPT_top_MPa": 1.86,
     "S2_fullPT_top_ok": false,
     "S2_fullPT_bot_MPa": -19.18,
@@ -1287,7 +1287,7 @@
     "transfer_tension_TW_unbonded": 1.3729,
     "transfer_tension_TW_bonded": 3.5242,
     "transfer_tension_TW_segmental_unbonded": 0.0,
-    "transfer_tension_current_AASHTO_nocap": 1.4142,
+    "transfer_tension_AASHTO_capped": 1.38,
     "defl_limit": {
       "一般": 50.0,
       "市區人行": 40.0,
@@ -1297,7 +1297,7 @@
     "long_term_Ig": 4.0,
     "long_term_Ie_r05": 2.4,
     "long_term_Ie_r15_floor": 1.6,
-    "_note": "🔴 comp_service_TW_permanent 原 −0.45f'c（AASHTO 5.9.4.2.1 值）→ 台灣 §8.15.2 2.(2) 明文 −0.40f'c，更正時無呼叫者故既有 golden 不動。transfer_tension（現行 0.25√f'ci 無上限）與 transfer_tension_TW（min(0.25√f'ci, 14 kgf/cm²=1.3729)）並列，f'ci=32 時差 3.0%，是否將上限併入現行式待裁示。長期因素下限 1.6（§7.1.22 7.(4)b）A's/As>1.17 起控制。"
+    "_note": "🔴 comp_service_TW_permanent 原 −0.45f'c（AASHTO 5.9.4.2.1 值）→ 台灣 §8.15.2 2.(2) 明文 −0.40f'c，更正時無呼叫者故既有 golden 不動。transfer_tension 已加 AASHTO 上限 1.38（2026-09-26 裁示；原無上限 1.414）；transfer_tension_TW 為台灣 min(0.25√f'ci, 14 kgf/cm²=1.3729)。長期因素下限 1.6（§7.1.22 7.(4)b）A's/As>1.17 起控制。"
   },
   "retrofit_R4_enlargement": {
     "config": "R4 增大截面抗彎(JTG/T J22) 底加100mm(h800→900)+新筋2D25 h02860",
